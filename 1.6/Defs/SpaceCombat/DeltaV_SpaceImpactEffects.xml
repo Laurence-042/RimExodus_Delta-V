@@ -1,10 +1,46 @@
 <?xml version='1.0' encoding='utf-8'?>
 <Defs>
-  <DeltaV.SpaceImpactEffectDef>
-    <defName>DeltaV_Impact_CannonVsStructure</defName>
+  <DamageDef ParentName="Bomb">
+    <defName>DeltaV_SpaceHighExplosive</defName>
+    <label>ship shell explosion</label>
+    <workerClass>DeltaV.DamageWorker_SpaceHighExplosive</workerClass>
+    <buildingDamageFactorImpassable>1</buildingDamageFactorImpassable>
+    <buildingDamageFactorPassable>1</buildingDamageFactorPassable>
+  </DamageDef>
+  <DeltaV.SpaceImpactEffectDef Name="DeltaV_SteelShellBlast">
+    <defName>DeltaV_Impact_SteelShellVsStructure</defName>
     <projectileDefs>
       <li>DeltaV_Projectile_Cannon</li>
       <li>DeltaV_Projectile_Rapid</li>
+      <li>DeltaV_Projectile_SteelShellTumbling</li>
+    </projectileDefs>
+    <defenderEffect>
+      <kind>DamageMap</kind>
+      <damageDef>DeltaV_SpaceHighExplosive</damageDef>
+      <armorPenetration>0.10</armorPenetration>
+      <highExplosive>
+        <damageByMass><points><li>(1,32)</li><li>(2,64)</li><li>(24,480)</li><li>(48,760)</li><li>(96,1120)</li></points></damageByMass>
+        <radiusByMass><points><li>(1,0.75)</li><li>(2,1.25)</li><li>(24,1.8)</li><li>(48,2.4)</li><li>(96,3.0)</li></points></radiusByMass>
+      </highExplosive>
+    </defenderEffect>
+    <attackerEffect><kind>DestroySelf</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_SteelShellBlast" Name="DeltaV_SteelShellDeckBlast">
+    <defName>DeltaV_Impact_SteelShellVsSubstructure</defName>
+    <projectileDefs Inherit="False"><li>DeltaV_Projectile_Cannon</li><li>DeltaV_Projectile_Rapid</li></projectileDefs>
+    <targetsSubstructure>true</targetsSubstructure>
+    <substructureHitChance>0.03</substructureHitChance>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_SteelShellDeckBlast">
+    <defName>DeltaV_Impact_TumblingSteelShellVsSubstructure</defName>
+    <projectileDefs Inherit="False"><li>DeltaV_Projectile_SteelShellTumbling</li></projectileDefs>
+    <substructureHitChance>0.01</substructureHitChance>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef>
+    <defName>DeltaV_Impact_CannonVsStructure</defName>
+    <projectileDefs>
+      <li>DeltaV_Projectile_CannonUranium</li>
+      <li>DeltaV_Projectile_RapidUranium</li>
     </projectileDefs>
     <defenderEffect>
       <kind>DamageMap</kind>
@@ -24,8 +60,8 @@
   <DeltaV.SpaceImpactEffectDef>
     <defName>DeltaV_Impact_CannonVsSubstructure</defName>
     <projectileDefs>
-      <li>DeltaV_Projectile_Cannon</li>
-      <li>DeltaV_Projectile_Rapid</li>
+      <li>DeltaV_Projectile_CannonUranium</li>
+      <li>DeltaV_Projectile_RapidUranium</li>
     </projectileDefs>
     <targetsSubstructure>true</targetsSubstructure>
     <substructureHitChance>0.03</substructureHitChance>
@@ -335,6 +371,8 @@
     <projectileDefs>
       <li>DeltaV_Projectile_Cannon</li>
       <li>DeltaV_Projectile_Rapid</li>
+      <li>DeltaV_Projectile_CannonUranium</li>
+      <li>DeltaV_Projectile_RapidUranium</li>
     </projectileDefs>
     <targetThingDefs>
       <li>GravshipShieldGenerator</li>
@@ -358,6 +396,7 @@
     <projectileDefs>
       <li>DeltaV_Projectile_ShieldFragment</li>
       <li>DeltaV_Projectile_ShellTumbling</li>
+      <li>DeltaV_Projectile_SteelShellTumbling</li>
       <li>DeltaV_Projectile_RapidFragment</li>
     </projectileDefs>
     <targetThingDefs>

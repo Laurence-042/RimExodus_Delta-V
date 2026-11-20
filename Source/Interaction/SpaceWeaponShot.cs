@@ -127,7 +127,7 @@ namespace DeltaV
             var spec = new SpaceProjectileLaunchSpec(speed, ignitionDelayTicks,
                 coldLaunchSpeed, damageScale, armorPenetrationScale, parameters.mass, parameters.power);
             bool traceCannon = DeltaVLog.Enabled(DeltaVLogModule.Development)
-                && projectileDef.defName == "DeltaV_Projectile_Cannon"
+                && weapon.WeaponProps.projectileDef == DeltaVDefOf.DeltaV_Projectile_Cannon
                 && guidanceTarget.Kind == CombatTargetKind.Ship;
             if (!universe.Projectiles.Launch(projectileDef, container, muzzleUniverse,
                 directionWorld, weapon.parent.Faction, weapon.parent, guidanceTarget, spec,

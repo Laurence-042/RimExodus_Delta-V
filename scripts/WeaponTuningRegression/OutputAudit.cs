@@ -28,7 +28,7 @@ internal static partial class Program
     {
         public string Weapon, Family, Size, Material;
         public int Charge, Heads, Interval, Power, CycleTicks, CycleShots, Shots10, Shots60, StockShots;
-        public double Speed, LifeTravel, AimRange, Damage, ShieldDamage, BurstDps, SustainedDps,
+        public double Speed, LifeTravel, AimRange, Damage, BlastRadius, ShieldDamage, BurstDps, SustainedDps,
             Dps10, Dps60, StockDps60, SteelPerShot, UraniumPerShot, SteelPerSecond, UraniumPerSecond,
             EnergyPerShot, PulseWatts, IdleWatts, LastStockShotSeconds;
         public double? FirstLockSeconds;
@@ -66,6 +66,23 @@ internal static partial class Program
         var part = new ImpactOutcomePart();
         foreach (var node in effects.Root.Elements().Single(x => (string)x.Element("defName") == name).Element("defenderEffect").Elements())
         {
+            if (node.Name == "highExplosive")
+            {
+                SimpleCurve Curve(string curveName)
+                {
+                    var curve = new SimpleCurve();
+                    curve.SetPoints(node.Element(curveName).Element("points").Elements().Select(point =>
+                    {
+                        var values = point.Value.Trim('(', ')').Split(',');
+                        return new CurvePoint(float.Parse(values[0], CultureInfo.InvariantCulture),
+                            float.Parse(values[1], CultureInfo.InvariantCulture));
+                    }));
+                    return curve;
+                }
+                part.highExplosive = new HighExplosiveProfile
+                    { damageByMass = Curve("damageByMass"), radiusByMass = Curve("radiusByMass") };
+                continue;
+            }
             FieldInfo field = typeof(ImpactOutcomePart).GetField(node.Name.LocalName);
             if (field != null && (field.FieldType.IsPrimitive || field.FieldType.IsEnum))
                 field.SetValue(part, field.FieldType.IsEnum ? Enum.Parse(field.FieldType, node.Value)
@@ -101,6 +118,7 @@ internal static partial class Program
         string projectilePath = Path.Combine(repo, "1.6/Defs/SpaceCombat/DeltaV_SpaceProjectiles.xml");
         string suppliesPath = Path.Combine(repo, "1.6/Defs/SpaceCombat/DeltaV_GunSupplies.xml");
         var defs = XDocument.Load(defsPath); var effects = XDocument.Load(effectsPath); var projectiles = XDocument.Load(projectilePath);
+        var steelBlast = AuditEffect(effects, "DeltaV_Impact_SteelShellVsStructure");
         var supplies = XDocument.Load(suppliesPath);
         XElement Def(string name) => defs.Root.Elements().Single(x => (string)x.Element("defName") == name);
         double UnitCost(string product) {
@@ -142,7 +160,9 @@ internal static partial class Program
                 double mass = heads * (material == "Uranium" ? uraniumMass : AuditNumber(AuditComp(def, "DeltaV.CompProperties_SpaceWeaponMagazine"), "unitMass", 1));
                 float speed = chemical ? SpaceKinetics.LaunchSpeed(charge, (float)mass) : 60f;
                 float scale = (float)AuditNumber(weapon, "impactScale", 1) * power;
-                double damage = SpaceImpactEffects.ComputeDamage(structure, speed, 0, 1, (float)mass) * scale;
+                bool steel = material == "Steel";
+                double damage = SpaceImpactEffects.ComputeDamage(steel ? steelBlast : structure, speed, 0, 1, (float)mass)
+                    * (steel ? 1f : scale);
                 double drain = SpaceImpactEffects.ComputeDamage(shield, speed, 0, 1, (float)mass) * scale;
                 double rate = cycle.Shots.Count * 60d / cycle.Ticks;
                 int stockShots = int.MaxValue;
@@ -157,7 +177,8 @@ internal static partial class Program
                     Charge = chemical ? charge : 0, Heads = chemical ? heads : 0, Interval = heavy ? cycle.Ticks : interval, Power = power,
                     CycleTicks = cycle.Ticks, CycleShots = cycle.Shots.Count, Cycle = cycle, Speed = chemical ? speed : 0,
                     LifeTravel = chemical ? speed * AuditNumber(projectileProps, "timeoutTicks") / 60d : AuditNumber(projectileProps, "laserRange"),
-                    AimRange = AuditNumber(weapon, "range"), Damage = damage, ShieldDamage = drain,
+                    AimRange = AuditNumber(weapon, "range"), Damage = damage,
+                    BlastRadius = steel ? steelBlast.highExplosive.Radius((float)mass) : 0d, ShieldDamage = drain,
                     BurstDps = damage * 60 / (heavy ? cycle.Ticks : interval), SustainedDps = damage * rate,
                     Shots10 = cycle.CountBefore(600), Shots60 = cycle.CountBefore(3600), StockShots = chemical ? stockShots : 0,
                     FirstLockSeconds = cycle.FirstLock / 60d,
@@ -182,6 +203,7 @@ internal static partial class Program
         var shieldDef = XDocument.Load(shieldPath).Root.Elements().Single(x => (string)x.Element("defName") == "DeltaV_ShieldGenerator");
         Game previous = Current.Game;
         Current.Game = (Game)RuntimeHelpers.GetUninitializedObject(typeof(Game));
+        Current.Game.components = new List<GameComponent>();
         typeof(Game).GetField("maps", PrivateInstance).SetValue(Current.Game, new List<Map> { null });
         try
         {

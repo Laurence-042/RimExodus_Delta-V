@@ -47,7 +47,8 @@ namespace DeltaV
             if (target.def.building?.canBeDamagedByAttacks == false) return 0;
             if (damage == null) { uncertain = true; return Mathf.Max(0, amount); }
             Type worker = damage.workerClass;
-            uncertain = worker != typeof(DamageWorker) && worker != typeof(DamageWorker_AddInjury);
+            uncertain = worker != typeof(DamageWorker) && worker != typeof(DamageWorker_AddInjury)
+                && worker != typeof(DamageWorker_SpaceHighExplosive);
             uncertain |= HasCustomDamageHook(target.GetType());
             if (target is ThingWithComps withComps && withComps.AllComps != null)
                 foreach (var comp in withComps.AllComps) uncertain |= HasCustomDamageHook(comp.GetType());

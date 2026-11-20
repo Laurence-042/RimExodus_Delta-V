@@ -378,8 +378,10 @@ def furnish(name, plan, foundation, roofs, records, occupied, reserved, put, aut
 
     def supply(room, definitions, near=None):
         cabinet = auto('Shelf', room, state={'allowedDefs': [thing for thing, _ in definitions]}, near=near)
-        assert len(cabinet['cells']) >= len(definitions)
-        for cell, (thing, count) in zip(cabinet['cells'], definitions):
+        cells = cabinet['cells']
+        assert len(definitions) <= len(cells) * int(prop('Shelf', 'building/maxItemsInCell'))
+        for index, (thing, count) in enumerate(definitions):
+            cell = cells[index % len(cells)]
             put(thing, *cell, layer='items', state={'stackCount': count})
 
     if name == 'SectorGunboat':
@@ -414,7 +416,10 @@ def furnish(name, plan, foundation, roofs, records, occupied, reserved, put, aut
                 put('DiningChair', px, pz, face)
     supply(quarters, [('MealSurvivalPack', 10), ('MedicineIndustrial', 10)])
     magazine = rooms.get('magazine', rooms.get('battery', quarters))
-    supply(magazine, [('DeltaV_Propellant', 40), ('DeltaV_SteelHead', 40)], near=center(magazine))
+    ammunition = [('DeltaV_Propellant', 40), ('DeltaV_SteelHead', 40)]
+    if name == 'SectorDestroyer':
+        ammunition.append(('DeltaV_UraniumHead', 60))
+    supply(magazine, ammunition, near=center(magazine))
     if 'emergency_power' in spec:
         supply(magazine, [('Chemfuel', 75), ('ComponentIndustrial', 10)], near=spec['emergency_power'])
 

@@ -8,7 +8,7 @@ namespace DeltaV
 {
     internal struct CombatDamageEstimate
     {
-        internal float structure, guard, armorProgress, returnedPotential, uncertainDamageUpper;
+        internal float structure, foundation, guard, armorProgress, returnedPotential, uncertainDamageUpper;
         internal bool uncertain, exhausted, hitArmor;
         internal int contacts;
     }
@@ -42,6 +42,7 @@ namespace DeltaV
         {
             internal readonly Map map;
             internal readonly SpaceCollision.RayQuery query;
+            internal readonly HashSet<IntVec3> scopedFoundation;
             internal readonly Dictionary<Thing, float> health = new Dictionary<Thing, float>();
             internal readonly Dictionary<Thing, float> critical = new Dictionary<Thing, float>();
             internal readonly Dictionary<(ThingDef projectile, float sample), CoverMask> cover =
@@ -51,6 +52,7 @@ namespace DeltaV
             internal Observation(SpaceObject target, ShipBase scope = null)
             {
                 map = target.map; query = new SpaceCollision.RayQuery(target, scope);
+                if (scope != null) scopedFoundation = new HashSet<IntVec3>(query.foundationCells);
                 targets = new ShipFireControl.ExternalTargets();
                 foreach (Thing thing in map.listerThings.AllThings)
                 {
@@ -70,8 +72,10 @@ namespace DeltaV
         }
         private readonly SpaceCollision.RayQuery query;
         private readonly Map map;
+        private readonly HashSet<IntVec3> scopedFoundation;
         private readonly Dictionary<Thing, float> health = new Dictionary<Thing, float>();
         private readonly HashSet<IntVec3> brokenFoundation = new HashSet<IntVec3>();
+        private readonly HashSet<Thing> blastBuildings = new HashSet<Thing>();
         private readonly Dictionary<Thing, float> initialHealth;
         private readonly Dictionary<Thing, float> criticalWeights;
         private readonly float criticalTotal;
@@ -101,6 +105,7 @@ namespace DeltaV
         {
             resources = new CombatResourceLedger(); destroyed = resources.destroyed;
             map = observation.map; query = observation.query; initialHealth = observation.health;
+            scopedFoundation = observation.scopedFoundation;
             criticalWeights = observation.critical; criticalTotal = observation.criticalTotal; cover = observation.cover;
             Targets = observation.targets;
             includeLine = LineAvailable; includeGuard = arc => GuardAvailable(arc) > 0;
@@ -142,6 +147,52 @@ namespace DeltaV
                 criticalDamaged += weight * dealt / Mathf.Max(1, initialHealth[thing]);
             if (thing.def.useHitPoints && hp > 0 && health[thing] <= .00001f) destroyed.Add(thing);
             return dealt;
+        }
+
+        private void BreakFoundation(IntVec3 cell, ImpactOutcomePart part, ref CombatDamageEstimate result)
+        {
+            if (!brokenFoundation.Add(cell)) return;
+            if (scopedFoundation == null || scopedFoundation.Contains(cell))
+                result.foundation += part.substructureBreakThreshold;
+            foreach (Thing thing in cell.GetThingList(map))
+            {
+                if (thing is not Building || !initialHealth.ContainsKey(thing) || !destroyed.Add(thing)) continue;
+                float hp = RemainingHP(thing);
+                health[thing] = 0f;
+                result.structure += hp;
+                if (criticalWeights.TryGetValue(thing, out float weight))
+                    criticalDamaged += weight * hp / Mathf.Max(1f, initialHealth[thing]);
+            }
+        }
+
+        private void ForecastHighExplosive(IntVec3 center, ImpactOutcomePart part, float mass, float sample,
+            ref CombatDamageEstimate result)
+        {
+            float radius = part.highExplosive.Radius(mass);
+            int centerDamage = part.highExplosive.CenterDamage(mass);
+            var cells = SpaceImpactEffects.HighExplosiveCells(part.damageDef, map, center, radius);
+            SpaceImpactEffects.OrderHighExplosiveCells(cells, center);
+            blastBuildings.Clear();
+            for (int i = cells.Count - 1; i >= 0; i--)
+            {
+                IntVec3 cell = cells[i];
+                float damage = SpaceImpactEffects.HighExplosiveDamageAt(centerDamage, radius, center, cell);
+                var things = cell.GetThingList(map);
+                float minimumAltitude = float.MinValue;
+                foreach (Thing thing in things)
+                    if (thing.def.Fillage == FillCategory.Full && !thing.Destroyed && !destroyed.Contains(thing))
+                        minimumAltitude = Mathf.Max(minimumAltitude, thing.def.Altitude);
+                foreach (Thing thing in things)
+                    if (initialHealth.ContainsKey(thing) && !destroyed.Contains(thing)
+                        && thing.def.Altitude >= minimumAltitude && blastBuildings.Add(thing))
+                        Apply(thing, part.damageDef, damage, ref result);
+
+                if (brokenFoundation.Contains(cell)
+                    || SpaceStructureRules.ClassifyCell(map, cell, out _, destroyed) != SpaceCellKind.Substructure) continue;
+                float chance = SpaceImpactEffects.FoundationBreakChance(damage, part);
+                result.uncertain |= chance > 0f && chance < 1f;
+                if (ContactSample(sample, cell, 3) < chance) BreakFoundation(cell, part, ref result);
+            }
         }
 
         private static double Balance(Dictionary<CompSpaceShield, double> ledger, CompSpaceShield shield, bool local) =>
@@ -350,23 +401,16 @@ namespace DeltaV
                 }
                 if (hit.building != null) passed.Add(hit.building); else passedCells.Add(hit.cell);
                 if (SpaceImpactEffects.Ricochets(part, hit.building, incidence)) return;
+                if (part.highExplosive != null)
+                {
+                    ForecastHighExplosive(hit.cell, part, mass, coverSample, ref result);
+                    return;
+                }
                 if (hit.kind == SpaceCellKind.Substructure)
                 {
                     result.uncertain = true;
                     if (ContactSample(coverSample, hit.cell, 1) >= SpaceImpactEffects.FoundationBreakChance(amount, part)) return;
-                    brokenFoundation.Add(hit.cell);
-                    foreach (Thing thing in hit.cell.GetThingList(map))
-                    {
-                        if (thing is not Building || !destroyed.Add(thing)
-                            || !initialHealth.ContainsKey(thing)) continue;
-                        float hp = RemainingHP(thing);
-                        health[thing] = 0f;
-                        result.structure += hp;
-                        if (criticalWeights.TryGetValue(thing, out float weight))
-                        {
-                            criticalDamaged += weight * hp / Mathf.Max(1f, initialHealth[thing]);
-                        }
-                    }
+                    BreakFoundation(hit.cell, part, ref result);
                     if (!part.penetrates) return;
                     scale *= SpaceImpactEffects.RemainingFraction(amount, part.substructureBreakThreshold);
                     continue;

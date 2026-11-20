@@ -182,6 +182,7 @@ namespace DeltaV
     public class CompProperties_SpaceWeaponMagazine : CompProperties
     {
         public ThingDef projectileDef;
+        public bool armorPiercing;
         public float ammoPerShot = 1f;
         public float unitMass = 1f;
         public int defaultPriority;
@@ -226,7 +227,10 @@ namespace DeltaV
             : Refuelable != null && Refuelable.Fuel + 0.0001f >= MagazineProps.ammoPerShot;
         public ThingDef SelectedProjectileDef => ChangeableProjectile?.LoadedShell
             ?.GetModExtension<DefModExtension_SpaceMissileAmmo>()?.spaceProjectileDef
-            ?? ChangeableProjectile?.Projectile ?? MagazineProps.projectileDef;
+            ?? ChangeableProjectile?.Projectile ?? MagazineProps.projectileDef
+            ?? (MagazineProps.armorPiercing
+                ? parent.TryGetComp<CompSpaceWeaponAttachment>()?.HostWeapon?.WeaponProps.armorPiercingProjectileDef
+                : null);
 
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {

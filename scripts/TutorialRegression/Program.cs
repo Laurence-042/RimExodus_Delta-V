@@ -150,6 +150,16 @@ internal static partial class Program
                 Console.WriteLine($"PASS {checks} optional range checks: geometry, power, native Scribe, presets, firing sectors, native use-job signatures and optional progress. No game launched.");
                 return 0;
             }
+            if (args.Length > 4 && args[4] == "sector-destroyer")
+            {
+                string destroyer = Path.Combine(prefabRoot, "Sector", "Craft", "SectorDestroyer.xml");
+                CheckPrefabContent(new[] { destroyer }, authoredEnvironment: true);
+                Geometry(Path.Combine(records, "SectorDestroyer.records.json"), game);
+                PrefabLifeSupport(records, game, "SectorDestroyer");
+                Check(errors.Count == 0, "Unexpected destroyer logs: " + string.Join("\n", errors));
+                Console.WriteLine($"PASS {checks} destroyer prefab, rail supply, geometry and life support checks. No game launched.");
+                return 0;
+            }
             if (args.Length > 4 && args[4] == "sector")
             {
                 CheckPrefabContent(Directory.GetFiles(Path.Combine(prefabRoot, "Sector"), "*.xml", SearchOption.AllDirectories),
@@ -349,7 +359,18 @@ internal static partial class Program
         }
         var thrusters = buildings.Where(b => b.def.defName == "SmallThruster" || b.def.defName == "LargeThruster").ToList();
         if (Path.GetFileName(path) == "WeaponRange.records.json") RangeLayout(buildings, path);
-        if (Path.GetFileName(path) == "SectorDestroyer.records.json") RangeLayout(buildings, path, 7);
+        if (Path.GetFileName(path) == "SectorDestroyer.records.json")
+        {
+            RangeLayout(buildings, path, 7);
+            var rows = json.RootElement.EnumerateArray().ToList();
+            var ammunition = rows.Single(r => r.GetProperty("name").GetString() == "DeltaV_UraniumHead");
+            Check(ammunition.GetProperty("stateOverrides").GetProperty("stackCount").GetInt32() == 60,
+                "destroyer carries two spare rail shots");
+            Check(rows.Any(r => r.GetProperty("name").GetString() == "Shelf"
+                && r.GetProperty("stateOverrides").TryGetProperty("allowedDefs", out var allowed)
+                && allowed.EnumerateArray().Any(item => item.GetString() == "DeltaV_UraniumHead")),
+                "destroyer stores rail supply in a shelf with the uranium filter");
+        }
         if (Path.GetFileName(path) == "ModuleRailgun.records.json") RangeLayout(buildings, path, 5);
         if (Path.GetFileName(path) == "AssemblyCombat.records.json") RangeLayout(buildings, path, 5);
         if (Path.GetFileName(path) == "ModuleBedroom.records.json")

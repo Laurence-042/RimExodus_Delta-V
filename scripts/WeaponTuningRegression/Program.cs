@@ -157,8 +157,31 @@ internal static partial class Program
             && (int)x.Element("products").Elements().Single() == 200), "batch economy: 20 material yields 200 components");
         Check((string)recipes.Root.Elements("RecipeDef").First().Descendants("thingDefs").First().Element("li") == "Steel", "propellant requires steel, not fuel");
         var effects = XDocument.Load(Path.Combine(repo, "1.6/Defs/SpaceCombat/DeltaV_SpaceImpactEffects.xml"));
-        Check(effects.Root.Elements().Where(x => x.Element("projectileDefs")?.Elements().Any(y => y.Value == "DeltaV_Projectile_Cannon") == true)
-            .All(x => x.Element("projectileDefs").Elements().Any(y => y.Value == "DeltaV_Projectile_Rapid")), "rapid and heavy share every impact definition");
+        var steel = AuditEffect(effects, "DeltaV_Impact_SteelShellVsStructure");
+        var uranium = AuditEffect(effects, "DeltaV_Impact_CannonVsStructure");
+        Check(steel.highExplosive != null && !steel.penetrates && uranium.highExplosive == null && uranium.penetrates
+            && uranium.kineticMassScaling, "steel blasts and uranium spends a kinetic penetration budget");
+        foreach (var (charge, headsCount, radius, blast, budget) in new[]
+        {
+            (1, 1, .75f, 32, 24), (4, 2, 1.25f, 64, 96), (24, 24, 1.8f, 480, 576),
+            (48, 48, 2.4f, 760, 1152), (1, 96, 3f, 1120, 24), (96, 96, 3f, 1120, 2304)
+        })
+        {
+            float uraniumShotMass = headsCount * 1.5f;
+            float uraniumSpeed = SpaceKinetics.LaunchSpeed(charge, uraniumShotMass);
+            Check(Near(steel.highExplosive.Radius(headsCount), radius)
+                && Near(SpaceImpactEffects.ComputeDamage(steel, 5, 1, .3f, headsCount), blast)
+                && Near(SpaceImpactEffects.ComputeDamage(steel, 120, 0, 1, headsCount), blast)
+                && Near(SpaceImpactEffects.ComputeDamage(uranium, uraniumSpeed, 0, 1, uraniumShotMass), budget),
+                $"approved steel and uranium impact values at {charge}/{headsCount}");
+        }
+        foreach (string name in new[] { "DeltaV_Weapon_CannonTurret", "DeltaV_Weapon_HeavyMainMedium",
+            "DeltaV_Weapon_RapidMainSmall", "DeltaV_Weapon_RapidMainMedium" })
+        {
+            var weapon = AuditComp(Def(name), "DeltaV.CompProperties_SpaceWeapon");
+            Check((string)weapon.Element("armorPiercingProjectileDef") == (string)weapon.Element("projectileDef") + "Uranium",
+                name + " declares its alternate uranium projectile");
+        }
         var medium = Gun(Def("DeltaV_Weapon_HeavyMainMedium"));
         Check(medium.Settings.maxCharge == 96 && medium.Settings.maxMass == 96 && medium.ShotHeat == 192 && medium.ShotInterval == 480,
             "medium heavy 48/48 uses 24 cooling and 8 seconds");

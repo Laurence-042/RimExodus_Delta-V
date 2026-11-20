@@ -197,7 +197,7 @@ namespace DeltaV
                 {
                     weapon = battery.gun.source, family = battery.family,
                     side = battery.outgoing ? CombatEngagementSide.Outgoing : CombatEngagementSide.Incoming,
-                    damage = damage.structure * rate, guard = damage.guard * rate,
+                    damage = (damage.structure + damage.foundation) * rate, guard = damage.guard * rate,
                     critical = forecast.CriticalDamage * rate, armorProgress = damage.armorProgress * rate
                 };
                 if (damage.uncertain || damage.exhausted)
@@ -302,6 +302,7 @@ namespace DeltaV
                     length, shot.aim.Projectile, shot.mass / count, speed, weapon.WeaponProps.impactScale * shot.power,
                     shot.power, (((sampleOffset + i) & 7) + .5f) / 8);
                 damage.structure += pellet.structure;
+                damage.foundation += pellet.foundation;
                 damage.guard += pellet.guard;
                 damage.armorProgress += pellet.armorProgress;
                 damage.uncertainDamageUpper += pellet.uncertainDamageUpper;

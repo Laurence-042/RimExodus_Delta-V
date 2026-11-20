@@ -190,7 +190,7 @@
         <drawSize>(2.6,2.6)</drawSize>
       </blueprintGraphicData>
     </building>
-    <description>A crewed heavy cannon. Load steel-made propellant and projectile heads separately. Adjust charge and head mass independently; each shot heats the cannon according to its propellant charge and firing resumes once it has cooled completely. One slot accepts fire control or an auxiliary magazine.</description>
+    <description>A crewed heavy cannon. Load steel-made propellant and projectile heads separately. Adjust charge and head mass independently; each shot heats the cannon according to its propellant charge and firing resumes once it has cooled completely. One slot accepts fire control or an auxiliary magazine. In space the steel load is high explosive; a supplied uranium magazine loads armor-piercing shots.</description>
     <costList Inherit="False"><Steel>300</Steel><Plasteel>25</Plasteel><ComponentIndustrial>6</ComponentIndustrial></costList>
     <statBases>
       <WorkToBuild>10000</WorkToBuild>
@@ -222,6 +222,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeapon">
         <groundModeAvailable>true</groundModeAvailable>
         <projectileDef>DeltaV_Projectile_Cannon</projectileDef>
+        <armorPiercingProjectileDef>DeltaV_Projectile_CannonUranium</armorPiercingProjectileDef>
         <topTurret>true</topTurret>
         <turretMuzzleDistance>1.14</turretMuzzleDistance>
         <fireArcDeg>360</fireArcDeg>
@@ -275,7 +276,7 @@
         <drawSize>(2.6,2.6)</drawSize>
       </blueprintGraphicData>
     </building>
-    <description>A crewed rapid cannon using one propellant and one head per shot. Adjust firing rate to trade concentrated bursts for heat buildup. Overheating locks firing until completely cool. One attachment slot.</description>
+    <description>A crewed rapid cannon using one propellant and one head per shot. Adjust firing rate to trade concentrated bursts for heat buildup. Overheating locks firing until completely cool. One attachment slot. In space the steel load is high explosive; a supplied uranium magazine loads armor-piercing shots.</description>
     <costList Inherit="False"><Steel>250</Steel><ComponentIndustrial>6</ComponentIndustrial></costList>
     <statBases>
       <WorkToBuild>9000</WorkToBuild>
@@ -306,6 +307,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeapon">
         <groundModeAvailable>true</groundModeAvailable>
         <projectileDef>DeltaV_Projectile_Rapid</projectileDef>
+        <armorPiercingProjectileDef>DeltaV_Projectile_RapidUranium</armorPiercingProjectileDef>
         <topTurret>true</topTurret>
         <turretMuzzleDistance>1.16</turretMuzzleDistance>
         <fireArcDeg>360</fireArcDeg>
@@ -428,7 +430,7 @@
         <drawSize>(3.6,3.6)</drawSize>
       </blueprintGraphicData>
     </building>
-    <description>A crewed heavy cannon with higher charge and head-mass limits and faster cooling. Load propellant and heads separately. Heat depends on charge; firing resumes once it has cooled completely. Two slots accept fire control or auxiliary magazines.</description>
+    <description>A crewed heavy cannon with higher charge and head-mass limits and faster cooling. Load propellant and heads separately. Heat depends on charge; firing resumes once it has cooled completely. Two slots accept fire control or auxiliary magazines. In space the steel load is high explosive; a supplied uranium magazine loads armor-piercing shots.</description>
     <costList Inherit="False"><Steel>550</Steel><Plasteel>75</Plasteel><ComponentIndustrial>12</ComponentIndustrial></costList>
     <statBases>
       <WorkToBuild>20000</WorkToBuild>
@@ -459,6 +461,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeapon">
         <groundModeAvailable>true</groundModeAvailable>
         <projectileDef>DeltaV_Projectile_Cannon</projectileDef>
+        <armorPiercingProjectileDef>DeltaV_Projectile_CannonUranium</armorPiercingProjectileDef>
         <topTurret>true</topTurret>
         <turretMuzzleDistance>1.61</turretMuzzleDistance>
         <fireArcDeg>360</fireArcDeg>
@@ -517,7 +520,7 @@
         <drawSize>(3.6,3.6)</drawSize>
       </blueprintGraphicData>
     </building>
-    <description>A crewed rapid cannon with greater heat capacity and cooling. Each shot uses four propellant units and two projectile heads; its firing rate is adjustable. Overheating locks firing until completely cool. Two attachment slots.</description>
+    <description>A crewed rapid cannon with greater heat capacity and cooling. Each shot uses four propellant units and two projectile heads; its firing rate is adjustable. Overheating locks firing until completely cool. Two attachment slots. In space the steel load is high explosive; a supplied uranium magazine loads armor-piercing shots.</description>
     <costList Inherit="False"><Steel>500</Steel><Plasteel>50</Plasteel><ComponentIndustrial>12</ComponentIndustrial></costList>
     <statBases>
       <WorkToBuild>18000</WorkToBuild>
@@ -548,6 +551,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeapon">
         <groundModeAvailable>true</groundModeAvailable>
         <projectileDef>DeltaV_Projectile_Rapid</projectileDef>
+        <armorPiercingProjectileDef>DeltaV_Projectile_RapidUranium</armorPiercingProjectileDef>
         <topTurret>true</topTurret>
         <turretMuzzleDistance>1.64</turretMuzzleDistance>
         <fireArcDeg>360</fireArcDeg>
@@ -832,7 +836,7 @@
     <defName>DeltaV_Weapon_RailgunLoader</defName>
     <uiOrder>-192</uiOrder>
     <label>railgun loading unit</label>
-    <description>A fixed-axis siege railgun with built-in fire control. Each shot requires manufactured projectile heads and a 675 Wd base pulse. Powered accelerators increase speed, penetration and shield-breaking power. Oblique impacts on kinetic line shields can destabilize or shatter the penetrator. Each of the two slots accepts a uranium magazine, capacitor or rapid reset module. A charged capacitor can supply one base pulse. The base shot interval is 35 seconds, halved by each enabled rapid reset module.</description>
+    <description>A fixed-axis siege railgun with built-in fire control. Each shot requires 30 uranium projectile heads and a 675 Wd base pulse. Powered accelerators increase speed, penetration and shield-breaking power. Oblique impacts on kinetic line shields can destabilize or shatter the penetrator. Each of the two slots accepts a capacitor or rapid reset module. A charged capacitor can supply one base pulse. The base shot interval is 35 seconds, halved by each enabled rapid reset module.</description>
     <uiIconPath>Things/Building/SpaceWeapons/RailgunLoader_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
     <thingClass>Building</thingClass>
@@ -890,7 +894,7 @@
         <kind>Heads</kind>
         <fuelCapacity>600</fuelCapacity>
         <initialConfigurableTargetFuelLevel>600</initialConfigurableTargetFuelLevel>
-        <fuelFilter><thingDefs><li>DeltaV_SteelHead</li></thingDefs></fuelFilter>
+        <fuelFilter><thingDefs><li>DeltaV_UraniumHead</li></thingDefs></fuelFilter>
       </li>
       <li Class="DeltaV.CompProperties_SpaceWeaponMagazine">
         <ammoPerShot>30</ammoPerShot>
@@ -928,7 +932,6 @@
           </li>
         </attachmentSlots>
         <allowedAttachmentDefs>
-          <li>DeltaV_Building_UraniumMagazine</li>
           <li>DeltaV_Building_RailgunCapacitor</li>
           <li>DeltaV_RailgunRapidReset</li>
         </allowedAttachmentDefs>
@@ -1085,7 +1088,7 @@
     <researchPrerequisites Inherit="False"><li>DeltaV_ShipArtillery</li></researchPrerequisites>
     <uiOrder>-183</uiOrder>
     <label>uranium auxiliary magazine</label>
-    <description>A priority-1 magazine loaded with manufactured uranium heads. Supplies the host gun's full requested head count; propellant remains in the host. Uranium heads are heavier and penetrate better.</description>
+    <description>A priority-1 magazine for the armor-piercing uranium ammunition of rapid and heavy cannons. It supplies the full projectile head count and uses propellant from the host gun. At equal propellant charge the heavier shot travels more slowly and better resists kinetic shield deflection.</description>
     <thingClass>Building</thingClass>
     <passability>Standable</passability>
     <size>(1,1)</size>
@@ -1117,7 +1120,6 @@
           <li>DeltaV_Weapon_RapidMainSmall</li>
           <li>DeltaV_Weapon_HeavyMainMedium</li>
           <li>DeltaV_Weapon_RapidMainMedium</li>
-          <li>DeltaV_Weapon_RailgunLoader</li>
         </allowedHostDefs>
       </li>
       <li Class="DeltaV.CompProperties_GunSupply">
@@ -1130,6 +1132,7 @@
         <ammoPerShot>1</ammoPerShot>
         <defaultPriority>1</defaultPriority>
         <attachment>true</attachment>
+        <armorPiercing>true</armorPiercing>
         <armorPenetrationScale>1.5</armorPenetrationScale>
         <unitMass>1.5</unitMass>
       </li>
@@ -1229,7 +1232,7 @@
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Projectile_RailgunSlug</defName>
     <label>railgun slug</label>
-    <description>A high-velocity penetrator. Shields and destroyed structures consume its remaining impact budget; empty compartments do not. A kinetic shield breaks it into fragments without deep penetration.</description>
+    <description>A high-velocity penetrator. Shields and destroyed structures consume its remaining impact budget; empty compartments do not. Sufficient transverse impulse from a kinetic shield can make it tumble or fragment, removing its deep penetration.</description>
     <thingClass>Verse.Building</thingClass>
     <category>Building</category>
     <rotatable>false</rotatable>

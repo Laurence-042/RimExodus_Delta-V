@@ -742,14 +742,15 @@ namespace DeltaV
                 body.resolvedHitLocal = target.ToBackend(p);
                 body.resolvedHitCell = bestCell;
                 var defenderPart = effect?.defenderEffect;
+                float blastRadius = SpaceImpactEffects.ExplosionRadius(defenderPart, body.mass);
                 body.resolvedHitExplosive = defenderPart != null
                     && defenderPart.kind == ImpactEffectKind.DamageMap
-                    && (defenderPart.explosionRadius > 0f
+                    && (blastRadius > 0f
                         || defenderPart.penetrationLayers?.Count > 0
                         && defenderPart.penetrationLayers[0].halfWidth > 0);
                 body.resolvedHitShield = false;
                 body.resolvedHitRadius = body.resolvedHitExplosive
-                    ? Mathf.Max(defenderPart.explosionRadius,
+                    ? Mathf.Max(blastRadius,
                         defenderPart.penetrationLayers?.Count > 0
                             ? defenderPart.penetrationLayers[0].halfWidth : 0f) : 0f;
                 if (projectileProps?.continuousBeam != true && DeltaVLog.Enabled(DeltaVLogModule.Combat)) DeltaVLog.Message(DeltaVLogModule.Combat,
@@ -774,7 +775,7 @@ namespace DeltaV
                     position = evt.hitUniverse, pathFrom = body.from,
                     localPoint = p, localDirection = dir, localNormal = normal,
                     damageScale = body.damageScale, explosive = body.resolvedHitExplosive,
-                    nativeExplosion = defMap != null && defenderPart?.explosionRadius > 0f
+                    nativeExplosion = defMap != null && blastRadius > 0f
                         && !(defenderPart.penetrationLayers?.Count > 0),
                     explosionRadius = body.resolvedHitRadius, penetrated = remaining > 0f,
                     destroyed = bestThing?.Destroyed == true

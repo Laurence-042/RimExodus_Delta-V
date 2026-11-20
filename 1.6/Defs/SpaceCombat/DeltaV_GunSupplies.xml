@@ -51,7 +51,7 @@
   <ThingDef ParentName="ResourceBase">
     <defName>DeltaV_SteelHead</defName>
     <label>steel projectile heads</label>
-    <description>Ammunition components for ship guns. Load propellant and projectile heads separately.</description>
+    <description>High-explosive steel heads for rapid and heavy ship guns. In space they detonate on impact; more heads increase blast damage and radius. At equal charge, a heavier shot travels more slowly and better resists kinetic-shield deflection.</description>
     <graphicData>
       <texPath>Things/Item/Resource/Steel</texPath>
       <graphicClass>Graphic_StackCount</graphicClass>
@@ -99,7 +99,7 @@
   <ThingDef ParentName="ResourceBase">
     <defName>DeltaV_UraniumHead</defName>
     <label>uranium projectile heads</label>
-    <description>Ammunition components for ship guns. Load propellant and projectile heads separately.</description>
+    <description>Armor-piercing heads for auxiliary magazines and the railgun loader. Their impact energy determines how far they penetrate structures. In a chemical gun, their greater mass lowers muzzle speed at equal charge and helps resist kinetic-shield deflection.</description>
     <graphicData>
       <texPath>Things/Item/Resource/Uranium</texPath>
       <graphicClass>Graphic_StackCount</graphicClass>

@@ -45,6 +45,7 @@ namespace DeltaV
     {
         /// <summary>发射的弹体 building def（联合效果注册表键与弹道参数来源）。</summary>
         public ThingDef projectileDef;
+        public ThingDef armorPiercingProjectileDef;
 
         /// <summary>默认瞄准模式（齐射/PD；玩家可经 gizmo 切换，当前值随 comp 存档）。</summary>
         public SpaceWeaponAimMode aimMode = SpaceWeaponAimMode.Volley;

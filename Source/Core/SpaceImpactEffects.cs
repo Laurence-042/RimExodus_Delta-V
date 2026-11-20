@@ -74,6 +74,7 @@ namespace DeltaV
 
         /// <summary>爆炸半径（>0 = GenExplosion 波及；0 = 单格直击或逐层结构毁伤）。</summary>
         public float explosionRadius = 0f;
+        public HighExplosiveProfile highExplosive;
 
         /// <summary>破片摧毁基架的半径（>0 生效；中心概率按距离线性衰减到 0）。</summary>
         public float stripSubstructureRadius = 0f;
@@ -154,8 +155,11 @@ namespace DeltaV
                 && defenderEffect.substructureBreakThreshold <= 0f)
                 yield return $"{defName}: substructureBreakThreshold must be positive";
             if (defenderEffect?.penetrates == true
-                && (defenderEffect.penetrationLayers?.Count > 0 || defenderEffect.explosionRadius > 0f))
+                && (defenderEffect.penetrationLayers?.Count > 0 || defenderEffect.explosionRadius > 0f
+                    || defenderEffect.highExplosive != null))
                 yield return $"{defName}: budget penetration cannot also use a local penetration profile or explosion";
+            if (defenderEffect?.highExplosive is HighExplosiveProfile blast && !blast.IsValid)
+                yield return $"{defName}: high explosive needs positive mass, radius and damage curves";
             if (attackerEffect == null && defenderEffect == null)
             {
                 yield return $"{defName}: neither attackerEffect nor defenderEffect configured";
@@ -385,6 +389,7 @@ namespace DeltaV
             float incidenceAngleRad, float durabilityScale = 1f, float mass = 1f)
         {
             if (part == null) return 0f;
+            if (part.highExplosive != null) return part.highExplosive.CenterDamage(mass);
             float speedFactor = part.kineticMassScaling ? SpaceKinetics.ImpactFactor(mass, relativeSpeed) : Mathf.Pow(
                 Mathf.Max(relativeSpeed, 0.01f) / Mathf.Max(1f, part.referenceSpeed), part.speedExponent);
             float incidenceFactor = Mathf.Lerp(1f, part.incidenceMinFactor,
@@ -452,8 +457,13 @@ namespace DeltaV
                 return 0f;
             }
 
+            if (part.highExplosive != null && map != null)
+            {
+                DetonateHighExplosive(evt, part, map);
+                return 0f;
+            }
             float amount = ComputeDamage(part, evt.relativeSpeed, evt.incidenceAngleRad, durabilityScale, evt.mass)
-                * evt.damageScale;
+                * (part.highExplosive == null ? evt.damageScale : 1f);
             float ap = part.armorPenetration * (amount / Mathf.Max(1f, part.damage))
                 * evt.armorPenetrationScale;
             DamageDef damType = part.damageDef ?? DamageDefOf.Bullet;

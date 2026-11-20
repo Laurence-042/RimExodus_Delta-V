@@ -1092,6 +1092,19 @@ internal static partial class Program
 
     static void CheckRailgunTransactions()
     {
+        var xml = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml");
+        XElement Def(string name) => xml.Root.Elements("ThingDef").Single(d => (string)d.Element("defName") == name);
+        var railDef = Def("DeltaV_Weapon_RailgunLoader");
+        var comps = railDef.Element("comps").Elements("li");
+        XElement Comp(string type) => comps.Single(c => (string)c.Attribute("Class") == "DeltaV.CompProperties_" + type);
+        var magazine = Comp("SpaceWeaponMagazine");
+        Check(Comp("GunSupply").Descendants("thingDefs").Single().Elements().Select(n => n.Value)
+            .SequenceEqual(new[] { "DeltaV_UraniumHead" }) && (int)magazine.Element("ammoPerShot") == 30
+            && (float)magazine.Element("unitMass") == 1f, "rail loader spends 30 uranium heads at the established ballistic mass");
+        Check(Comp("SpaceWeapon").Element("allowedAttachmentDefs").Elements().Select(n => n.Value)
+            .ToHashSet().SetEquals(new[] { "DeltaV_Building_RailgunCapacitor", "DeltaV_RailgunRapidReset" })
+            && !Def("DeltaV_Building_UraniumMagazine").Descendants("allowedHostDefs").Elements()
+                .Any(n => n.Value == "DeltaV_Weapon_RailgunLoader"), "rail and auxiliary magazine slot rules agree");
         CheckEnergy();
         CheckRapidReset();
     }

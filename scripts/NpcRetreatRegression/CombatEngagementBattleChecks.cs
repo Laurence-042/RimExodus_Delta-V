@@ -41,6 +41,8 @@ internal static partial class Program
         var patch = new Harmony("DeltaV.Regression.EngagementBattle");
         patch.Patch(typeof(ModsConfig).TypeInitializer,
             prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
+        patch.Patch(typeof(CompRefuelable).TypeInitializer,
+            prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
         patch.Patch(AccessTools.PropertyGetter(typeof(MapInfo), nameof(MapInfo.Tile)),
             prefix: new HarmonyMethod(typeof(Program), nameof(HullContactPocketTile)));
         foreach (var method in new[] {
@@ -83,6 +85,8 @@ internal static partial class Program
             }
             SpaceImpactEffects.ResetCache();
             CheckOrderedStructureContacts(universe, player);
+            CheckChemicalAmmoSelection(universe, player);
+            CheckSteelShellImpacts(universe, player, patch);
             var results = new List<object>();
             var outcomes = new List<(int seed, bool mirrored, bool automatic, int disabled, float loss, bool alive)>();
             foreach (int seed in new[] { 17, 29 })
@@ -112,6 +116,410 @@ internal static partial class Program
                 results }, new JsonSerializerOptions { WriteIndented = true }));
         }
         finally { patch.UnpatchAll(patch.Id); }
+    }
+
+    static int steelBlasts;
+    static IntVec3 steelBlastCenter;
+
+    static void CheckChemicalAmmoSelection(UniverseManager universe, Faction faction)
+    {
+        var map = TestMap(159210, 9);
+        map.edificeGrid = new EdificeGrid(map);
+        var frame = new MapSpaceObject(159211, map, new SpacePose(Vector3.forward, 0));
+        universe.RegisterObject(frame);
+        var steel = TestBuildingDef("battleSteelChoice");
+        var uranium = TestBuildingDef("battleUraniumChoice");
+        foreach (var projectile in new[] { steel, uranium })
+            projectile.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, speed = 60 });
+        var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon
+            { projectileDef = steel, armorPiercingProjectileDef = uranium } };
+        var host = AddTestBuilding(map, faction, 159212, TestBuildingDef("battleAmmoHost"), weapon);
+        map.edificeGrid.Register(host);
+        var primary = new CompSpaceWeaponMagazine { parent = host, props = new CompProperties_SpaceWeaponMagazine() };
+        CompGunSupply Stock(ThingWithComps owner, float quantity)
+        {
+            var stock = new CompGunSupply { parent = owner, props = new CompProperties_GunSupply
+                { kind = GunSupplyKind.Heads, fuelCapacity = 20 } };
+            Set(typeof(CompRefuelable), stock, "fuel", quantity);
+            return stock;
+        }
+        Set(typeof(ThingWithComps), host, "comps", new List<ThingComp> { weapon, primary, Stock(host, 20) });
+        var link = new CompSpaceWeaponGenericAttachment { props = new CompProperties_SpaceWeaponAttachment() };
+        var addon = AddTestBuilding(map, faction, 159213, TestBuildingDef("battleAmmoAddon"), link);
+        var secondary = new CompSpaceWeaponMagazine { parent = addon, props = new CompProperties_SpaceWeaponMagazine
+            { armorPiercing = true, attachment = true, unitMass = 1.5f } };
+        var armorPiercingStock = Stock(addon, 20);
+        Set(typeof(ThingWithComps), addon, "comps", new List<ThingComp> { link, secondary, armorPiercingStock });
+        Set(typeof(CompSpaceWeaponAttachment), link, "enabled", true);
+        Set(secondary, "priority", 1);
+        var layout = weapon.Layout;
+        layout.magazines.Add(secondary);
+        try
+        {
+            var withUranium = SpaceWeaponBallistics.Read(weapon, frame, new SpaceWeaponEnergy(), false);
+            Check(withUranium.magazine == secondary && withUranium.aim.Projectile == uranium && withUranium.mass == 1.5f,
+                "available auxiliary uranium stock selects matching projectile and mass for shot parameters");
+            Set(typeof(CompRefuelable), armorPiercingStock, "fuel", 0f);
+            var withSteel = SpaceWeaponBallistics.Read(weapon, frame, new SpaceWeaponEnergy(), false);
+            Check(withSteel.magazine == primary && withSteel.aim.Projectile == steel && withSteel.mass == 1f,
+                "empty auxiliary stock falls back to the steel projectile and mass together");
+        }
+        finally
+        {
+            universe.UnregisterObject(frame);
+            Find.Maps.Remove(map);
+            ShipRegistry.ClearCaches();
+        }
+    }
+
+    static bool BattleSteelWalkable(IntVec3 c, Map map, ref bool __result)
+    {
+        if (map.uniqueID < 159220 || map.uniqueID >= 159280) return true;
+        __result = c.InBounds(map) && c.GetEdifice(map)?.def.passability != Traversability.Impassable;
+        return false;
+    }
+
+    static bool BattleFlatAngle(IntVec3 __instance, ref float __result)
+    {
+        __result = Mathf.Repeat(Mathf.Atan2(__instance.x, __instance.z) * Mathf.Rad2Deg, 360f);
+        return false;
+    }
+
+    // Keep the production blast footprint, native per-cell damage and deck worker.
+    // Replace the Unity explosion spawn and tick scheduling in this offline map.
+    static bool BattleSteelBlast(IntVec3 center, Map map, float radius, DamageDef damType, Thing instigator,
+        int damAmount, ThingDef projectile, bool damageFalloff, List<IntVec3> overrideCells)
+    {
+        if (damType.workerClass != typeof(DamageWorker_SpaceHighExplosive)) return true;
+        steelBlasts++;
+        steelBlastCenter = center;
+        if (!damageFalloff || overrideCells is not { Count: > 0 })
+            throw new InvalidOperationException("Steel blast must hand its footprint and falloff to the native explosion.");
+        var explosion = (Explosion)Raw(typeof(Explosion));
+        explosion.radius = radius;
+        explosion.damAmount = damAmount;
+        explosion.damType = damType;
+        explosion.projectile = projectile;
+        explosion.instigator = instigator;
+        explosion.damageFalloff = damageFalloff;
+        Set(typeof(Thing), explosion, "positionInt", center);
+        Set(typeof(Thing), explosion, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
+        SpaceImpactEffects.OrderHighExplosiveCells(overrideCells, center);
+        var damaged = new List<Thing>();
+        for (int i = overrideCells.Count - 1; i >= 0; i--)
+            damType.Worker.ExplosionAffectCell(explosion, overrideCells[i], damaged, null, false);
+        return false;
+    }
+
+    static void CheckSteelShellImpacts(UniverseManager universe, Faction faction, Harmony patch)
+    {
+        var config = new System.Xml.XmlDocument();
+        config.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceImpactEffects.xml");
+        XmlInheritance.Clear();
+        foreach (System.Xml.XmlNode node in config.SelectNodes("/Defs/DeltaV.SpaceImpactEffectDef"))
+            XmlInheritance.TryRegister(node, null);
+        XmlInheritance.Resolve();
+        System.Xml.XmlNode Resolved(string name) => XmlInheritance.GetResolvedNodeFor(
+            config.SelectSingleNode($"/Defs/DeltaV.SpaceImpactEffectDef[defName='{name}']"));
+        var fullDeck = Resolved("DeltaV_Impact_SteelShellVsSubstructure");
+        var tumbleDeck = Resolved("DeltaV_Impact_TumblingSteelShellVsSubstructure");
+        Check(fullDeck.SelectSingleNode("substructureHitChance").InnerText == "0.03"
+            && fullDeck.SelectNodes("projectileDefs/li").Count == 2
+            && tumbleDeck.SelectSingleNode("projectileDefs/li").InnerText == "DeltaV_Projectile_SteelShellTumbling"
+            && tumbleDeck.SelectSingleNode("defenderEffect/highExplosive") != null,
+            "native XML inheritance gives intact and tumbling steel their intended deck profiles");
+        var profile = DirectXmlToObject.ObjectFromXml<HighExplosiveProfile>(
+            fullDeck.SelectSingleNode("defenderEffect/highExplosive"), false);
+        XmlInheritance.Clear();
+        var damage = new DamageDef { defName = "BattleSteelBlast", workerClass = typeof(DamageWorker_SpaceHighExplosive),
+            harmsHealth = true, explosionSnowMeltAmount = 0f };
+        var projectile = TestBuildingDef("battleSteelShell");
+        projectile.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, speed = 60, collisionRadius = 0 });
+        var part = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, highExplosive = profile, damageDef = damage };
+        var effect = new SpaceImpactEffectDef { defName = "BattleSteelShellImpact",
+            projectileDefs = new List<ThingDef> { projectile }, defenderEffect = part,
+            attackerEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DestroySelf } };
+        var deckEffect = new SpaceImpactEffectDef { defName = "BattleSteelDeckImpact",
+            projectileDefs = effect.projectileDefs, defenderEffect = part, attackerEffect = effect.attackerEffect,
+            targetsSubstructure = true, substructureHitChance = .03f };
+        DefDatabase<SpaceImpactEffectDef>.Add(effect);
+        DefDatabase<SpaceImpactEffectDef>.Add(deckEffect);
+        SpaceImpactEffects.ResetCache();
+        var explosionEntry = AccessTools.Method(typeof(GenExplosion), nameof(GenExplosion.DoExplosion));
+        patch.Patch(explosionEntry, prefix: new HarmonyMethod(typeof(Program), nameof(BattleSteelBlast)));
+        var walkable = AccessTools.Method(typeof(GenGrid), nameof(GenGrid.Walkable), new[] { typeof(IntVec3), typeof(Map) });
+        patch.Patch(walkable, prefix: new HarmonyMethod(typeof(Program), nameof(BattleSteelWalkable)));
+        var angle = AccessTools.PropertyGetter(typeof(IntVec3), nameof(IntVec3.AngleFlat));
+        patch.Patch(angle, prefix: new HarmonyMethod(typeof(Program), nameof(BattleFlatAngle)));
+        int id = 159220;
+        foreach (var (mass, speed, centerHp, radius, centerDamage, neighborDamage, openDeck) in new[]
+        {
+            (1f, 60f, 1000, .75f, 32, 0, false), (2f, 85f, 1000, 1.25f, 64, 23, false),
+            (48f, 60f, 1000, 2.4f, 760, 507, false), (48f, 6f, 300, 2.4f, 760, 507, true)
+        })
+        {
+            var map = TestMap(id++, 12);
+            map.damageWatcher = (DamageWatcher)Raw(typeof(DamageWatcher));
+            map.roofGrid = new RoofGrid(map);
+            map.edificeGrid = new EdificeGrid(map);
+            var vacuum = (TerrainDef)Raw(typeof(TerrainDef));
+            vacuum.exposesToVacuum = true;
+            Array.Fill(map.terrainGrid.topGrid, vacuum);
+            var frame = new MapSpaceObject(id++, map, new SpacePose(Vector3.forward, 0));
+            universe.objects.Add(frame);
+            Set(universe, "objectById", null);
+            Set(universe, "objectByMap", null);
+            var wallDef = TestBuildingDef("blastWall");
+            wallDef.building.isWall = true;
+            wallDef.useHitPoints = wallDef.destroyable = true;
+            wallDef.passability = Traversability.Impassable;
+            wallDef.fillPercent = 1f;
+            BattleBuilding Wall(IntVec3 cell, int hp)
+            {
+                var wall = (BattleBuilding)AddTestBuilding(map, faction, id++, wallDef, new CompPowerTransmitter(), new BattleBuilding());
+                MoveCombatFixture(wall, cell);
+                wall.HitPoints = hp;
+                map.edificeGrid.Register(wall);
+                return wall;
+            }
+            var center = new IntVec3(4, 0, 5);
+            var wall = Wall(center, centerHp);
+            var side = Wall(center + IntVec3.North, 1000);
+            var farther = Wall(center + new IntVec3(4, 0, 0), 1000);
+            var floor = (TerrainDef)Raw(typeof(TerrainDef));
+            floor.isFoundation = true;
+            floor.tags = new List<string> { "Substructure" };
+            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(center)] = floor;
+            SubstructureOwnership.BumpStructureVersion(map);
+            try
+            {
+                var from = new Vector2(2.5f, 5.5f);
+                var forecast = new CombatDamageForecast(frame);
+                var preview = forecast.Fire(from, Vector2.right, 7, projectile, mass, speed, coverSample: .37f);
+                int launches = steelBlasts;
+                var start = SpaceTransform.MapPointToUniverse(frame, map, from);
+                var attacker = new SpaceObject(id++, new SpacePose(start, 0));
+                attacker.pose.velocity = SpaceTransform.MapDirectionToUniverseTangent(frame, map, from, Vector2.right) * speed;
+                var shot = new SpaceCollision.SweptBody { attacker = attacker, requiredDefender = frame,
+                    from = start, to = SpaceTransform.MapPointToUniverse(frame, map, from + Vector2.right * 7),
+                    projectileDef = projectile, mass = mass, damageScale = .5f,
+                    sweepRadius = SpaceProjectileService.FootprintRadius(projectile) };
+                SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot });
+                Check(shot.dead && steelBlasts == launches + 1 && steelBlastCenter == center
+                    && Math.Abs(shot.resolvedHitRadius - radius) < .001f && farther.HitPoints == 1000,
+                    $"steel shell mass {mass} and speed {speed} detonates once at first contact and stops");
+                int actualCenter = wall.Destroyed ? centerHp : centerHp - wall.HitPoints;
+                int actualSide = 1000 - side.HitPoints;
+                Check(actualCenter == Math.Min(centerDamage, centerHp) && Math.Abs(actualSide - neighborDamage) <= 1
+                    && Math.Abs(preview.structure - actualCenter - actualSide) < 2,
+                    "native blast and forecast agree on center and neighbor falloff");
+                Check(SubstructureOwnership.HasFoundation(map, center) != openDeck
+                    && (preview.foundation > 0f) == openDeck,
+                    "the wall shields its deck only while it survives the cell blast");
+            }
+            finally
+            {
+                universe.objects.Remove(frame);
+                Find.Maps.Remove(map);
+                Set(universe, "objectById", null);
+                Set(universe, "objectByMap", null);
+            }
+        }
+        CheckUraniumPenetration(universe, faction);
+        CompareAmmunitionRoles(universe, projectile);
+        patch.Unpatch(explosionEntry, HarmonyPatchType.Prefix, patch.Id);
+        patch.Unpatch(walkable, HarmonyPatchType.Prefix, patch.Id);
+        patch.Unpatch(angle, HarmonyPatchType.Prefix, patch.Id);
+        var remove = AccessTools.Method(typeof(DefDatabase<SpaceImpactEffectDef>), "Remove");
+        remove.Invoke(null, new object[] { effect });
+        remove.Invoke(null, new object[] { deckEffect });
+        SpaceImpactEffects.ResetCache();
+        SpaceCollision.ClearCaches();
+        ShipRegistry.ClearCaches();
+    }
+
+    static void CheckUraniumPenetration(UniverseManager universe, Faction faction)
+    {
+        Map map = TestMap(159274, 12);
+        map.damageWatcher = (DamageWatcher)Raw(typeof(DamageWatcher));
+        var frame = new MapSpaceObject(159275, map, new SpacePose(Vector3.forward, 0));
+        universe.RegisterObject(frame);
+        var uranium = TestBuildingDef("battleUraniumPenetrator");
+        uranium.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, collisionRadius = 0 });
+        var settings = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceImpactEffects.xml").Root.Elements()
+            .Single(n => (string)n.Element("defName") == "DeltaV_Impact_CannonVsStructure").Element("defenderEffect");
+        var effect = new SpaceImpactEffectDef { defName = "BattleUraniumPenetratorEffect",
+            projectileDefs = new List<ThingDef> { uranium }, attackerEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DestroySelf },
+            defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, damageDef = DamageDefOf.Bullet,
+                damage = (float)settings.Element("damage"), kineticMassScaling = (bool)settings.Element("kineticMassScaling"),
+                penetrates = (bool)settings.Element("penetrates"), incidenceMinFactor = (float)settings.Element("incidenceMinFactor") } };
+        DefDatabase<SpaceImpactEffectDef>.Add(effect);
+        SpaceImpactEffects.ResetCache();
+        var def = TestBuildingDef("blastPenetrationWall");
+        def.building.isWall = true;
+        def.passability = Traversability.Impassable;
+        def.useHitPoints = def.destroyable = true;
+        var walls = new List<BattleBuilding>();
+        for (int i = 0; i < 4; i++)
+        {
+            var wall = (BattleBuilding)AddTestBuilding(map, faction, 159290 + i, def, new CompPowerTransmitter(), new BattleBuilding());
+            MoveCombatFixture(wall, new IntVec3(4 + i, 0, 5));
+            wall.HitPoints = 300;
+            walls.Add(wall);
+        }
+        var flank = (BattleBuilding)AddTestBuilding(map, faction, 159294, def, new CompPowerTransmitter(), new BattleBuilding());
+        MoveCombatFixture(flank, new IntVec3(4, 0, 6));
+        flank.HitPoints = 300;
+        SubstructureOwnership.BumpStructureVersion(map);
+        try
+        {
+            float speed = SpaceKinetics.LaunchSpeed(48, 72f);
+            var from = new Vector2(2.5f, 5.5f);
+            var forecast = new CombatDamageForecast(frame);
+            var preview = forecast.Fire(from, Vector2.right, 8f, uranium, 72f, speed);
+            var start = SpaceTransform.MapPointToUniverse(frame, map, from);
+            var attacker = new SpaceObject(159276, new SpacePose(start, 0));
+            attacker.pose.velocity = SpaceTransform.MapDirectionToUniverseTangent(frame, map, from, Vector2.right) * speed;
+            var shot = new SpaceCollision.SweptBody { attacker = attacker, requiredDefender = frame, from = start,
+                to = SpaceTransform.MapPointToUniverse(frame, map, from + Vector2.right * 8),
+                projectileDef = uranium, mass = 72f, damageScale = 1f,
+                sweepRadius = SpaceProjectileService.FootprintRadius(uranium) };
+            SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot });
+            Check(walls.Take(3).All(w => w.Destroyed) && Math.Abs(walls[3].HitPoints - 48) <= 1 && flank.HitPoints == 300
+                && Math.Abs(preview.structure - 1152) < 1f && forecast.RemainingHP(flank) == 300,
+                "48/48 uranium and its forecast punch through three walls, damage the fourth, and leave the adjacent lane intact"
+                    + $" (walls={string.Join(",", walls.Select(w => w.Destroyed ? 0 : w.HitPoints))}, flank={flank.HitPoints}, "
+                    + $"forecast={preview.structure}/{forecast.RemainingHP(flank)}, contacts={preview.contacts})");
+        }
+        finally
+        {
+            universe.UnregisterObject(frame);
+            Find.Maps.Remove(map);
+            AccessTools.Method(typeof(DefDatabase<SpaceImpactEffectDef>), "Remove").Invoke(null, new object[] { effect });
+            SpaceImpactEffects.ResetCache();
+        }
+    }
+
+    static void CompareAmmunitionRoles(UniverseManager universe, ThingDef steel)
+    {
+        var uranium = TestBuildingDef("battleRoleUranium");
+        uranium.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, speed = 60, collisionRadius = 0 });
+        var penetration = new SpaceImpactEffectDef { defName = "BattleRoleUraniumDeck", targetsSubstructure = true,
+            substructureHitChance = .03f, projectileDefs = new List<ThingDef> { uranium },
+            defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, damage = 24,
+                kineticMassScaling = true, penetrates = true, incidenceMinFactor = .5f, damageDef = DamageDefOf.Bullet },
+            attackerEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DestroySelf } };
+        DefDatabase<SpaceImpactEffectDef>.Add(penetration);
+        SpaceImpactEffects.ResetCache();
+        var map = TestMap(159279, 32);
+        map.roofGrid = new RoofGrid(map);
+        map.edificeGrid = new EdificeGrid(map);
+        var vacuum = (TerrainDef)Raw(typeof(TerrainDef));
+        vacuum.exposesToVacuum = true;
+        Array.Fill(map.terrainGrid.topGrid, vacuum);
+        var deck = (TerrainDef)Raw(typeof(TerrainDef));
+        deck.isFoundation = true;
+        deck.tags = new List<string> { "Substructure" };
+        var cells = new CellRect(9, 12, 12, 7).Cells.ToArray();
+        var indices = cells.Select(map.cellIndices.CellToIndex).ToArray();
+        var frame = new MapSpaceObject(159278, map, new SpacePose(Vector3.forward, 0));
+        universe.RegisterObject(frame);
+        var guns = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml").Root.Elements("ThingDef");
+        var results = new Dictionary<(string name, bool moving, bool ap), (float contactRate, float deckPerMinute)>();
+        const int samples = 195;
+        try
+        {
+            foreach (var (name, defName, charge, heads) in new[] {
+                ("small rapid", "DeltaV_Weapon_RapidMainSmall", 1, 1),
+                ("small heavy", "DeltaV_Weapon_CannonTurret", 24, 24),
+                ("medium rapid", "DeltaV_Weapon_RapidMainMedium", 4, 2),
+                ("medium heavy", "DeltaV_Weapon_HeavyMainMedium", 48, 48),
+                ("medium heavy light charge", "DeltaV_Weapon_HeavyMainMedium", 1, 96),
+                ("medium heavy full charge", "DeltaV_Weapon_HeavyMainMedium", 96, 96) })
+            {
+                var tuningXml = guns.Single(n => (string)n.Element("defName") == defName).Element("comps").Elements("li")
+                    .Single(n => (string)n.Attribute("Class") == "DeltaV.CompProperties_WeaponTuning");
+                var node = new System.Xml.XmlDocument();
+                node.LoadXml(tuningXml.ToString());
+                var tuning = new CompWeaponTuning();
+                tuning.Initialize(DirectXmlToObject.ObjectFromXml<CompProperties_WeaponTuning>(node.DocumentElement, false));
+                tuning.charge = charge;
+                tuning.mass = heads;
+                int cycle = 0, scheduled = 0;
+                bool locked = false;
+                bool stable = !tuning.Settings.lockEveryShot
+                    && tuning.ShotHeat <= tuning.Settings.coolingPerSecond * tuning.interval / 60f;
+                for (; cycle < 100000; cycle++)
+                {
+                    if (tuning.RemainingTicks == 0)
+                    {
+                        if (cycle > 0 && (stable || locked && tuning.heat == 0)) break;
+                        tuning.CommitShot();
+                        scheduled++;
+                        locked |= tuning.overheated;
+                    }
+                    tuning.AdvanceThermalTick();
+                }
+                Check(cycle < 100000, name + " reaches a full production heat cycle");
+
+                foreach (bool ap in new[] { false, true })
+                foreach (bool moving in new[] { false, true })
+                {
+                    int contacts = 0, destroyed = 0, widest = 0, deepest = 0;
+                    float mass = heads * (ap ? 1.5f : 1f);
+                    float speed = SpaceKinetics.LaunchSpeed(charge, mass);
+                    float flight = 30f / speed;
+                    for (int i = 0; i < samples; i++)
+                    {
+                        // Zero transverse velocity at launch. Sample lateral acceleration over a 30-cell flight.
+                        float offset = moving ? .5f * ((i % 13 - 6f) * .55f) * flight * flight : 0f;
+                        float lane = 15.5f - offset;
+                        if (lane < 12 || lane >= 19) continue;
+                        foreach (int index in indices) map.terrainGrid.foundationGrid[index] = deck;
+                        SubstructureOwnership.BumpStructureVersion(map);
+                        var from = new Vector2(2.5f, lane);
+                        Vector3 start = SpaceTransform.MapPointToUniverse(frame, map, from);
+                        var attacker = new SpaceObject(159277, new SpacePose(start, 0));
+                        attacker.pose.velocity = SpaceTransform.MapDirectionToUniverseTangent(frame, map, from, Vector2.right) * speed;
+                        ThingDef projectile = ap ? uranium : steel;
+                        var shot = new SpaceCollision.SweptBody { attacker = attacker, requiredDefender = frame,
+                            from = start, to = SpaceTransform.MapPointToUniverse(frame, map, from + Vector2.right * 24),
+                            projectileDef = projectile, mass = mass, damageScale = 1f,
+                            sweepRadius = SpaceProjectileService.FootprintRadius(projectile) };
+                        Rand.PushState(33101 + i);
+                        try { SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot }); }
+                        finally { Rand.PopState(); }
+                        if (shot.resolvedHit) contacts++;
+                        var holes = cells.Where((_, index) => map.terrainGrid.foundationGrid[indices[index]] == null).ToArray();
+                        destroyed += holes.Length;
+                        if (holes.Length > 0)
+                        {
+                            widest = Math.Max(widest, holes.Max(c => c.z) - holes.Min(c => c.z) + 1);
+                            deepest = Math.Max(deepest, holes.Max(c => c.x) - holes.Min(c => c.x) + 1);
+                        }
+                        Call(universe, "RunFrameActions");
+                    }
+                    float rate = contacts / (float)samples;
+                    float deckPerMinute = destroyed / (float)samples * scheduled * 3600f / cycle;
+                    results[(name, moving, ap)] = (rate, deckPerMinute);
+                    Console.WriteLine($"AMMO {name}, {(ap ? "uranium" : "steel")}, {(moving ? "maneuver" : "still")}: "
+                        + $"flight={flight:F2}s contacts={contacts}/{samples} deck/min={deckPerMinute:F1} maxWidth={widest} maxDepth={deepest}");
+                }
+            }
+            foreach (string size in new[] { "small", "medium" })
+                Check(results[($"{size} rapid", false, false)].deckPerMinute > results[($"{size} heavy", false, false)].deckPerMinute,
+                    size + " default rapid steel clears more bare deck over complete heat cycles");
+            Check(results[("medium heavy light charge", true, false)].contactRate
+                < results[("medium heavy full charge", true, false)].contactRate,
+                "equally heavy low-charge steel loses contacts against a maneuvering target");
+        }
+        finally
+        {
+            universe.UnregisterObject(frame);
+            Find.Maps.Remove(map);
+            AccessTools.Method(typeof(DefDatabase<SpaceImpactEffectDef>), "Remove").Invoke(null, new object[] { penetration });
+            SpaceImpactEffects.ResetCache();
+        }
     }
 
     static void CheckOrderedStructureContacts(UniverseManager universe, Faction faction)

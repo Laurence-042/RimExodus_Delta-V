@@ -90,6 +90,9 @@
   <saveable Class="ThingWithComps">
     <def>DeltaV_SteelHead</def>
   </saveable>
+  <saveable Class="ThingWithComps">
+    <def>DeltaV_UraniumHead</def>
+  </saveable>
   <saveable Class="Building">
     <def>OxygenPump</def>
     <health>80</health>

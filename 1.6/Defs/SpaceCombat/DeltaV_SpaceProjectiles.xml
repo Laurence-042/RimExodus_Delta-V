@@ -1,9 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <Defs>
-  <ThingDef ParentName="BuildingBase">
-    <defName>DeltaV_Projectile_Cannon</defName>
-    <label>cannon shot</label>
-    <description>Test projectile: a slow heavy shell flying straight in the universe layer.</description>
+  <ThingDef ParentName="BuildingBase" Name="DeltaV_Projectile_CannonBase" Abstract="True">
     <thingClass>Verse.Building</thingClass>
     <category>Building</category>
     <rotatable>false</rotatable>
@@ -27,6 +24,36 @@
         <enabled>false</enabled>
       </damageData>
     </graphicData>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_Projectile_CannonBase">
+    <defName>DeltaV_Projectile_Cannon</defName>
+    <label>cannon shell</label>
+    <description>A heavy steel shell that explodes on its first structure hit.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <collisionRadius>0</collisionRadius>
+        <visualStyle>Heavy</visualStyle>
+        <tracerLength>1.5</tracerLength>
+        <tracerWidth>0.14</tracerWidth>
+        <fireSoundMap>DeltaV_FireHeavyMap</fireSoundMap>
+        <fireSoundShell>DeltaV_FireHeavyShell</fireSoundShell>
+        <impactSoundMap>DeltaV_ImpactHeavyMap</impactSoundMap>
+        <impactSoundShell>DeltaV_ImpactHeavyShell</impactSoundShell>
+        <speed>60</speed>
+        <timeoutTicks>900</timeoutTicks>
+        <hasMap>false</hasMap>
+        <shieldFragmentCost>2</shieldFragmentCost>
+        <shieldFragmentDef>DeltaV_Projectile_ShieldFragment</shieldFragmentDef>
+        <shieldTumbleDef>DeltaV_Projectile_SteelShellTumbling</shieldTumbleDef>
+        <shieldFragmentCount>3</shieldFragmentCount>
+        <shieldFragmentScatterDeg>11</shieldFragmentScatterDeg>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_Projectile_CannonBase">
+    <defName>DeltaV_Projectile_CannonUranium</defName>
+    <label>uranium cannon shell</label>
+    <description>An armor-piercing uranium shell that spends its impact energy along the flight path.</description>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceProjectile">
         <collisionRadius>0</collisionRadius>
@@ -48,10 +75,7 @@
       </li>
     </comps>
   </ThingDef>
-  <ThingDef ParentName="BuildingBase">
-    <defName>DeltaV_Projectile_Rapid</defName>
-    <label>rapid cannon shot</label>
-    <description>A compact rapid cannon projectile.</description>
+  <ThingDef ParentName="BuildingBase" Name="DeltaV_Projectile_RapidBase" Abstract="True">
     <thingClass>Verse.Building</thingClass>
     <category>Building</category>
     <rotatable>false</rotatable>
@@ -75,6 +99,36 @@
         <enabled>false</enabled>
       </damageData>
     </graphicData>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_Projectile_RapidBase">
+    <defName>DeltaV_Projectile_Rapid</defName>
+    <label>rapid cannon shell</label>
+    <description>A compact steel shell that explodes on its first structure hit.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_SpaceProjectile">
+        <collisionRadius>0</collisionRadius>
+        <visualStyle>Kinetic</visualStyle>
+        <tracerLength>1.1</tracerLength>
+        <tracerWidth>0.1</tracerWidth>
+        <fireSoundMap>DeltaV_FireRapidMap</fireSoundMap>
+        <fireSoundShell>DeltaV_FireRapidShell</fireSoundShell>
+        <impactSoundMap>DeltaV_ImpactHitMap</impactSoundMap>
+        <impactSoundShell>DeltaV_ImpactHitShell</impactSoundShell>
+        <speed>60</speed>
+        <timeoutTicks>900</timeoutTicks>
+        <hasMap>false</hasMap>
+        <shieldFragmentDef>DeltaV_Projectile_ShieldFragment</shieldFragmentDef>
+        <shieldTumbleDef>DeltaV_Projectile_SteelShellTumbling</shieldTumbleDef>
+        <shieldFragmentCount>3</shieldFragmentCount>
+        <shieldFragmentScatterDeg>11</shieldFragmentScatterDeg>
+        <shieldFragmentCost>2</shieldFragmentCost>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_Projectile_RapidBase">
+    <defName>DeltaV_Projectile_RapidUranium</defName>
+    <label>uranium rapid cannon shell</label>
+    <description>An armor-piercing uranium shell that spends its impact energy along the flight path.</description>
     <comps>
       <li Class="DeltaV.CompProperties_SpaceProjectile">
         <collisionRadius>0</collisionRadius>
@@ -398,7 +452,7 @@
       </li>
     </comps>
   </ThingDef>
-  <ThingDef ParentName="BuildingBase">
+  <ThingDef ParentName="BuildingBase" Name="DeltaV_TumblingShell">
     <defName>DeltaV_Projectile_ShellTumbling</defName>
     <label>tumbling shell projectile</label>
     <description>A full-mass projectile destabilized by a transverse shield impulse. It has lost deep penetration and may tear under a stronger transverse impulse.</description>
@@ -444,6 +498,11 @@
         <shieldFragmentScatterDeg>11</shieldFragmentScatterDeg>
       </li>
     </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_TumblingShell">
+    <defName>DeltaV_Projectile_SteelShellTumbling</defName>
+    <label>tumbling steel shell</label>
+    <description>An intact steel shell that still detonates when it reaches a structure.</description>
   </ThingDef>
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Projectile_RailTumbling</defName>

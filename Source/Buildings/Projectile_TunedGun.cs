@@ -4,7 +4,7 @@ using Verse;
 
 namespace DeltaV
 {
-    // The ground projectile freezes the same load and effect budget as the universe shot.
+    // The ground projectile freezes the load and the ground direct-hit budget.
     public sealed class GunImpactSnapshot : IExposable
     {
         public float damage, penetration, speed, duration = 1f;
@@ -13,7 +13,8 @@ namespace DeltaV
             var weapon = launcher.TryGetComp<CompSpaceWeapon>() ?? equipment.TryGetComp<CompSpaceWeapon>();
             if (weapon == null) return;
             var magazine = weapon.SelectMagazine();
-            var projectile = magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
+            var projectile = weapon.WeaponProps.armorPiercingProjectileDef
+                ?? magazine?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
             var part = SpaceImpactEffects.Resolve(projectile, ThingDefOf.Wall)?.defenderEffect;
             damage = SpaceWeaponBallistics.ExpectedDamage(weapon, projectile);
             penetration = part == null ? 0f : part.armorPenetration * damage / Mathf.Max(.001f, part.damage)
