@@ -7,8 +7,7 @@ using Object = UnityEngine.Object;
 
 namespace DeltaV
 {
-    /// <summary>Nonfocused wall lighting and GravshipHull art. The section cache
-    /// owns the derived meshes.</summary>
+    /// <summary>GravshipHull art and wall boundary geometry for nonfocused shells.</summary>
     internal static class ShellHullVisuals
     {
         internal readonly struct Adjacency
@@ -184,8 +183,7 @@ namespace DeltaV
 
         internal static Material WallMaterial(Thing wall, Adjacency adjacency)
         {
-            // Preserve the original atlas, shader and stuff tint. Only the
-            // four-way link mask differs from the focused-map Graphic_Linked.
+            // Preserve the original atlas, shader and stuff tint.
             Material atlas = WallAtlas(wall);
             return atlas == null ? null : MaterialAtlasPool.SubMaterialFromAtlas(atlas,
                 (LinkDirections)adjacency.atlasLinks);
@@ -227,6 +225,7 @@ namespace DeltaV
         internal static Adjacency Analyze(Map map, IntVec3 cell, Building wall, int angledSides)
         {
             bool gravshipHull = wall.def == ThingDefOf.GravshipHull;
+            bool onFoundation = SubstructureOwnership.HasFoundation(map, cell);
             int connected = 0;
             int floorMask = 0;
             int atlasLinks = 0;
@@ -234,10 +233,11 @@ namespace DeltaV
             for (int side = 0; side < 4; side++)
             {
                 IntVec3 neighbor = cell + GenAdj.CardinalDirections[side];
-                if (!SharesDomain(map, cell, neighbor)) continue;
+                bool sameDomain = SharesDomain(map, cell, neighbor);
+                if (!CanJoinWalls(neighbor, sameDomain)) continue;
                 Building other = neighbor.GetEdificeSafe(map);
                 bool insert = HullWallInsert.LinksFrom(other, cell);
-                bool roof = HasShellRoof(map, neighbor);
+                bool roof = sameDomain && HasShellRoof(map, neighbor);
                 bool wallSegment = insert || IsWallSegment(other);
                 int bit = 1 << side;
                 if (wallSegment || roof) connected |= bit;
@@ -251,10 +251,12 @@ namespace DeltaV
             {
                 for (int corner = 0; corner < 4; corner++)
                 {
+                    int sides = CornerCardinalMasks[corner];
+                    if ((atlasLinks & sides) != sides) continue;
                     IntVec3 diagonal = cell + GenAdj.DiagonalDirectionsAround[corner];
-                    if ((atlasLinks & CornerCardinalMasks[corner]) == CornerCardinalMasks[corner]
-                        && SharesDomain(map, cell, diagonal)
-                        && (HullWallAt(map, diagonal) != null || HasShellRoof(map, diagonal)))
+                    bool sameDomain = SharesDomain(map, cell, diagonal);
+                    if (!CanJoinWalls(diagonal, sameDomain)) continue;
+                    if (HullWallAt(map, diagonal) != null || (sameDomain && HasShellRoof(map, diagonal)))
                         cornerFill |= 1 << corner;
                 }
             }
@@ -279,6 +281,10 @@ namespace DeltaV
             }
             return new Adjacency(connected, floorMask, atlasLinks, cornerFill, outerCorner,
                 angledSides, insetDoorSides);
+
+            // Walls on ordinary terrain can share an edge without a ship domain.
+            bool CanJoinWalls(IntVec3 neighbor, bool sameDomain) =>
+                sameDomain || (!onFoundation && !SubstructureOwnership.HasFoundation(map, neighbor));
         }
 
         internal static bool HasShellRoof(Map map, IntVec3 cell) =>

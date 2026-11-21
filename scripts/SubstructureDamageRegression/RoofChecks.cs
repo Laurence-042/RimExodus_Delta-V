@@ -212,7 +212,7 @@ internal static partial class Program
         CheckAngledHullSlopes(map, hull, deck, dirty);
         Building_Door door = CheckWallSegmentLighting(map, hull, deck, roof, dirty);
         CheckBuildingDamage(map, deck, roof, dirty);
-        CheckOwnedDomainBoundaries(universe, deck, space, hull);
+        CheckOwnedDomainBoundaries(universe, deck, space, roof, hull);
         ExportRoofEdgePreview(edges);
         MapOverlayRenderer.Release(map);
         dirty.Clear();
@@ -224,7 +224,7 @@ internal static partial class Program
     }
 
     private static void CheckOwnedDomainBoundaries(UniverseManager universe, TerrainDef deck,
-        TerrainDef space, Type hull)
+        TerrainDef space, RoofDef roof, Type hull)
     {
         var map = (Map)Raw(typeof(Map));
         map.info = new MapInfo { Size = new IntVec3(68, 1, 34) };
@@ -234,6 +234,7 @@ internal static partial class Program
         map.terrainGrid = new TerrainGrid(map);
         map.thingGrid = new ThingGrid(map);
         map.edificeGrid = new EdificeGrid(map);
+        map.linkGrid = new LinkGrid(map);
         map.roofGrid = new RoofGrid(map);
         map.events = new MapEvents(map);
         map.listerThings = new ListerThings(ListerThingsUse.Global);
@@ -248,9 +249,37 @@ internal static partial class Program
         var b = a + IntVec3.East;
         SetRoofFixtureFoundation(map, a, deck);
         SetRoofFixtureFoundation(map, b, deck);
+        var ordinaryWall = (ThingDef)Raw(typeof(ThingDef));
+        ordinaryWall.category = ThingCategory.Building;
+        ordinaryWall.size = IntVec2.One;
+        ordinaryWall.building = new BuildingProperties { isWall = true };
+        ordinaryWall.graphicData = new GraphicData { linkFlags = LinkFlags.Wall };
+        Building PlaceOrdinaryWall(IntVec3 cell)
+        {
+            var wall = new Building { def = ordinaryWall };
+            RegisterWall(wall, cell);
+            return wall;
+        }
+        void RegisterWall(Building wall, IntVec3 cell)
+        {
+            Set(wall, "positionInt", cell);
+            Set(wall, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
+            map.thingGrid.Register(wall);
+            map.edificeGrid.Register(wall);
+            map.linkGrid.Notify_LinkerCreatedOrDestroyed(wall);
+        }
+        Building first = PlaceOrdinaryWall(a);
+        Building second = PlaceOrdinaryWall(b);
         var owner = SubstructureOwnership.For(map);
         Type patch = typeof(MapOverlayRenderer).Assembly.GetType("DeltaV.Patch_ShipHullRendering");
         var harmony = new Harmony("DeltaV.RoofRegression.OwnedBoundaries");
+        // The native queries need the DLC flag, but the fixture creates no Unity materials or capture layers.
+        var skipInitializer = new HarmonyMethod(typeof(Program), nameof(Skip));
+        harmony.Patch(typeof(ModsConfig).TypeInitializer, prefix: skipInitializer);
+        harmony.Patch(typeof(SectionLayer_SubstructureProps).TypeInitializer, prefix: skipInitializer);
+        harmony.Patch(typeof(GravshipCapturer).TypeInitializer, prefix: skipInitializer);
+        FieldInfo odyssey = AccessTools.Field(typeof(ModsConfig), "odysseyActive");
+        odyssey.SetValue(null, true);
         foreach (Type nested in patch.GetNestedTypes(BindingFlags.NonPublic).Where(t => t.IsDefined(typeof(HarmonyPatch), false)))
         {
             // Capture uses Unity native rendering calls and cannot be JIT-patched by the .NET fixture.
@@ -263,6 +292,25 @@ internal static partial class Program
             }
             Check(harmony.CreateClassProcessor(nested).Patch().Count == 1, $"owned shell Harmony target resolves ({nested.Name})");
         }
+        foreach (MethodInfo drawer in new[]
+        {
+            AccessTools.DeclaredMethod(typeof(Graphic_LinkedCornerFiller), nameof(Graphic_LinkedCornerFiller.Print)),
+            AccessTools.DeclaredMethod(typeof(SectionLayer_GravshipHull), nameof(SectionLayer_GravshipHull.Regenerate)),
+            AccessTools.DeclaredMethod(typeof(SectionLayer_SubstructureProps), nameof(SectionLayer_SubstructureProps.Regenerate))
+        })
+            Check(drawer != null && Harmony.GetPatchInfo(drawer)?.Owners.Contains(harmony.Id) != true,
+                $"focused meshes use the original drawer ({drawer?.DeclaringType.Name})");
+
+        var props = (SectionLayer_SubstructureProps)Raw(typeof(SectionLayer_SubstructureProps));
+        Set(props, "map", map);
+        var shouldDrawProps = AccessTools.Method(typeof(SectionLayer_SubstructureProps), "ShouldDrawPropsOn");
+        var linker = new Graphic_LinkedCornerFiller(new HullTestGraphic());
+        (int sides, int corners) NativeEdges(IntVec3 cell)
+        {
+            object[] arguments = { cell, map.terrainGrid, null, null };
+            shouldDrawProps.Invoke(props, arguments);
+            return (Convert.ToInt32(arguments[2]), Convert.ToInt32(arguments[3]));
+        }
         var index = AccessTools.Property(typeof(UniverseManager), "ShipStructure").GetValue(universe);
         CallInstance(index, "For", map);
         object cache = Call(typeof(MapOverlayRenderer), "CacheFor", map);
@@ -270,46 +318,112 @@ internal static partial class Program
         var dirty = (HashSet<int>)AccessTools.Field(snapshots.GetType(), "dirty").GetValue(snapshots);
         bool Joined(IntVec3 first, IntVec3 second) => (bool)Call(hull, "SharesDomain", map, first, second);
         int Edge(IntVec3 cell) => (int)Call(hull, "FoundationEdges", map, cell);
+        int Connected(Building wall) => AdjacencyField(
+            Call(hull, "Analyze", map, wall.Position, wall, 0), "connected");
         try
         {
             Check(Joined(a, b) && (Edge(a) & 2) == 0 && (Edge(b) & 8) == 0,
                 "unassigned continuous foundation shares one domain and no internal edge");
+            Check((Connected(first) & 2) != 0 && (Connected(second) & 8) != 0,
+                "same-domain wall segments omit the shared shell edge");
+            Check(linker.ShouldLinkWith(b, first) && linker.ShouldLinkWith(a, second)
+                && (NativeEdges(a).sides & 2) == 0 && (NativeEdges(b).sides & 8) == 0,
+                "native focused wall and foundation edges join across a same-domain section boundary");
+            IntVec3 roofCell = a + IntVec3.North;
+            SetRoofFixtureFoundation(map, roofCell, deck);
+            map.roofGrid.SetRoof(roofCell, roof);
+            Check(!linker.ShouldLinkWith(roofCell, first), "a same-domain roof cannot link a native focused wall");
+            map.roofGrid.SetRoof(roofCell, null);
+            SetRoofFixtureFoundation(map, roofCell, null);
             Check(!Joined(a, a + IntVec3.North), "empty space is distinct from unassigned foundation");
             dirty.Clear();
             CallInstance(owner, "Assign", b, 811);
             Check(!Joined(a, b) && (Edge(a) & 2) != 0 && (Edge(b) & 8) != 0
                 && dirty.SetEquals(new[] { 0, 1 }),
                 "pure reassignment introduces a shared-domain seam and only dirties the two affected sections");
+            Check((Connected(first) & 2) == 0 && (Connected(second) & 8) == 0,
+                "adjacent walls across ownership domains each keep their shell edge");
+            Check(!linker.ShouldLinkWith(b, first) && !linker.ShouldLinkWith(a, second)
+                && (NativeEdges(a).sides & 2) != 0 && (NativeEdges(b).sides & 8) != 0,
+                "native focused wall and foundation edges preserve the ownership seam");
+            Type strategicCapture = patch.GetNestedType("StrategicCapture", BindingFlags.NonPublic);
+            Call(strategicCapture, "Prefix");
+            try
+            {
+                Check(linker.ShouldLinkWith(b, first) && (NativeEdges(a).sides & 2) == 0,
+                    "strategic capture reads the original wall links and foundation borders");
+            }
+            finally { Call(strategicCapture, "Finalizer"); }
             dirty.Clear();
             CallInstance(owner, "Assign", b, 811);
             Check(dirty.Count == 0, "stable ownership produces no render invalidation");
+
+            SetRoofFixtureFoundation(map, b, null);
+            Check((Connected(first) & 2) == 0 && (Connected(second) & 8) == 0,
+                "losing foundation under one wall leaves a shell edge at the hull boundary");
+            SetRoofFixtureFoundation(map, a, null);
+            Check(!Joined(a, b) && Connected(first) == 2 && Connected(second) == 8
+                && linker.ShouldLinkWith(b, first) && linker.ShouldLinkWith(a, second),
+                "ordinary walls without ship foundations share the internal edge and keep exposed edges");
+
+            var inner = new IntVec3(35, 0, 20);
+            foreach (IntVec3 cell in CellRect.CenteredOn(inner, 1))
+                SetRoofFixtureFoundation(map, cell, deck);
+            Check(NativeEdges(inner) == (0, 0), "native borders omit cardinal and diagonal trims inside a domain");
+            CallInstance(owner, "Assign", inner + IntVec3.NorthEast, 811);
+            Check(NativeEdges(inner) == (0, 4), "native inner corner sees the diagonal ownership seam");
 
             var angle = new IntVec3(53, 0, 8);
             HullTestWall Wall(IntVec3 cell)
             {
                 SetRoofFixtureFoundation(map, cell, deck);
                 var wall = new HullTestWall { def = ThingDefOf.GravshipHull, graphic = new HullTestGraphic() };
-                Set(wall, "positionInt", cell);
-                map.edificeGrid.Register(wall);
+                RegisterWall(wall, cell);
                 return wall;
+            }
+            SectionLayer_GravshipHull.CornerType NativeAngle()
+            {
+                bool found = SectionLayer_GravshipHull.ShouldDrawCornerPiece(
+                    angle, map, map.terrainGrid, out var type, out _);
+                if (found != (type != SectionLayer_GravshipHull.CornerType.None))
+                    throw new Exception("Native angle result and variant disagree");
+                return type;
             }
             IntVec3 north = angle + IntVec3.North, east = angle + IntVec3.East;
             Wall(north); Wall(east);
             IntVec3 bridge = north + IntVec3.East;
             SetRoofFixtureFoundation(map, bridge, deck);
             object[] inputs = { map, angle, -1, false, null };
-            Check((bool)Call(hull, "TryAngle", inputs) && (int)inputs[2] == 0 && !(bool)inputs[3],
+            Check((bool)Call(hull, "TryAngle", inputs) && (int)inputs[2] == 0 && !(bool)inputs[3]
+                && NativeAngle() == SectionLayer_GravshipHull.CornerType.Diagonal_NE,
                 "both draw paths admit a partial diagonal across same-domain walls");
             SetRoofFixtureFoundation(map, bridge, null);
             dirty.Clear();
             CallInstance(index, "NotifyCell", map, bridge, Enum.Parse(
                 typeof(MapOverlayRenderer).Assembly.GetType("DeltaV.ShipStructureAspect"), "Foundation"),
                 deck, null, 0, 0);
-            Check(!(bool)Call(hull, "TryAngle", inputs) && dirty.SetEquals(new[] { 3 }),
+            Check(!(bool)Call(hull, "TryAngle", inputs)
+                && NativeAngle() == SectionLayer_GravshipHull.CornerType.None && dirty.SetEquals(new[] { 3 }),
                 "foundation break removes the diagonal between same-owner fragments and refreshes only that section");
+
+            HullTestWall diagonal = Wall(bridge);
+            Check(NativeAngle() == SectionLayer_GravshipHull.CornerType.Corner_NE
+                && linker.ShouldLinkWith(north, diagonal) && !linker.ShouldLinkWith(east + IntVec3.East, diagonal),
+                "native geometry selects the full variant with a third joined hull wall");
+            foreach (IntVec3 cell in new[]
+            {
+                north + IntVec3.North, bridge + IntVec3.North, bridge + IntVec3.NorthEast,
+                bridge + IntVec3.East, east + IntVec3.East
+            })
+                SetRoofFixtureFoundation(map, cell, deck);
+            CallInstance(owner, "Assign", bridge, 811);
+            Check(!linker.ShouldLinkWith(east, diagonal)
+                && NativeAngle() == SectionLayer_GravshipHull.CornerType.Diagonal_NE,
+                "native geometry uses the partial variant when only the diagonal wall is in another domain");
         }
         finally
         {
+            odyssey.SetValue(null, false);
             harmony.UnpatchAll(harmony.Id);
             MapOverlayRenderer.Release(map);
             CallInstance(universe, "ForgetFoundationTopology", map);
@@ -646,11 +760,15 @@ internal static partial class Program
         }
     }
 
+    private static int AdjacencyField(object adjacency, string name) =>
+        (int)AccessTools.Field(adjacency.GetType(), name).GetValue(adjacency);
+
     private static void CheckHullCorners(Map map, Type hull, TerrainDef deck, RoofDef roof)
     {
         ThingDefOf.GravshipHull = (ThingDef)Raw(typeof(ThingDef));
         ThingDefOf.GravshipHull.defName = "GravshipHull";
         ThingDefOf.GravshipHull.size = IntVec2.One;
+        ThingDefOf.GravshipHull.graphicData = new GraphicData { linkFlags = LinkFlags.Wall };
         var steel = (Material)Raw(typeof(Material));
         var uranium = (Material)Raw(typeof(Material));
         var plasteel = (Material)Raw(typeof(Material));
@@ -677,8 +795,9 @@ internal static partial class Program
             HullTestWall zWall = Place(floor + z, uranium);
             HullTestWall elbow = Place(floor + x + z, uranium);
 
-            object adjacency = Call(hull, "Analyze", map, elbow.Position, elbow, 0);
-            int Field(string name) => (int)AccessTools.Field(adjacency.GetType(), name).GetValue(adjacency);
+            object Analyze() => Call(hull, "Analyze", map, elbow.Position, elbow, 0);
+            object adjacency = Analyze();
+            int Field(string name) => AdjacencyField(adjacency, name);
             Check(Field("outerCorner") == corner, $"outer arc bows in the same direction as the inner arc ({corner})");
             Check(Call(hull, "SelectCornerWall", xWall, zWall, elbow) == zWall,
                 $"two matching wall materials win the corner ({corner})");
@@ -717,15 +836,29 @@ internal static partial class Program
                     $"inner and outer arc edges reverse highlights under opposite light ({corner}, outer={outer})");
             }
 
+            var roofNeighbor = elbow.Position + x;
+            SetRoofFixtureFoundation(map, roofNeighbor, deck);
+            map.roofGrid.SetRoof(roofNeighbor, roof);
+            adjacency = Analyze();
+            int fillBit = 1 << corner; // Opposite diagonal in SW/NW/NE/SE order.
+            int roofSide = x.x > 0 ? 2 : 8;
+            Check((Field("atlasLinks") & roofSide) != 0 && (Field("cornerFill") & fillBit) != 0,
+                $"roof-only joins fill the shell atlas ({corner})");
+            map.roofGrid.SetRoof(roofNeighbor, null);
             map.roofGrid.SetRoof(floor, null);
-            adjacency = Call(hull, "Analyze", map, elbow.Position, elbow, 0);
+            adjacency = Analyze();
             Check(Field("outerCorner") == -1 && Field("cornerFill") == 0,
                 $"unroofed open deck does not close the hull corner ({corner})");
             Place(floor, steel);
-            adjacency = Call(hull, "Analyze", map, elbow.Position, elbow, 0);
-            int fillBit = 1 << corner; // Opposite diagonal in SW/NW/NE/SE order.
+            adjacency = Analyze();
             Check(Field("outerCorner") == -1 && (Field("cornerFill") & fillBit) != 0,
-                $"four actual walls fill the cross even with no roof at the diagonal ({corner})");
+                $"four actual walls fill the shell cross without a roof at the diagonal ({corner})");
+
+            CallInstance(SubstructureOwnership.For(map), "Assign", xWall.Position, 1200);
+            int splitSide = z.z > 0 ? 4 : 1;
+            adjacency = Analyze();
+            Check((Field("atlasLinks") & splitSide) == 0 && Field("cornerFill") == 0,
+                $"different ownership preserves the shell wall seam ({corner})");
         }
     }
 
