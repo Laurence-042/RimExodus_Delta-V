@@ -26,10 +26,17 @@ namespace DeltaV
             universe.Missions.FlightObserved += ObserveFlight;
             universe.Missions.DockPreparing += PrepareDockWitness;
         }
-        private Action PrepareDockWitness(DriveSubject subject, Map map)
+        internal Action PrepareDockWitness(DriveSubject subject, Map map)
         {
-            Thing witness = RecoveryWitness(subject, map);
-            return witness == null ? null : new Action(() => ConfirmRecoveryDock(subject, witness));
+            var expected = Run;
+            if (!Active || expected.stage != TutorialStage.Salvage || map == null || RecoveryTarget?.map != map
+                || subject != new DriveSubject(0, expected.trainingShipId)) return null;
+            // Both transfer paths invoke this only once their placement has committed.
+            return () =>
+            {
+                if (Run == expected && Active && expected.stage == TutorialStage.Salvage)
+                    expected.recoveryDocked = true;
+            };
         }
         internal TutorialRunState Run => universe.tutorialRun;
         internal bool Active => Current.Game?.GetComponent<UniverseManager>() == universe
@@ -74,15 +81,30 @@ namespace DeltaV
 
         internal bool HasNavigationStage => Active && (Run.stage == TutorialStage.Salvage
             || Run.stage == TutorialStage.Range || Run.stage == TutorialStage.Visit);
-        internal Thing NavigationRole => !HasNavigationStage ? null
-            : Run.stage == TutorialStage.Salvage ? Run.salvageShelf
-            : Run.stage == TutorialStage.Visit ? Run.yardPort : Run.rangePort;
+        private SpaceObject RecoveryTarget => Run?.salvageObjectId > 0 ? universe.ObjectById(Run.salvageObjectId) : null;
+
+        internal GlobeTarget NavigationTarget
+        {
+            get
+            {
+                if (!HasNavigationStage) return null;
+                if (Run.stage == TutorialStage.Salvage && !Run.recoveryDocked)
+                    return RecoveryTarget is SpaceObject target ? new GlobeTarget { objectId = target.objectId } : null;
+                Thing role = Run.stage switch
+                {
+                    TutorialStage.Salvage => Run.trainingConsole,
+                    TutorialStage.Visit => Run.yardPort,
+                    _ => Run.rangePort
+                };
+                return role?.Spawned == true ? MissionTarget.Of(universe, role).Navigation : null;
+            }
+        }
 
         internal void LocateNavigationTarget()
         {
-            Thing role = NavigationRole;
-            if (role?.Spawned != true) return;
-            universe.GlobeNavigation.MissionSelection = MissionTarget.Of(universe, role).Navigation;
+            GlobeTarget target = NavigationTarget;
+            if (target == null) return;
+            universe.GlobeNavigation.MissionSelection = target;
             universe.GlobeNavigation.Refresh(universe);
             GlobeNavigationPanel.Open(universe, universe.GlobeNavigation.MissionSelection);
         }
@@ -95,6 +117,8 @@ namespace DeltaV
                 if (Run.comms?.Spawned == true) yield return Run.comms;
                 foreach (Thing role in FlightRoles())
                     if (role?.Spawned == true) yield return role;
+                if (!Run.recoveryDocked && RecoveryTarget?.map is Map recoveryMap && !recoveryMap.Disposed)
+                    yield return new GlobalTargetInfo(recoveryMap.Center, recoveryMap);
                 foreach (Pawn pawn in Run.colonists ?? Enumerable.Empty<Pawn>())
                     if (pawn?.Spawned == true) yield return pawn;
                 foreach (var casket in Run.caskets ?? Enumerable.Empty<Building_CryptosleepCasket>())
@@ -104,7 +128,8 @@ namespace DeltaV
 
         internal bool CanShowFor(ISelectable target) => Active && target is Thing thing
             && ((thing.Faction == Faction.OfPlayer && thing.MapHeld == Run.station)
-                || (thing.Faction == Faction.OfPlayer && FlightRoles().Any(t => t?.Spawned == true && t.Map == thing.MapHeld))
+                || (thing.Faction == Faction.OfPlayer && (FlightRoles().Any(t => t?.Spawned == true && t.Map == thing.MapHeld)
+                    || (thing.MapHeld != null && thing.MapHeld == RecoveryTarget?.map)))
                 || FlightRoles().Contains(thing) || Run.colonists.Contains(thing as Pawn));
 
         internal void ShowBriefing()
@@ -162,7 +187,8 @@ namespace DeltaV
             Run.berthDoor = null;
             Run.trainingConsole = Run.giftConsole = null;
             Run.rangeConsole = Run.rangeTarget = null;
-            Run.cargoShelf = Run.salvageShelf = null;
+            Run.cargoShelf = null;
+            Run.salvageObjectId = 0;
             Run.trainingPort = Run.yardPort = Run.rangePort = null;
             Run.giftEngine = null;
         }

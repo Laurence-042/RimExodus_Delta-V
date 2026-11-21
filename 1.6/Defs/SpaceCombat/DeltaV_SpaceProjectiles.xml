@@ -502,7 +502,7 @@
   <ThingDef ParentName="DeltaV_TumblingShell">
     <defName>DeltaV_Projectile_SteelShellTumbling</defName>
     <label>tumbling steel shell</label>
-    <description>An intact steel shell that still detonates when it reaches a structure.</description>
+    <description>A destabilized steel shell that deals kinetic damage at its first structure hit and stops.</description>
   </ThingDef>
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_Projectile_RailTumbling</defName>

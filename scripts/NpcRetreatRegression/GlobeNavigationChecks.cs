@@ -226,18 +226,60 @@ internal static partial class Program
         Check(universe.GlobeNavigation.SelectedEntry == null && universe.GlobeNavigation.SelectionLost,
             "removed target cannot retain stale map or representation references");
 
-        var quest = new Quest { id = 701, acceptanceTick = 0 };
-        var run = new TutorialRunState { quest = quest, salvageShelf = (Building_Storage)Raw(typeof(Building_Storage)),
-            rangePort = (Building_DockingPort)Raw(typeof(Building_DockingPort)), yardPort = (Building_DockingPort)Raw(typeof(Building_DockingPort)) };
-        universe.tutorialRun = run;
-        foreach (TutorialStage stage in Enum.GetValues(typeof(TutorialStage)))
+        MapSpaceObject CourseDestination(int mapId)
         {
-            run.stage = stage;
-            Thing expected = stage == TutorialStage.Salvage ? run.salvageShelf : stage == TutorialStage.Visit ? run.yardPort
-                : stage == TutorialStage.Range ? run.rangePort : null;
-            Check(universe.Tutorial.NavigationRole == expected, "course navigation derives the correct role for " + stage);
+            var destination = new MapSpaceObject(universe.AllocateOwnerId(), TestMap(mapId), archive.pose);
+            universe.RegisterObject(destination);
+            return destination;
         }
-        universe.tutorialRun = null;
+
+        Building_DockingPort CoursePort(MapSpaceObject destination, string name)
+        {
+            var port = (Building_DockingPort)Raw(typeof(Building_DockingPort));
+            port.def = TestBuildingDef(name);
+            port.def.label = name;
+            Set(typeof(Thing), port, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(destination.map));
+            return port;
+        }
+
+        var wreck = CourseDestination(6101);
+        var range = CourseDestination(6102);
+        var yard = CourseDestination(6103);
+        var previousRun = universe.tutorialRun;
+        var run = new TutorialRunState
+        {
+            quest = new Quest { id = 701, acceptanceTick = 0 },
+            salvageObjectId = wreck.objectId,
+            rangePort = CoursePort(range, "RangePort"),
+            yardPort = CoursePort(yard, "YardPort")
+        };
+        universe.tutorialRun = run;
+        try
+        {
+            foreach (TutorialStage stage in Enum.GetValues(typeof(TutorialStage)))
+            {
+                run.stage = stage;
+                int expected = stage switch
+                {
+                    TutorialStage.Salvage => wreck.objectId,
+                    TutorialStage.Range => range.objectId,
+                    TutorialStage.Visit => yard.objectId,
+                    _ => 0
+                };
+                GlobeTarget target = universe.Tutorial.NavigationTarget;
+                Check(expected == 0 ? target == null : target?.objectId == expected && target.shipKey == 0,
+                    "course navigation derives the correct destination for " + stage);
+            }
+        }
+        finally
+        {
+            universe.tutorialRun = previousRun;
+            foreach (var destination in new[] { yard, range, wreck })
+            {
+                universe.UnregisterObject(destination);
+                Find.Maps.Remove(destination.map);
+            }
+        }
 
         List<GlobeTarget> pins = new List<GlobeTarget> { GlobeTarget.Of(station), GlobeTarget.Of(moved) }, loaded = null;
         string path = Path.Combine(AppContext.BaseDirectory, "navigation-pins.xml");

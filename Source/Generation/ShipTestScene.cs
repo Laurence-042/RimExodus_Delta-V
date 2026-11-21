@@ -41,26 +41,55 @@ namespace DeltaV
                 distance, bearingDeg, playerAngleDeg, enemyAngleDeg, keepPrefabMarkers));
         }
 
+        internal static bool CanCreateWeaponTest => Current.ProgramState == ProgramState.Playing
+            && Find.CurrentMap != null && Current.Game?.GetComponent<UniverseManager>()?.IsResettingScene == false;
+
+        internal static void CreateWeaponTest()
+        {
+            if (!CanCreateWeaponTest) return;
+            var universe = Current.Game.GetComponent<UniverseManager>();
+            var settingsWindow = Find.WindowStack.WindowOfType<Dialog_ModSettings>();
+            Find.TickManager.Pause();
+            universe.QueueFrameAction(() =>
+            {
+                if (Current.Game?.GetComponent<UniverseManager>() != universe || universe.IsResettingScene) return;
+                try
+                {
+                    var platform = MapPrefab.LoadRelative("Tutorial/WeaponRange.xml");
+                    var target = MapPrefab.LoadRelative("Tutorial/ShieldTarget.xml");
+                    if (!TryPickOrbitAnchor(out Vector3 direction))
+                    {
+                        Messages.Message("DeltaV_WeaponTestUnavailable".Translate(), MessageTypeDefOf.RejectInput, false);
+                        return;
+                    }
+                    var range = universe.Tutorial.SpawnCombatRange(platform, target, new SpacePose(direction, 0f),
+                        Faction.OfPlayer, withPlayerColonist: true);
+                    universe.QueueFrameAction(() =>
+                    {
+                        if (range.platform.map == null || range.platform.map.Disposed) return;
+                        universe.SetFocused(range.platform);
+                        CameraJumper.TryJump(range.platform.map.Center, range.platform.map, CameraJumper.MovementMode.Cut);
+                        if (Find.WindowStack.WindowOfType<Dialog_ModSettings>() == settingsWindow)
+                            settingsWindow?.Close();
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("[DeltaV] Weapon test scene failed: " + ex);
+                    Messages.Message("DeltaV_WeaponTestUnavailable".Translate(), MessageTypeDefOf.RejectInput, false);
+                }
+            });
+        }
+
         private static void Generate(UniverseManager universe, MapPrefabDocument playerPrefab,
             MapPrefabDocument enemyPrefab, float distance, float bearingDeg,
             float playerAngleDeg, float enemyAngleDeg, bool keepPrefabMarkers)
         {
-            // 玩家船锚定在一个空闲轨道 tile 的中心方向（仅为背景视角选个合理位置）。
-            PlanetLayer orbitLayer = Find.WorldGrid.PlanetLayers.Values
-                .FirstOrDefault(layer => layer.Def == PlanetLayerDefOf.Orbit);
-            if (orbitLayer == null)
-            {
-                Log.Error("[DeltaV] This game has no orbit layer (Odyssey start scenarios provide one); cannot create test scene.");
-                return;
-            }
-            PlanetTile anchorTile = TileFinder.RandomSettlementTileFor(orbitLayer, null, false,
-                t => !Find.WorldObjects.AnyWorldObjectAt(t));
-            if (!anchorTile.Valid)
+            if (!TryPickOrbitAnchor(out Vector3 playerDir))
             {
                 Log.Error("[DeltaV] Failed to find a free tile on the orbit layer.");
                 return;
             }
-            Vector3 playerDir = OrbitSphere.TileCenterDirection(anchorTile);
 
             // 容器先注册、结构后铺设：驾驶台 spawn 认领要求 FrameOf 已解析（ClaimOnSpawn
             // 守卫）。归属 ID 与容器对象 ID 解耦（各经 AllocateOwnerId 独立发放）。
@@ -114,7 +143,20 @@ namespace DeltaV
             });
         }
 
-        private static void QueueFailedSceneCleanup(UniverseManager universe, params SpaceObject[] containers)
+        private static bool TryPickOrbitAnchor(out Vector3 direction)
+        {
+            direction = default;
+            PlanetLayer layer = Find.WorldGrid.PlanetLayers.Values
+                .FirstOrDefault(candidate => candidate.Def == PlanetLayerDefOf.Orbit);
+            if (layer == null) return false;
+            PlanetTile tile = TileFinder.RandomSettlementTileFor(layer, null, false,
+                candidate => !Find.WorldObjects.AnyWorldObjectAt(candidate));
+            if (!tile.Valid) return false;
+            direction = OrbitSphere.TileCenterDirection(tile);
+            return true;
+        }
+
+        internal static void QueueFailedSceneCleanup(UniverseManager universe, params SpaceObject[] containers)
         {
             // Map.FinalizeInit queues native power/mesh initialization after the
             // generation long event. Destroying here would dispose an uninitialized

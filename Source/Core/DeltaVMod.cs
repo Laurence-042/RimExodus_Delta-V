@@ -177,6 +177,12 @@ namespace DeltaV
             TippedRow(list, rect, "DeltaV_SettingsTestSceneEnemyAngleTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsTestSceneEnemyAngle".Translate(),
                     ref Settings.testSceneEnemyAngleDeg, ref testSceneEnemyAngleBuffer, 0f, 360f));
+            list.GapLine();
+            list.Label("DeltaV_SettingsWeaponTest".Translate());
+            bool previousEnabled = GUI.enabled;
+            GUI.enabled = previousEnabled && ShipTestScene.CanCreateWeaponTest;
+            if (list.ButtonText("DeltaV_SettingsCreateWeaponTest".Translate())) ShipTestScene.CreateWeaponTest();
+            GUI.enabled = previousEnabled;
             list.End();
         }
 

@@ -17,8 +17,8 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
     <defName>DeltaV_RangeTerminal_Unshielded</defName>
-    <label>1. unshielded reference terminal</label>
-    <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's unshielded reference preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
+    <label>1. no-shield reference terminal</label>
+    <description>Turn off the target shields to compare weapon impacts on bare armour.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
         <preset>Unshielded</preset>
@@ -26,75 +26,106 @@
     </comps>
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
-    <defName>DeltaV_RangeTerminal_KineticPassive</defName>
-    <label>2A. kinetic shield 0% terminal</label>
-    <description>Set all three target line shields to kinetic mode at 0% strength. The central segment faces the firing line; the flanks tilt in opposite directions. Switching does not repair damage or replenish energy or shield capacity.</description>
+    <defName>DeltaV_RangeTerminal_KineticHeadOn</defName>
+    <label>2. kinetic shield 0 degrees / 35% terminal</label>
+    <description>Set the target's kinetic line shield to 0 degrees and 35% strength. Keep firing due east to compare the settings.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
         <preset>Kinetic</preset>
-        <strengthPercent>0</strengthPercent>
+        <angleDeg>0</angleDeg>
+        <strengthPercent>35</strengthPercent>
       </li>
     </comps>
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
-    <defName>DeltaV_RangeTerminal_KineticLow</defName>
-    <label>2B. kinetic shield 20% terminal</label>
-    <description>Set all three target line shields to kinetic mode at 20% strength. The central segment faces the firing line; the flanks tilt in opposite directions. Switching does not repair damage or replenish energy or shield capacity.</description>
+    <defName>DeltaV_RangeTerminal_KineticObliqueLow</defName>
+    <label>2. kinetic shield 45 degrees / 7% terminal</label>
+    <description>Set the target's kinetic line shield to 45 degrees and 7% strength. Keep firing due east to compare the settings.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
         <preset>Kinetic</preset>
-        <strengthPercent>20</strengthPercent>
+        <angleDeg>-45</angleDeg>
+        <strengthPercent>7</strengthPercent>
       </li>
     </comps>
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
-    <defName>DeltaV_RangeTerminal_KineticFull</defName>
-    <label>2C. kinetic shield 100% terminal</label>
-    <description>Set all three target line shields to kinetic mode at 100% strength. The central segment faces the firing line; the flanks tilt in opposite directions. Switching does not repair damage or replenish energy or shield capacity.</description>
+    <defName>DeltaV_RangeTerminal_KineticObliqueMedium</defName>
+    <label>2. steel and uranium comparison terminal (45 degrees / 35%)</label>
+    <description>Set the kinetic line shield to 45 degrees and 35% strength to compare the two heavy cannons.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
         <preset>Kinetic</preset>
+        <angleDeg>-45</angleDeg>
+        <strengthPercent>35</strengthPercent>
+        <lessonAppendixKey>DeltaV_Range_Lesson_KineticComparison</lessonAppendixKey>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_RangeTerminalBase">
+    <defName>DeltaV_RangeTerminal_KineticObliqueFull</defName>
+    <label>2. kinetic shield 45 degrees / 100% terminal</label>
+    <description>Set the target's kinetic line shield to 45 degrees and 100% strength. Keep firing due east to compare the settings.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
+        <preset>Kinetic</preset>
+        <angleDeg>-45</angleDeg>
         <strengthPercent>100</strengthPercent>
       </li>
     </comps>
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
-    <defName>DeltaV_RangeTerminal_ElectromagneticPassive</defName>
-    <label>3A. electromagnetic shield 0% terminal</label>
-    <description>Set all three target line shields to electromagnetic mode at 0% strength. The central segment faces the firing line; the flanks tilt in opposite directions. Switching does not repair damage or replenish energy or shield capacity.</description>
+    <defName>DeltaV_RangeTerminal_ElectromagneticHeadOn</defName>
+    <label>3. electromagnetic shield 0 degrees / 20% terminal</label>
+    <description>Set the target's electromagnetic line shield to 0 degrees and 20% strength. Keep firing due east to compare the settings.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
         <preset>Electromagnetic</preset>
-        <strengthPercent>0</strengthPercent>
+        <angleDeg>0</angleDeg>
+        <strengthPercent>20</strengthPercent>
       </li>
     </comps>
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
-    <defName>DeltaV_RangeTerminal_ElectromagneticHalf</defName>
-    <label>3B. electromagnetic shield 50% terminal</label>
-    <description>Set all three target line shields to electromagnetic mode at 50% strength. The central segment faces the firing line; the flanks tilt in opposite directions. Switching does not repair damage or replenish energy or shield capacity.</description>
+    <defName>DeltaV_RangeTerminal_ElectromagneticObliqueLow</defName>
+    <label>3. electromagnetic shield 45 degrees / 20% terminal</label>
+    <description>Set the target's electromagnetic line shield to 45 degrees and 20% strength. Keep firing due east to compare the settings.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
         <preset>Electromagnetic</preset>
+        <angleDeg>-45</angleDeg>
+        <strengthPercent>20</strengthPercent>
+      </li>
+    </comps>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_RangeTerminalBase">
+    <defName>DeltaV_RangeTerminal_ElectromagneticObliqueMedium</defName>
+    <label>3. electromagnetic shield 45 degrees / 50% terminal</label>
+    <description>Set the target's electromagnetic line shield to 45 degrees and 50% strength. Watch the eastbound laser turn back toward the front of the shield.</description>
+    <comps>
+      <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
+        <preset>Electromagnetic</preset>
+        <angleDeg>-45</angleDeg>
         <strengthPercent>50</strengthPercent>
       </li>
     </comps>
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
-    <defName>DeltaV_RangeTerminal_ElectromagneticFull</defName>
-    <label>3C. electromagnetic shield 100% terminal</label>
-    <description>Set all three target line shields to electromagnetic mode at 100% strength. The central segment faces the firing line; the flanks tilt in opposite directions. Switching does not repair damage or replenish energy or shield capacity.</description>
+    <defName>DeltaV_RangeTerminal_ElectromagneticObliqueFull</defName>
+    <label>3. electromagnetic shield 45 degrees / 100% terminal</label>
+    <description>Set the target's electromagnetic line shield to 45 degrees and 100% strength. Keep firing due east to compare the settings.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
         <preset>Electromagnetic</preset>
+        <angleDeg>-45</angleDeg>
         <strengthPercent>100</strengthPercent>
       </li>
     </comps>
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
     <defName>DeltaV_RangeTerminal_GuardSingle</defName>
-    <label>4A. single guard shield terminal</label>
-    <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's single guard shield preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
+    <label>4. single guard shield terminal</label>
+    <description>Enable the target's primary guard shield for the single-emitter test.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
         <preset>GuardSingle</preset>
@@ -103,8 +134,8 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_RangeTerminalBase">
     <defName>DeltaV_RangeTerminal_Guard</defName>
-    <label>4B. cooperative guard shields terminal</label>
-    <description>A repurposed ancient security terminal. A colonist can operate it to select the target ship's cooperative guard shields preset and hear the instructor. Switching presets does not repair damage or replenish power or shield capacity.</description>
+    <label>4. joint guard shield terminal</label>
+    <description>Enable the target's three guard shields for a shared-capacity test.</description>
     <comps>
       <li Class="DeltaV.CompProperties_TutorialShieldTerminal">
         <preset>Guard</preset>

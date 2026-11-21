@@ -549,9 +549,9 @@ internal static partial class Program
         CheckVisualAnchors();
     }
 
-    static void CheckGuardOwnership()
+    static void CheckGuardOwnership(bool tutorialRange = false)
     {
-        Reset();
+        Reset(height: tutorialRange ? 44 : 12);
         var odyssey = AccessTools.Field(typeof(ModsConfig), "odysseyActive");
         object oldOdyssey = odyssey.GetValue(null);
         var oldPilotDef = ThingDefOf.PilotConsole;
@@ -569,21 +569,21 @@ internal static partial class Program
             map.floodFiller = new FloodFiller(map);
 
             IntVec3 Cell(int x) => new IntVec3(x, 0, 8);
-            void Own(int from, int to, int owner)
+            void Own(int from, int to, int owner, int z = 8)
             {
                 for (int x = from; x <= to; x++)
                 {
-                    IntVec3 cell = Cell(x);
+                    var cell = new IntVec3(x, 0, z);
                     map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = foundation;
                     ownership.Assign(cell, owner);
                 }
             }
-            void Register(ThingWithComps building, ThingDef def, int x)
+            void Register(ThingWithComps building, ThingDef def, IntVec3 position)
             {
                 map.thingGrid.Deregister(building);
                 map.listerThings.AllThings.Remove(building); // Add and DualShield only populate the flat list.
                 building.def = def;
-                Set(building, "positionInt", Cell(x));
+                Set(building, "positionInt", position);
                 map.thingGrid.Register(building);
                 map.listerThings.Add(building);
                 // This fixture bypasses the native spawn notifications that maintain the building index.
@@ -593,14 +593,20 @@ internal static partial class Program
             CompDeltaVPilotConsole ConsoleAt(int x, int owner)
             {
                 var console = new CompDeltaVPilotConsole { isMain = true, shipId = owner };
-                Register(Add(x, 8, 100, console), ThingDefOf.PilotConsole, x);
+                Register(Add(x, 8, 100, console), ThingDefOf.PilotConsole, Cell(x));
                 return console;
             }
             CompSpaceShield GuardAt(int x)
             {
                 var guard = DualShield();
-                Register(guard.parent, generatorDef, x);
+                Register(guard.parent, generatorDef, Cell(x));
                 return guard;
+            }
+
+            if (tutorialRange)
+            {
+                CheckRangeGuardShot(Own, Register);
+                return;
             }
 
             const int firstOwner = 101, otherOwner = 202;
@@ -656,6 +662,60 @@ internal static partial class Program
             ThingDefOf.PilotConsole = oldPilotDef;
             odyssey.SetValue(null, oldOdyssey);
         }
+    }
+
+    static void CheckRangeGuardShot(Action<int, int, int, int> own,
+        Action<ThingWithComps, ThingDef, IntVec3> register)
+    {
+        var target = XDocument.Load("Common/Prefabs/Tutorial/ShieldTarget.xml").Root;
+        var entries = target.Element("thingStates").Elements("li").ToList();
+        var size = IntVec2.FromString((string)target.Element("prefab").Element("size"));
+        var offset = new IntVec3(34, 0, 0);
+        const int owner = 101;
+        IntVec3 Position(XElement entry) => IntVec3.FromString((string)entry.Element("pos")) + offset;
+        using (universe.ShipStructure.BeginChanges())
+            for (int z = 0; z < size.z; z++) own(offset.x, offset.x + size.x - 1, owner, z);
+        var console = new CompDeltaVPilotConsole { isMain = true, shipId = owner };
+        register(Add(1, 1, 100, console), ThingDefOf.PilotConsole,
+            Position(entries.Single(e => (string)e.Element("def") == "PilotConsole")));
+        hull.members.Add(console.Vessel);
+        var guards = new List<CompSpaceShield>();
+        foreach (var entry in entries.Where(e => (string)e.Element("def") == "DeltaV_ShieldGenerator"))
+        {
+            var state = entry.Element("state").Element("saveable");
+            var shield = DualShield();
+            shield.props = new CompProperties_SpaceShield { groundRadius = (float)state.Element("DeltaV_shieldGroundRadius") };
+            shield.PostPostMake();
+            Set(shield, "regularCapacity", (double)state.Element("DeltaV_regularCapacity"));
+            shield.parent.GetComp<CompRefuelable>().Initialize(new CompProperties_Refuelable {
+                fuelCapacity = (float)state.Element("fuel"), initialFuelPercent = 1, consumeFuelOnlyWhenUsed = true });
+            register(shield.parent, shieldDef, Position(entry));
+            guards.Add(shield);
+        }
+        var north = guards.OrderByDescending(guard => guard.parent.Position.z).First();
+        Check(north.OwnedShields?.Count == 3 && north.SharedRegularCapacity == 2250d,
+            "the three authored range emitters contribute their regular capacity to one ship");
+        var rangeWeapons = XDocument.Load("1.6/Defs/Tutorial/DeltaV_TutorialRangeWeapons.xml");
+        var loader = rangeWeapons.Root.Elements("ThingDef").Single(e => (string)e.Element("defName") == "DeltaV_Weapon_TutorialRailgunLoader");
+        XElement Comp(XElement def, string type) => def.Element("comps").Elements("li")
+            .Single(e => (string)e.Attribute("Class") == "DeltaV.CompProperties_" + type);
+        var magazine = Comp(loader, "SpaceWeaponMagazine");
+        float mass = (float)magazine.Element("ammoPerShot") * (float)magazine.Element("unitMass");
+        var weapons = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml");
+        var accelerator = weapons.Root.Elements("ThingDef").Single(e => (string)e.Element("defName") == "DeltaV_Weapon_RailgunAccelerator");
+        var platform = XDocument.Load("Common/Prefabs/Tutorial/WeaponRange.xml").Root;
+        var stages = platform.Element("thingStates").Elements("li").Where(e => (string)e.Element("def") == "DeltaV_Weapon_RailgunAccelerator").ToList();
+        float energy = (float)Comp(loader, "SpaceWeapon").Element("launchKineticEnergy")
+            + stages.Count * (float)Comp(accelerator, "SpaceRailgun").Element("kineticEnergyBonus");
+        int platformHeight = IntVec2.FromString((string)platform.Element("prefab").Element("size")).z;
+        float lane = IntVec3.FromString((string)stages[0].Element("pos")).z + .5f + (size.z - platformHeight) * .5f;
+        var shot = Fire(0, SpaceKinetics.Speed(mass, energy), rail, from:1f, to:75f, configure: b => b.mass = mass, lane:lane);
+        Check(contacts.Count == 1 && contacts[0].shieldMode == SpaceShieldMode.Guard && contacts[0].shieldBroken
+            && guards.All(s => s.RegularCapacity < .02) && north.EmergencyCapacity < .02
+            && guards.Where(s => s != north).All(s => s.EmergencyCapacity == 750),
+            "the live rail hit spends all shared regular capacity but only the northern emergency reserve (0 / 750 / 750)");
+        Check(!shot.dead && Math.Abs(RemainingBudget(shot, guard:true) - 2000f) < 2f,
+            "the rail round keeps its residual energy after spending 3000 capacity on the northern arc");
     }
 
     sealed class GuardTestProjectile : Projectile
@@ -822,7 +882,14 @@ internal static partial class Program
     {
         internal int calls;
         internal bool succeeds;
-        public bool TryLaunch(SpaceWeaponShot shot) { calls++; return succeeds; }
+        internal float LaunchAngle, DesiredAngle;
+        public bool TryLaunch(SpaceWeaponShot shot)
+        {
+            calls++;
+            LaunchAngle = shot.launchMapAngle;
+            DesiredAngle = shot.desiredMapAngle;
+            return succeeds;
+        }
     }
 
     static bool MissileFixtureFoundation(TerrainDef __instance, ref bool __result)
@@ -959,8 +1026,9 @@ internal static partial class Program
             .Single(c => (string)c.Attribute("Class") == "DeltaV.CompProperties_SpaceWeapon");
         var moduleDef = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_RailgunRapidReset.xml").Root.Element("ThingDef");
         Check(wp.Element("allowedAttachmentDefs").Elements("li").Any(d => d.Value == (string)moduleDef.Element("defName"))
-            && moduleDef.Descendants("allowedHostDefs").Single().Elements("li").Single().Value == (string)loader.Element("defName"),
-            "rapid reset is accepted only by the loading unit");
+            && moduleDef.Descendants("allowedHostDefs").Single().Elements("li").Select(d => d.Value).ToHashSet()
+                .SetEquals(new[] { (string)loader.Element("defName"), "DeltaV_Weapon_TutorialRailgunLoader" }),
+            "rapid reset is accepted only by the ordinary and range loading units");
         int baseInterval = (int)wp.Element("cooldownTicks");
         int singleInterval = Math.Max(1, Mathf.RoundToInt(baseInterval * 0.5f));
         int dualInterval = Math.Max(1, Mathf.RoundToInt(baseInterval * 0.25f));
@@ -969,6 +1037,8 @@ internal static partial class Program
             cooldownTicks = baseInterval, muzzleFlashSize = (float)wp.Element("muzzleFlashSize"),
             projectileDef = rail, launchKineticEnergy = (float)wp.Element("launchKineticEnergy"),
             shotEnergy = (float)wp.Element("shotEnergy"), intrinsicAimSkill = 10,
+            topTurret = (bool)wp.Element("topTurret"), fireArcDeg = (float)wp.Element("fireArcDeg"),
+            lockArcDeg = (float)wp.Element("lockArcDeg"),
             attachmentSlots = wp.Element("attachmentSlots").Elements("li")
                 .Select(slot => new SpaceWeaponAttachmentSlot { cell = IntVec3.FromString((string)slot.Element("cell")) }).ToList()
         };
@@ -990,7 +1060,7 @@ internal static partial class Program
         var heads = new CompGunSupply
             { props = new CompProperties_GunSupply { kind = GunSupplyKind.Heads, fuelCapacity = 300 } };
         Set(heads, "fuel", 4f * headsPerShot);
-        Add(5, 5, 500, power, weapon, launch, magazine, heads);
+        Add(5, 5, 500, power, weapon, launch, magazine, heads).Rotation = Rot4.East;
         var console = new CompDeltaVPilotConsole { isMain = true, shipId = 101 };
         console.combat.weaponsArmed = true;
         Add(4, 5, 500, console);
@@ -1027,7 +1097,7 @@ internal static partial class Program
         Check(weapon.ShotInterval == dualInterval, "two enabled modules multiply to quarter interval");
         var flashes = (IList)AccessTools.Field(typeof(SpaceProjectileService), "muzzleFlashes").GetValue(universe.Projectiles);
         flashes.Clear();
-        var request = new WeaponControlCommand(new Vector2(20, 5), true);
+        var request = new WeaponControlCommand(new Vector2(5, 10), true);
         int tick = Find.TickManager.TicksGame;
         Set(battery, "storedEnergy", props.shotEnergy - 1);
         Check(!universe.Weapons.ApplyControl(weapon, hull, request) && launch.calls == 0 && flashes.Count == 0,
@@ -1058,6 +1128,9 @@ internal static partial class Program
         Set(battery, "storedEnergy", props.shotEnergy);
         bool fired = universe.Weapons.ApplyControl(weapon, hull, request);
         Check(launch.calls == 1, "funded shot reaches the launch capability exactly once");
+        Check(Math.Abs(launch.LaunchAngle) < .0001f
+            && Math.Abs(SpaceTransform.WrapAngle(launch.DesiredAngle - launch.LaunchAngle)) > 45f * Mathf.Deg2Rad,
+            $"manual rail accepts aim {launch.DesiredAngle * Mathf.Rad2Deg:F1}° and keeps its fixed eastward heading ({launch.LaunchAngle * Mathf.Rad2Deg:F1}°)");
         Check(!fired, "launch failure propagates through ApplyControl");
         Check(battery.StoredEnergy == props.shotEnergy && stageBattery.StoredEnergy == stageReserve
             && magazine.HeadCount == 4 * headsPerShot, "failed launch does not debit either battery or the magazine");
@@ -1357,6 +1430,103 @@ internal static partial class Program
         CheckEnergy();
         CheckRapidReset();
         CheckExteriorMissileMagazine();
+        CheckRangeComparisonImpact();
+        CheckGuardOwnership(tutorialRange: true);
+    }
+
+    static void CheckRangeComparisonImpact()
+    {
+        var projectiles = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceProjectiles.xml");
+        const string steelName = "DeltaV_Projectile_Cannon";
+        const string tumblingName = "DeltaV_Projectile_SteelShellTumbling";
+        var steel = MakeDef(steelName);
+        var tumbling = MakeDef(tumblingName);
+        var steelXml = projectiles.Root.Elements().Single(d => (string)d.Element("defName") == steelName)
+            .Element("comps").Elements("li").Single();
+        Check((string)steelXml.Element("shieldTumbleDef") == tumblingName, "range steel uses its actual tumble projectile");
+        steel.comps.Add(new CompProperties_SpaceProjectile { hasMap = false,
+            shieldFragmentCost = (float)steelXml.Element("shieldFragmentCost"),
+            shieldFragmentCount = (int)steelXml.Element("shieldFragmentCount"), shieldTumbleDef = tumbling });
+        tumbling.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, shieldTumbling = true });
+        var effects = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceImpactEffects.xml");
+        var tumbleEffect = effects.Root.Elements().Single(n => (string)n.Element("defName") == "DeltaV_Impact_ShieldFragmentVsStructure");
+        var part = tumbleEffect.Element("defenderEffect");
+        Check(tumbleEffect.Element("projectileDefs").Elements().Any(n => n.Value == tumblingName)
+            && part.Element("highExplosive") == null && (bool?)part.Element("penetrates") != true
+            && (string)tumbleEffect.Element("attackerEffect").Element("kind") == "DestroySelf",
+            "the range steel tumble uses the real non-explosive contact effect");
+        DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef {
+            defName = "RangeSteelTumbleFixture", projectileDefs = new List<ThingDef> { tumbling },
+            defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, damageDef = bullet,
+                damage = (float)part.Element("damage"), referenceSpeed = (float)part.Element("referenceSpeed"),
+                incidenceMinFactor = (float)part.Element("incidenceMinFactor"), kineticMassScaling = (bool)part.Element("kineticMassScaling") },
+            attackerEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DestroySelf }
+        });
+        SpaceImpactEffects.ResetCache();
+
+        List<Target> SetLane()
+        {
+            Reset(height:16);
+            var battery = new CompPowerBattery();
+            Set(battery, "storedEnergy", 600f);
+            var net = (PowerNet)Raw(typeof(PowerNet));
+            net.batteryComps = new List<CompPowerBattery> { battery };
+            var power = new CompPowerTrader { transNet = net };
+            Set(power,"powerOnInt",true);
+            var shield = new CompSpaceShield { props = new CompProperties_SpaceShield(),
+                mode = SpaceShieldMode.Kinetic, kineticStrengthPercent = 35, projection = 10, length = 32, angleDeg = -45 };
+            var intercept = (CompProjectileInterceptor)Raw(typeof(CompProjectileInterceptor));
+            intercept.props = new CompProperties_ProjectileInterceptor { radius = 12 };
+            Add(40,2,500,intercept,shield,power).Rotation = Rot4.West;
+            var walls = new List<Target>();
+            for (int x=52; x<58; x++)
+            for (int z=4; z<=10; z++) walls.Add(Add(x,z,300));
+            return walls;
+        }
+
+        var steelWalls = SetLane();
+        var projectilesAfterHit = new SpaceProjectileService(universe);
+        var steelShot = Fire(0, SpaceKinetics.LaunchSpeed(48,48), steel, configure: b => {
+            b.mass = 48f;
+            b.onShieldShatter = (hit, defender, velocity, normal, impulse, count) =>
+                SpaceShieldProjectileBehavior.SpawnFragments(projectilesAfterHit, steel, null, defender, null, hit,
+                    velocity, normal, impulse, b.mass, 1f, fragmentCount:count);
+        });
+        var pieces = (IList)AccessTools.Field(typeof(SpaceProjectileService), "projectiles").GetValue(projectilesAfterHit);
+        Check(steelShot.dead && pieces.Count == 1, "the funded 35% angled shield tumbles one full-mass steel round");
+        object piece = pieces[0];
+        var pieceType = piece.GetType();
+        var pieceFrame = (SpaceObject)AccessTools.Property(pieceType, "container").GetValue(piece);
+        var start = pieceFrame.pose.position;
+        var steelContact = new SpaceCollision.SweptBody { attacker = pieceFrame, requiredDefender = hull,
+            projectileDef = (ThingDef)AccessTools.Field(pieceType,"def").GetValue(piece),
+            mass = (float)AccessTools.Field(pieceType,"mass").GetValue(piece),
+            from = start, to = OrbitSphere.Move(start, pieceFrame.pose.velocity.normalized * 55f) };
+        SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { steelContact });
+        int affected = steelWalls.Count(w => w.HitPoints < 300);
+        Check(steelContact.projectileDef == tumbling && steelContact.mass == 48f && steelContact.dead
+            && steelContact.resolvedHit && !steelContact.resolvedHitExplosive && affected == 1,
+            "the spawned tumbling steel deals a single kinetic contact without an explosion or a second layer hit" +
+            $" (mass={steelContact.mass}, dead={steelContact.dead}, hit={steelContact.resolvedHitCell}, affected={affected})");
+
+        var uraniumWalls = SetLane();
+        bool uraniumSplit = false;
+        var uraniumProps = chemical.GetCompProperties<CompProperties_SpaceProjectile>();
+        int originalCount = uraniumProps.shieldFragmentCount;
+        try
+        {
+            var uraniumXml = projectiles.Root.Elements().Single(d => (string)d.Element("defName") == chemical.defName)
+                .Element("comps").Elements("li").Single();
+            uraniumProps.shieldFragmentCount = (int)uraniumXml.Element("shieldFragmentCount");
+            var uraniumShot = Fire(0, SpaceKinetics.LaunchSpeed(48,72), chemical, configure: b => {
+                b.mass = 72f;
+                b.armorPenetrationScale = 1.5f;
+                b.onShieldShatter = (_, _, _, _, _, _) => uraniumSplit = true;
+            });
+            Check(uraniumShot.didRedirect && !uraniumSplit && uraniumWalls.Count(w => w.Destroyed) >= 2,
+                "the same funded 35% angled shield redirects intact uranium and it penetrates multiple walls");
+        }
+        finally { uraniumProps.shieldFragmentCount = originalCount; }
     }
 
     static void CheckEnergy()

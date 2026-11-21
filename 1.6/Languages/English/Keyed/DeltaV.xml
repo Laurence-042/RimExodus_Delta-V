@@ -762,4 +762,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_PrefabClusterAdd>Add prefab</DeltaV_PrefabClusterAdd>
   <DeltaV_PrefabClusterWeight>Weight</DeltaV_PrefabClusterWeight>
   <DeltaV_DumpSpaceObjectNoHit>No SpaceObject at this position.</DeltaV_DumpSpaceObjectNoHit>
+  <DeltaV_SettingsWeaponTest>Weapons test</DeltaV_SettingsWeaponTest>
+  <DeltaV_SettingsCreateWeaponTest>Generate weapons platform and target</DeltaV_SettingsCreateWeaponTest>
+  <DeltaV_WeaponTestUnavailable>Could not generate the weapons test. Check that this game has an orbit layer and see the log.</DeltaV_WeaponTestUnavailable>
 </LanguageData>

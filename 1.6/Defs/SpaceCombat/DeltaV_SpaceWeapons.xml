@@ -1103,6 +1103,7 @@
           <li>DeltaV_Weapon_RapidMainSmall</li>
           <li>DeltaV_Weapon_HeavyMainMedium</li>
           <li>DeltaV_Weapon_RapidMainMedium</li>
+          <li>DeltaV_Weapon_TutorialRapidMainMedium</li>
         </allowedHostDefs>
       </li>
       <li Class="DeltaV.CompProperties_GunSupply">
@@ -1212,6 +1213,7 @@
         <allowedHostDefs>
           <li>DeltaV_Weapon_RailgunAccelerator</li>
           <li>DeltaV_Weapon_RailgunLoader</li>
+          <li>DeltaV_Weapon_TutorialRailgunLoader</li>
         </allowedHostDefs>
       </li>
     </comps>

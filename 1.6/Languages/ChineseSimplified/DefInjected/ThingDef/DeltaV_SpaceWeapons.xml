@@ -44,6 +44,6 @@
   <DeltaV_Projectile_CannonUranium.description>按接触动能沿弹道结算贯穿的铀制重炮弹。</DeltaV_Projectile_CannonUranium.description>
   <DeltaV_Projectile_RapidUranium.label>速射铀穿甲弹</DeltaV_Projectile_RapidUranium.label>
   <DeltaV_Projectile_RapidUranium.description>按接触动能沿弹道结算贯穿的铀制速射炮弹。</DeltaV_Projectile_RapidUranium.description>
-  <DeltaV_Projectile_SteelShellTumbling.label>翻滚的钢制高爆弹</DeltaV_Projectile_SteelShellTumbling.label>
-  <DeltaV_Projectile_SteelShellTumbling.description>命中结构时仍会起爆的完整钢弹。</DeltaV_Projectile_SteelShellTumbling.description>
+  <DeltaV_Projectile_SteelShellTumbling.label>翻滚的钢弹</DeltaV_Projectile_SteelShellTumbling.label>
+  <DeltaV_Projectile_SteelShellTumbling.description>钢弹失稳后，在首次撞上结构时只造成动能伤害，随后停止。</DeltaV_Projectile_SteelShellTumbling.description>
 </LanguageData>

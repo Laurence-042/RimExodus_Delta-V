@@ -63,35 +63,6 @@
   <thingStates>
     <li>
       <pos>(3, 0, 3)</pos>
-      <def>ShelfSmall</def>
-      <rotation>0</rotation>
-      <hitPoints>100</hitPoints>
-      <stackCount>1</stackCount>
-      <stuff>Steel</stuff>
-      <state>
-        <saveable Class="Building_Storage">
-          <def>ShelfSmall</def>
-          <health>100</health>
-          <stuff>Steel</stuff>
-          <settings>
-            <priority>Normal</priority>
-            <filter>
-              <allowedDefs>
-                <li>Steel</li>
-              </allowedDefs>
-              <disallowedSpecialFilters />
-              <allowedHitPointsPercents>0~1</allowedHitPointsPercents>
-              <allowedQualityLevels>Awful~Legendary</allowedQualityLevels>
-            </filter>
-          </settings>
-          <id>ShelfSmall810000</id>
-          <pos>(3, 0, 3)</pos>
-          <rot>0</rot>
-        </saveable>
-      </state>
-    </li>
-    <li>
-      <pos>(3, 0, 3)</pos>
       <def>Steel</def>
       <rotation>0</rotation>
       <hitPoints>-1</hitPoints>
@@ -100,7 +71,7 @@
         <saveable Class="Thing">
           <def>Steel</def>
           <stackCount>75</stackCount>
-          <id>Steel810001</id>
+          <id>Steel810000</id>
           <pos>(3, 0, 3)</pos>
           <rot>0</rot>
         </saveable>

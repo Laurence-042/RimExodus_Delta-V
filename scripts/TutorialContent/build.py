@@ -250,7 +250,6 @@ def build(data, name="ArrivalStation", *, layout_override=None, output=None, eva
         walls, start = layout.furnish(name, plan, place, prop, foundation, roofs, records, occupied, **options)
     elif name == "Salvage":
         walls = set()
-        place('ShelfSmall', 3, 3)
         place('Steel', 3, 3, layer='items')
     else:
         left = 5 if name == 'TrainingShip' else 0
@@ -386,6 +385,11 @@ def build(data, name="ArrivalStation", *, layout_override=None, output=None, eva
         prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'shipyard.states').getroot()})
     if name == 'Shipyard' or range_layout or sector_content or module_content or assembly_content:
         prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'range.states').getroot()})
+    if name == 'WeaponRange':
+        for variant, source in combat_range_layout.WEAPON_SOURCES.items():
+            state = copy.deepcopy(prototypes[source])
+            state.find('def').text = variant
+            prototypes[variant] = state
     if name == 'Shipyard' or module_content or assembly_content:
         prototypes.update({n.findtext('def'): n for n in ET.parse(HERE / 'modules.states').getroot()})
     document = ET.Element('MapPrefab', formatVersion='2')
@@ -565,6 +569,8 @@ if __name__ == '__main__':
     parser.add_argument('--only', nargs='+', choices=['ArrivalStation','TrainingShip','Salvage','Shipyard','PrototypeShip','WeaponRange','ShieldTarget', *sector_layout.NAMES, 'Modules', *module_layout.MODULES, *module_assemblies.NAMES])
     args = parser.parse_args()
     names = args.only or ('ArrivalStation','TrainingShip','Salvage','Shipyard','PrototypeShip','WeaponRange','ShieldTarget')
+    if 'WeaponRange' in names:
+        combat_range_layout.write_weapon_defs(ROOT / '1.6/Defs')
     for name in dict.fromkeys(name for selection in names
                               for name in (module_layout.MODULES if selection == 'Modules' else (selection,))):
         build(args.data, name)

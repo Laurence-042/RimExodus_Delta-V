@@ -12,7 +12,6 @@
     <projectileDefs>
       <li>DeltaV_Projectile_Cannon</li>
       <li>DeltaV_Projectile_Rapid</li>
-      <li>DeltaV_Projectile_SteelShellTumbling</li>
     </projectileDefs>
     <defenderEffect>
       <kind>DamageMap</kind>
@@ -30,11 +29,6 @@
     <projectileDefs Inherit="False"><li>DeltaV_Projectile_Cannon</li><li>DeltaV_Projectile_Rapid</li></projectileDefs>
     <targetsSubstructure>true</targetsSubstructure>
     <substructureHitChance>0.03</substructureHitChance>
-  </DeltaV.SpaceImpactEffectDef>
-  <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_SteelShellDeckBlast">
-    <defName>DeltaV_Impact_TumblingSteelShellVsSubstructure</defName>
-    <projectileDefs Inherit="False"><li>DeltaV_Projectile_SteelShellTumbling</li></projectileDefs>
-    <substructureHitChance>0.01</substructureHitChance>
   </DeltaV.SpaceImpactEffectDef>
   <DeltaV.SpaceImpactEffectDef>
     <defName>DeltaV_Impact_CannonVsStructure</defName>
@@ -197,6 +191,7 @@
     <projectileDefs>
       <li>DeltaV_Projectile_ShieldFragment</li>
       <li>DeltaV_Projectile_ShellTumbling</li>
+      <li>DeltaV_Projectile_SteelShellTumbling</li>
       <li>DeltaV_Projectile_RapidFragment</li>
     </projectileDefs>
     <defenderEffect>
@@ -235,6 +230,7 @@
     <projectileDefs>
       <li>DeltaV_Projectile_ShieldFragment</li>
       <li>DeltaV_Projectile_ShellTumbling</li>
+      <li>DeltaV_Projectile_SteelShellTumbling</li>
       <li>DeltaV_Projectile_RapidFragment</li>
     </projectileDefs>
     <targetsSubstructure>true</targetsSubstructure>

@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
+using UnityEngine;
 using Verse;
 
 namespace DeltaV
@@ -15,7 +17,9 @@ namespace DeltaV
     public sealed class CompProperties_TutorialShieldTerminal : CompProperties_UseEffect
     {
         public TutorialShieldPreset preset;
+        public float angleDeg;
         public int strengthPercent;
+        public string lessonAppendixKey;
         public CompProperties_TutorialShieldTerminal() { compClass = typeof(CompTutorialShieldTerminal); }
     }
 
@@ -23,25 +27,25 @@ namespace DeltaV
     // Stable object/Thing IDs allow the target map to archive and restore without stale references.
     public sealed class CompTutorialShieldTerminal : CompUseEffect
     {
-        internal int targetObjectId, primaryShieldId;
+        internal int targetObjectId, shieldThingId;
         private CompProperties_TutorialShieldTerminal Settings => (CompProperties_TutorialShieldTerminal)props;
         private UniverseManager Universe => Current.Game?.GetComponent<UniverseManager>();
+        internal TutorialShieldPreset Preset => Settings.preset;
+        internal bool UsesAngledShield => Settings.angleDeg != 0f
+            && (Preset == TutorialShieldPreset.Kinetic || Preset == TutorialShieldPreset.Electromagnetic);
 
-        internal List<CompSpaceShield> TargetShields()
+        private IReadOnlyList<CompSpaceShield> TargetShields()
         {
             Map map = Universe?.ObjectById(targetObjectId)?.map;
-            if (map == null || map.Disposed) return new List<CompSpaceShield>();
-            Thing primary = Universe.ShipStructure.For(map).Find(primaryShieldId);
-            ShipBase ship = primary == null ? ShipBase.Invalid : ShipRegistry.ShipOf(primary, requireWholeFootprint: true);
-            if (!ship.IsValid) return new List<CompSpaceShield>();
-            return ship.StructuralState.Shields
-                .Where(s => ShipRegistry.ShipOf(s.parent, requireWholeFootprint: true).Identity == ship.Identity)
-                .OrderBy(s => s.parent.thingIDNumber == primaryShieldId ? 0 : 1).ToList();
+            if (map == null || map.Disposed) return Array.Empty<CompSpaceShield>();
+            var primary = Universe.ShipStructure.For(map).Find(shieldThingId)?.TryGetComp<CompSpaceShield>();
+            return primary?.OwnedShields?.OrderByDescending(shield => shield == primary).ToArray()
+                ?? Array.Empty<CompSpaceShield>();
         }
 
         public override AcceptanceReport CanBeUsedBy(Pawn p)
         {
-            if (p?.Faction != Faction.OfPlayer || !PublicFacility.PlayerMayUse(parent))
+            if (p?.Faction != Faction.OfPlayer || parent?.Spawned != true || !PlayerAccess.CanOperate(parent))
                 return "DeltaV_Range_NoAccess".Translate();
             if (TargetShields().Count == 0) return "DeltaV_Range_TargetUnavailable".Translate();
             return true;
@@ -51,31 +55,38 @@ namespace DeltaV
         {
             if (!CanBeUsedBy(usedBy).Accepted || usedBy.Map != parent.Map
                 || usedBy.Position != parent.InteractionCell) return;
-            List<CompSpaceShield> shields = TargetShields();
-            ApplyPreset(shields, Settings.preset, Settings.strengthPercent);
+            ApplyTo(TargetShields());
+            var lesson = ("DeltaV_Range_Lesson_" + Preset).Translate(Mathf.Abs(Settings.angleDeg), Settings.strengthPercent);
+            if (!string.IsNullOrEmpty(Settings.lessonAppendixKey))
+                lesson = lesson.RawText + "\n\n" + Settings.lessonAppendixKey.Translate().RawText;
             var expectedMap = parent.Map;
             Universe.QueueFrameAction(() =>
             {
                 if (parent.Spawned && parent.Map == expectedMap)
-                    Find.WindowStack.Add(new Dialog_MessageBox(("DeltaV_Range_Lesson_" + Settings.preset).Translate(Settings.strengthPercent),
-                        title: "DeltaV_Range_Title".Translate()));
+                    Find.WindowStack.Add(new Dialog_MessageBox(lesson, title: "DeltaV_Range_Title".Translate()));
             });
         }
 
-        internal static void ApplyPreset(IReadOnlyList<CompSpaceShield> shields, TutorialShieldPreset preset, int strengthPercent = 0)
+        internal void ApplyTo(IReadOnlyList<CompSpaceShield> shields)
         {
-            bool line = preset == TutorialShieldPreset.Kinetic || preset == TutorialShieldPreset.Electromagnetic;
+            int strength = Mathf.Clamp(Settings.strengthPercent, 0, 100);
             for (int i = 0; i < shields.Count; i++)
             {
-                CompSpaceShield shield = shields[i];
-                bool on = preset != TutorialShieldPreset.Unshielded && (i == 0 || line || preset == TutorialShieldPreset.Guard);
-                shield.parent.TryGetComp<CompFlickable>().SwitchIsOn = on;
-                shield.mode = preset == TutorialShieldPreset.Kinetic ? SpaceShieldMode.Kinetic
-                    : preset == TutorialShieldPreset.Electromagnetic
-                        ? SpaceShieldMode.Electromagnetic : SpaceShieldMode.Guard;
-                shield.kineticStrengthPercent = strengthPercent;
-                shield.electromagneticStrengthPercent = strengthPercent;
-                shield.TryRejoinRegular();
+                var shield = shields[i];
+                shield.mode = i == 0 ? Preset switch
+                {
+                    TutorialShieldPreset.Kinetic => SpaceShieldMode.Kinetic,
+                    TutorialShieldPreset.Electromagnetic => SpaceShieldMode.Electromagnetic,
+                    _ => SpaceShieldMode.Guard,
+                } : SpaceShieldMode.Guard;
+                if (shield.mode == SpaceShieldMode.Kinetic || shield.mode == SpaceShieldMode.Electromagnetic)
+                {
+                    shield.angleDeg = Mathf.Clamp(Settings.angleDeg, -90f, 90f);
+                    if (shield.mode == SpaceShieldMode.Kinetic) shield.kineticStrengthPercent = strength;
+                    else shield.electromagneticStrengthPercent = strength;
+                }
+                bool enabled = Preset != TutorialShieldPreset.Unshielded && (i == 0 || Preset == TutorialShieldPreset.Guard);
+                shield.parent.TryGetComp<CompFlickable>().SwitchIsOn = enabled;
                 shield.SettingsChanged();
             }
         }
@@ -84,7 +95,7 @@ namespace DeltaV
         {
             base.PostExposeData();
             Scribe_Values.Look(ref targetObjectId, "rangeTargetObjectId");
-            Scribe_Values.Look(ref primaryShieldId, "rangePrimaryShieldId");
+            Scribe_Values.Look(ref shieldThingId, "rangeShieldThingId");
         }
     }
 }

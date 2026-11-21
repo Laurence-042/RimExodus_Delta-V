@@ -14,7 +14,7 @@ namespace DeltaV
 
         public override AcceptanceReport CanBeUsedBy(Pawn pawn)
         {
-            if (pawn?.Faction != Faction.OfPlayer || !PublicFacility.PlayerMayUse(parent))
+            if (pawn?.Faction != Faction.OfPlayer || parent?.Spawned != true || !PlayerAccess.CanOperate(parent))
                 return "DeltaV_Range_NoAccess".Translate();
             if (entranceDoor?.Spawned != true || entranceDoor.Map != parent.Map)
                 return "DeltaV_Range_EntranceUnavailable".Translate();

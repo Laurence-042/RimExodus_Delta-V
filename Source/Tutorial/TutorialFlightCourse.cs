@@ -21,7 +21,6 @@ namespace DeltaV
             yield return Run.trainingConsole;
             yield return Run.cargoShelf;
             yield return Run.trainingPort;
-            yield return Run.salvageShelf;
             yield return Run.yardPort;
             yield return Run.giftConsole;
             yield return Run.giftEngine;
@@ -36,7 +35,7 @@ namespace DeltaV
             if (Run.trainingConsole?.Spawned != true || Run.cargoShelf?.Spawned != true
                 || Run.trainingPort?.Spawned != true || Run.yardPort?.Spawned != true
                 || Run.giftConsole?.Spawned != true || Run.giftEngine?.Spawned != true
-                || (!Run.recoveryDocked && Run.salvageShelf?.Spawned != true))
+                || (!Run.recoveryDocked && RecoveryTarget == null))
             { Fail("DeltaV_Tutorial_FlightAssetLost"); return false; }
             if (!TrainingShip.PlayerMayOperate)
             { Fail("DeltaV_Tutorial_TrainingAccessLost"); return false; }
@@ -129,19 +128,6 @@ namespace DeltaV
             if (Mathf.Abs(command.torque) > .1f && command.torque * torque > .01f) run.turnTicks = Math.Min(FlightTicks, run.turnTicks + 1);
         }
 
-        // Capture the exact target before either transfer path can retire its map.
-        internal Thing RecoveryWitness(DriveSubject subject, Map target) => Active && Run.stage == TutorialStage.Salvage
-            && subject == new DriveSubject(0, Run.trainingShipId) && Run.salvageShelf?.Spawned == true
-            && Run.salvageShelf.Map == target ? Run.salvageShelf : null;
-
-        internal void ConfirmRecoveryDock(DriveSubject subject, Thing witness)
-        {
-            if (!Active || Run.stage != TutorialStage.Salvage || witness == null || witness != Run.salvageShelf
-                || subject != new DriveSubject(0, Run.trainingShipId)) return;
-            ShipBase ship = TrainingShip;
-            if (ship.IsValid && witness.Spawned && witness.Map == ship.Map) Run.recoveryDocked = true;
-        }
-
         private void CreateTrainingBerth()
         {
             try
@@ -182,9 +168,8 @@ namespace DeltaV
                 var gift = MapPrefab.LoadRelative("Tutorial/PrototypeShip.xml");
                 SpaceObject station = universe.FrameOf(Run.station);
                 Map salvageMap = CreateRemoteCourseMap(ShipPocketMapFactory.CompactSize(salvage.size), station, 0f);
-                var salvageThings = SpawnCoursePrefab(salvage, salvageMap, new IntVec3(12, 0, 12), "DeltaV_Tutorial_SalvageTarget");
-                Run.salvageShelf = salvageThings.OfType<Building_Storage>().Single();
-                ConfigureCargo(Run.salvageShelf, StoragePriority.Low);
+                SpawnCoursePrefab(salvage, salvageMap, new IntVec3(12, 0, 12), "DeltaV_Tutorial_SalvageTarget");
+                Run.salvageObjectId = universe.FrameOf(salvageMap).objectId;
                 Map yardMap = CreateRemoteCourseMap(ShipPocketMapFactory.CompactSize(new IntVec2(yard.size.x + BerthGap + gift.size.x, Math.Max(yard.size.z, gift.size.z))), station, 180f);
                 universe.FrameOf(yardMap).contentTypeId = "Shipyard";
                 var yardThings = SpawnCoursePrefab(yard, yardMap, CoursePrefabOrigin, "DeltaV_Tutorial_Shipyard", Run.mentors);

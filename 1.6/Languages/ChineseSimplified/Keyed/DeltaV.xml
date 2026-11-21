@@ -762,4 +762,7 @@
   <DeltaV_PrefabClusterAdd>添加预制图</DeltaV_PrefabClusterAdd>
   <DeltaV_PrefabClusterWeight>权重</DeltaV_PrefabClusterWeight>
   <DeltaV_DumpSpaceObjectNoHit>此位置未命中 SpaceObject。</DeltaV_DumpSpaceObjectNoHit>
+  <DeltaV_SettingsWeaponTest>武器测试</DeltaV_SettingsWeaponTest>
+  <DeltaV_SettingsCreateWeaponTest>生成武器测试平台与靶舰</DeltaV_SettingsCreateWeaponTest>
+  <DeltaV_WeaponTestUnavailable>无法生成武器测试。请确认当前游戏有轨道层，并查看日志。</DeltaV_WeaponTestUnavailable>
 </LanguageData>

@@ -13,6 +13,11 @@ using UnityEngine;
 
 internal static partial class Program
 {
+    const string RangeRapidDef = "DeltaV_Weapon_TutorialRapidMainMedium";
+    const string RangeRailDef = "DeltaV_Weapon_TutorialRailgunLoader";
+    const string RangeHeavyDef = "DeltaV_Weapon_HeavyMainMedium";
+    const string RangeLaserDef = "DeltaV_Weapon_LaserMainMedium";
+
     // Only the native static UI icons/materials require a Unity renderer.
     static bool SkipFuelGraphics() => false;
     static bool RangeOwner(ref int __result) { __result=1; return false; }
@@ -27,12 +32,17 @@ internal static partial class Program
             Check(PowerNetMaker.NewPowerNetStartingFrom(b).transmitters.Count==1,"test battery cannot recharge from live grid");
         var live=PowerNetMaker.NewPowerNetStartingFrom(transmitters.First(b=>!isolated.Contains(b.Position)));
         Check(live.transmitters.Count==transmitters.Count-isolated.Count,"native target working grid remains connected");
+        foreach(var shield in json.RootElement.EnumerateArray().Where(r=>r.GetProperty("name").GetString()=="DeltaV_ShieldGenerator"))
+        {
+            var root=shield.GetProperty("root");
+            var cell=new IntVec3(root[0].GetInt32()+20,0,root[1].GetInt32()+20);
+            Check(PowerConnectionMaker.BestTransmitterForConnector(cell,transmitters[0].Map)?.transNet==live,
+                "native connector joins each target shield to the working grid");
+        }
     }
     static void RangeLayout(List<Building> buildings, string recordsPath, int expectedSegments = 9)
     {
-        string repo=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(recordsPath),"../../.."));
-        var defs=new XmlDocument(); defs.Load(Path.Combine(repo,"1.6","Defs","SpaceCombat","DeltaV_SpaceWeapons.xml"));
-        XmlNode Def(string name) => defs.SelectSingleNode("/Defs/ThingDef[defName='"+name+"']");
+        XmlNode Def(string name) => sourceDefs[name];
         var attachments=buildings.Where(b=>b.def.defName=="DeltaV_Building_AutoAimPluginII").ToList();
         foreach(var turret in buildings.Where(b=>expectedSegments==9 && b.def.defName.EndsWith("MainMedium")))
         {
@@ -40,8 +50,21 @@ internal static partial class Program
             Check(attachments.Count(a=>a.Position==SpaceWeaponGeometry.RotatedCell(turret,slot)
                 && a.Rotation==turret.Rotation)==1,"native rotated attachment slot contains exactly one advanced auto-aim");
         }
-        var loader=buildings.Single(b=>b.def.defName=="DeltaV_Weapon_RailgunLoader");
+        var loader=buildings.Single(b=>b.def.defName==(expectedSegments == 9 ? RangeRailDef : "DeltaV_Weapon_RailgunLoader"));
         var segments=buildings.Where(b=>b.def.defName=="DeltaV_Weapon_RailgunAccelerator").ToList();
+        if (expectedSegments == 9)
+        {
+            var guard = buildings.Single(b => b.def.defName == "DeltaV_ShieldGenerator");
+            var net = PowerConnectionMaker.BestTransmitterForConnector(guard.Position, guard.Map)?.transNet;
+            var terminals = buildings.Where(b => b.def.defName.StartsWith("DeltaV_RangeTerminal_")).ToList();
+            Check(terminals.Count == 12 && net != null
+                && terminals.All(b => PowerConnectionMaker.BestTransmitterForConnector(b.Position, b.Map)?.transNet == net),
+                "platform guard, briefing and eleven shield terminals connect to the working power grid");
+            var lastRow = terminals.Where(b => b.def.defName.EndsWith("ObliqueFull")).ToList();
+            Check(lastRow.Count == 2 && lastRow.All(b => b.InteractionCell == b.Position + IntVec3.South
+                && !buildings.Any(battery => battery.def.defName == "Battery" && battery.OccupiedRect().Contains(b.InteractionCell))),
+                "both southern line-shield terminal controls have a free operating cell above the batteries");
+        }
         foreach(var definition in new[] {loader.def,segments[0].def})
         for(int rotation=0;rotation<4;rotation++)
         {
@@ -124,9 +147,9 @@ internal static partial class Program
         internal CompGunSupply propellant;
         internal CompWeaponTuning tuning;
         public RangeWeaponSave(Building building, CompProperties_WeaponTuning settings,
-            CompProperties_GunSupply heads, CompProperties_GunSupply charge)
+            CompProperties_GunSupply heads, CompProperties_GunSupply charge, CompProperties_SpaceWeapon weaponProps)
         {
-            weapon = new CompSpaceWeapon { parent=building, props=new CompProperties_SpaceWeapon { range=160f, fireArcDeg=360f } };
+            weapon = new CompSpaceWeapon { parent=building, props=weaponProps };
             if (settings != null) tuning = new CompWeaponTuning { parent=building, props=settings };
             if (heads != null)
             {
@@ -173,19 +196,21 @@ internal static partial class Program
         };
     }
 
-    static void RangeAmmunition(XmlDocument platform, XmlDocument definitions, List<RangeWeaponSave> cannons, string directory)
+    static Dictionary<(int group, SpaceWeaponSalvoSet bank), (float mass, float speed, string projectile)>
+        RangeAmmunition(XmlDocument platform, XmlDocument definitions, List<RangeWeaponSave> cannons, string directory)
     {
         const string magazineName = "DeltaV_Building_UraniumMagazine";
         var magazineConfig = definitions.SelectSingleNode($"/Defs/ThingDef[defName='{magazineName}']/comps");
         var headsConfig = RangeSupply(magazineConfig, GunSupplyKind.Heads);
         var chargeConfig = RangeSupply(magazineConfig, GunSupplyKind.Propellant);
         var ammoConfig = magazineConfig.SelectSingleNode("li[@Class='DeltaV.CompProperties_SpaceWeaponMagazine']");
-        float capacity = headsConfig.fuelCapacity;
         var allowed = magazineConfig.SelectNodes("li/allowedHostDefs/li").Cast<XmlNode>().Select(node => node.InnerText).ToHashSet();
-        Check(headsConfig.fuelFilter.AnyAllowedDef.defName == "DeltaV_UraniumHead"
-            && headsConfig.alternateHead.defName == "DeltaV_SteelHead"
-            && chargeConfig.fuelFilter.AnyAllowedDef.defName == "DeltaV_Propellant",
-            "the range uses a configurable auxiliary with uranium selected and its own propellant");
+        var steelHead = RangeAmmoDef("DeltaV_SteelHead");
+        var uraniumHead = RangeAmmoDef("DeltaV_UraniumHead");
+        var propellant = RangeAmmoDef("DeltaV_Propellant");
+        Check(headsConfig.fuelFilter.AnyAllowedDef == uraniumHead && headsConfig.alternateHead == steelHead
+            && chargeConfig.fuelFilter.AnyAllowedDef == propellant,
+            "the range uses a configurable auxiliary that supports both head types and stores its own propellant");
         var magazineDef=Raw<ThingDef>();
         magazineDef.defName=magazineName; magazineDef.thingClass=typeof(Building); magazineDef.category=ThingCategory.Building;
         magazineDef.size=IntVec2.One; magazineDef.building=new BuildingProperties { isEdifice=false };
@@ -198,17 +223,19 @@ internal static partial class Program
             };
         DefDatabase<ThingDef>.Add(magazineDef);
         var entries = platform.SelectNodes($"/MapPrefab/thingStates/li[def='{magazineName}']").Cast<XmlNode>().ToArray();
-        Check(entries.Length==2,"two loaded uranium magazines, one for each southern cannon");
+        Check(entries.Length == 4, "four auxiliary magazines, one for each rapid and heavy cannon");
         var priorLanguage=LanguageDatabase.activeLanguage;
         List<Thing> mounts;
         try
         {
             LanguageDatabase.activeLanguage=StatsFixtureLanguage(directory,"English");
             mounts=RimExodus.Maps.MapPrefabThingState.Instantiate(entries.Select(entry => new RimExodus.Maps.MapPrefabThingEntry {
-                def=magazineDef, stateXml=entry.SelectSingleNode("state/saveable").OuterXml }).ToList(),"range uranium mounts",null);
+                def=magazineDef, stateXml=entry.SelectSingleNode("state/saveable").OuterXml }).ToList(),"range magazine mounts",null);
         }
         finally { LanguageDatabase.activeLanguage=priorLanguage; }
-        var map = Raw<Map>(); map.info=new MapInfo { Size=new IntVec3(35,1,43) };
+        var map = Raw<Map>();
+        IntVec2 layoutSize = IntVec2.FromString(platform.SelectSingleNode("/MapPrefab/prefab/size").InnerText);
+        map.info = new MapInfo { Size = new IntVec3(layoutSize.x, 1, layoutSize.z) };
         map.cellIndices=new CellIndices(map); map.thingGrid=new ThingGrid(map); map.edificeGrid=new EdificeGrid(map);
         map.components=new List<MapComponent>();
         Find.Maps.Add(map);
@@ -228,64 +255,71 @@ internal static partial class Program
                 map.edificeGrid.Register(turret);
             }
             foreach (var mount in mounts) PlaceOnGrid(mount);
-            var heavyLaunch=new Dictionary<SpaceWeaponSalvoSet,(float mass,float speed)>();
+            var shots = new Dictionary<(int, SpaceWeaponSalvoSet), (float mass, float speed, string projectile)>();
             foreach (var gun in cannons)
             {
-                var weapon=gun.weapon;
-                bool southern=weapon.salvoSet==SpaceWeaponSalvoSet.Secondary;
-                var selected=weapon.SelectMagazine();
-                Check(selected!=null && weapon.MagazineAvailable(selected),"authored cannon can fire with its native ammunition selection");
-                Check(selected.PropellantCount>=gun.tuning.charge,"each selected magazine has its own propellant");
-                if (weapon.groupNumber==2)
-                    heavyLaunch.Add(weapon.salvoSet,(SpaceWeaponBallistics.ProjectileMass(weapon,selected),
-                        SpaceWeaponBallistics.BaseSpeed(weapon,selected,0f)));
-                if (southern)
-                {
-                    Check(selected.SelectedProjectileDef==weapon.WeaponProps.armorPiercingProjectileDef
-                        && selected.HeadCount==capacity && selected.PropellantCount==chargeConfig.fuelCapacity
-                        && selected.parent.Position==SpaceWeaponGeometry.RotatedCell(
-                            weapon.parent,weapon.WeaponProps.attachmentSlots[1].cell),
-                        "southern cannon selects the full uranium magazine in its second native slot");
-                    Check(gun.supply.SelectedHead==weapon.WeaponProps.armorPiercingHeadDef
-                        && gun.supply.Props.fuelFilter.Allows(weapon.WeaponProps.armorPiercingHeadDef),
-                        "southern internal magazine restores uranium selection and filter through Scribe");
-                    float builtInHeads = gun.supply.Fuel;
-                    float builtInCharge = gun.propellant.Fuel;
-                    selected.ConsumeLoad(selected.RequiredHeads(weapon), weapon.RequiredPropellant);
-                    Check(selected.HeadCount==capacity-gun.tuning.mass
-                        && selected.PropellantCount==chargeConfig.fuelCapacity-gun.tuning.charge
-                        && gun.supply.Fuel==builtInHeads
-                        && gun.propellant.Fuel==builtInCharge,
-                        "southern auxiliary supplies both head and charge while internal stocks stay untouched");
-                    var auxiliaryCharge = selected.Supply(GunSupplyKind.Propellant);
-                    Set(auxiliaryCharge,"fuel",(float)gun.tuning.charge-1f);
-                    var fallback = weapon.SelectMagazine();
-                    Check(fallback?.parent==weapon.parent && fallback.SelectedProjectileDef==selected.SelectedProjectileDef
-                        && fallback.UnitMass(weapon)==selected.UnitMass(weapon)
-                        && fallback.PenetrationScale(weapon)==selected.PenetrationScale(weapon),
-                        "an incomplete high-priority magazine yields to a full internal uranium load with identical ballistics");
-                    Set(gun.supply,"fuel",(float)gun.tuning.mass-1f);
-                    Check(weapon.SelectMagazine()==null && !weapon.MagazineAvailable(null),
-                        "neither incomplete magazine can combine with the other's remaining supply");
-                    Set(auxiliaryCharge,"fuel",chargeConfig.fuelCapacity);
-                    Set(selected.Supply(GunSupplyKind.Heads),"fuel",(float)selected.RequiredHeads(weapon)-1f);
-                    Check(weapon.SelectMagazine()==null && !weapon.MagazineAvailable(null),
-                        "southern cannon stops when uranium cannot supply a full shot");
-                }
-                else
-                {
-                    Check(selected.parent==weapon.parent
-                        && gun.supply.SelectedHead?.defName=="DeltaV_SteelHead"
-                        && (selected.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef).defName.EndsWith(
-                            weapon.groupNumber==1 ? "_Rapid" : "_Cannon",StringComparison.Ordinal)
-                        && !weapon.AttachedThings().Any(thing=>thing.def==magazineDef),"northern cannon selects internal steel only");
-                }
+                var weapon = gun.weapon;
+                bool secondary = weapon.salvoSet == SpaceWeaponSalvoSet.Secondary;
+                string cannon = $"group {weapon.groupNumber} {weapon.salvoSet}";
+                var expectedHead = secondary ? uraniumHead : steelHead;
+                var oppositeHead = secondary ? steelHead : uraniumHead;
+                var expectedProjectile = secondary ? weapon.WeaponProps.armorPiercingProjectileDef : weapon.WeaponProps.projectileDef;
+                var mountsOnWeapon = weapon.AttachedThings().Where(thing => thing.def == magazineDef).ToArray();
+                Check(mountsOnWeapon.Length == 1 && mountsOnWeapon[0].Position == SpaceWeaponGeometry.RotatedCell(
+                    weapon.parent, weapon.WeaponProps.attachmentSlots[1].cell), cannon + " has one auxiliary in its second native slot");
+                var selected = weapon.SelectMagazine();
+                Check(selected?.parent == mountsOnWeapon[0] && weapon.MagazineAvailable(selected),
+                    cannon + " selects its full auxiliary first");
+                var auxiliaryHeads = selected.Supply(GunSupplyKind.Heads);
+                var auxiliaryCharge = selected.Supply(GunSupplyKind.Propellant);
+                Check(auxiliaryHeads.Fuel == headsConfig.fuelCapacity && auxiliaryHeads.TargetFuelLevel == headsConfig.fuelCapacity
+                    && auxiliaryCharge.Fuel == chargeConfig.fuelCapacity && auxiliaryCharge.TargetFuelLevel == chargeConfig.fuelCapacity
+                    && auxiliaryCharge.Props.fuelFilter.Allows(propellant), cannon + " restores full auxiliary heads and propellant");
+                Check(auxiliaryHeads.SelectedHead == expectedHead && auxiliaryHeads.Props.fuelFilter.Allows(expectedHead)
+                    && !auxiliaryHeads.Props.fuelFilter.Allows(oppositeHead) && gun.supply.SelectedHead == expectedHead
+                    && gun.supply.Props.fuelFilter.Allows(expectedHead) && !gun.supply.Props.fuelFilter.Allows(oppositeHead),
+                    cannon + " restores the same head selection and filter in both magazines");
+                var projectile = selected.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
+                Check(projectile == expectedProjectile, cannon + " selects the projectile for its authored head type");
+                shots.Add((weapon.groupNumber, weapon.salvoSet), (SpaceWeaponBallistics.ProjectileMass(weapon, selected),
+                    SpaceWeaponBallistics.BaseSpeed(weapon, selected, 0f), projectile.defName));
+
+                float builtInHeads = gun.supply.Fuel;
+                float builtInCharge = gun.propellant.Fuel;
+                selected.ConsumeLoad(selected.RequiredHeads(weapon), weapon.RequiredPropellant);
+                Check(selected.HeadCount == headsConfig.fuelCapacity - gun.tuning.mass
+                    && selected.PropellantCount == chargeConfig.fuelCapacity - gun.tuning.charge
+                    && gun.supply.Fuel == builtInHeads && gun.propellant.Fuel == builtInCharge,
+                    cannon + " draws both materials for a shot from the auxiliary");
+
+                Set(auxiliaryCharge, "fuel", (float)gun.tuning.charge - 1f);
+                var fallback = weapon.SelectMagazine();
+                Check(fallback?.parent == weapon.parent
+                    && (fallback.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef) == projectile
+                    && fallback.UnitMass(weapon) == selected.UnitMass(weapon)
+                    && fallback.PenetrationScale(weapon) == selected.PenetrationScale(weapon),
+                    cannon + " falls back to the internal magazine with identical ballistics when the auxiliary lacks propellant");
+                Set(gun.supply, "fuel", (float)gun.tuning.mass - 1f);
+                Check(weapon.SelectMagazine() == null && !weapon.MagazineAvailable(null),
+                    cannon + " cannot use the auxiliary heads with the internal propellant");
+
+                Set(gun.supply, "fuel", builtInHeads);
+                Set(auxiliaryCharge, "fuel", chargeConfig.fuelCapacity);
+                Set(auxiliaryHeads, "fuel", (float)selected.RequiredHeads(weapon) - 1f);
+                Check(weapon.SelectMagazine() == fallback, cannon + " also falls back when the auxiliary lacks heads");
+                Set(gun.propellant, "fuel", (float)gun.tuning.charge - 1f);
+                Check(weapon.SelectMagazine() == null && !weapon.MagazineAvailable(null),
+                    cannon + " cannot use the internal heads with the auxiliary propellant");
             }
-            var steel=heavyLaunch[SpaceWeaponSalvoSet.Main];
-            var uranium=heavyLaunch[SpaceWeaponSalvoSet.Secondary];
-            Check(uranium.mass>steel.mass && uranium.speed<steel.speed
-                && Math.Abs(SpaceKinetics.Energy(steel.mass,steel.speed)/SpaceKinetics.Energy(uranium.mass,uranium.speed)-1)<1e-5,
-                "at equal charge uranium leaves the firing muzzle slower with equal muzzle-frame kinetic energy");
+            foreach (int group in new[] { 1, 2 })
+            {
+                var steel = shots[(group, SpaceWeaponSalvoSet.Main)];
+                var uranium = shots[(group, SpaceWeaponSalvoSet.Secondary)];
+                Check(uranium.mass == steel.mass * 1.5f && uranium.speed < steel.speed
+                    && Math.Abs(SpaceKinetics.Energy(steel.mass, steel.speed) / SpaceKinetics.Energy(uranium.mass, uranium.speed) - 1) < 1e-5,
+                    "at equal charge uranium leaves the firing muzzle slower with equal muzzle-frame kinetic energy");
+            }
+            return shots;
         }
         finally { Find.Maps.Remove(map); }
     }
@@ -298,46 +332,251 @@ internal static partial class Program
     sealed class RangeShieldSave : IExposable
     {
         internal CompSpaceShield shield;
-        public RangeShieldSave(Building parent) { shield=new CompSpaceShield {parent=parent,props=new CompProperties_SpaceShield()}; }
-        public void ExposeData() => shield.PostExposeData();
+        internal CompFlickable flick;
+        internal CompRefuelable fuel;
+        public RangeShieldSave(Building parent)
+        {
+            shield = new CompSpaceShield { parent=parent, props=new CompProperties_SpaceShield() };
+            flick = new CompFlickable { parent=parent, props=new CompProperties_Flickable() };
+            fuel = new CompRefuelable { parent=parent, props=new CompProperties_Refuelable { fuelCapacity=750 } };
+            Set(parent,"comps",new List<ThingComp> { shield, flick, fuel });
+        }
+        public void ExposeData()
+        {
+            shield.PostExposeData();
+            flick.PostExposeData();
+            fuel.PostExposeData();
+        }
     }
 
-    static void RangeLaserSightlines(Game game, XmlDocument platform, XmlDocument target, List<CompSpaceShield> shields)
+    static void RangeSightlines(Game game, XmlDocument platform, XmlDocument target,
+        CompSpaceShield platformGuard, IReadOnlyList<CompSpaceShield> shields, IReadOnlyList<CompTutorialShieldTerminal> terminals,
+        IReadOnlyDictionary<(int group, SpaceWeaponSalvoSet bank), (float mass, float speed, string projectile)> shots,
+        string directory)
     {
         InitializeOrbitFixture(game);
         Map MapFor(XmlDocument doc)
         {
-            var map=Raw<Map>();map.info=new MapInfo {Size=ShipPocketMapFactory.CompactSize(IntVec2.FromString(doc.SelectSingleNode("/MapPrefab/prefab/size").InnerText))};return map;
+            var map = Raw<Map>();
+            map.info = new MapInfo { Size = ShipPocketMapFactory.CompactSize(
+                IntVec2.FromString(doc.SelectSingleNode("/MapPrefab/prefab/size").InnerText)) };
+            return map;
         }
-        var source=new MapSpaceObject(8001,MapFor(platform),new SpacePose(Vector3.forward,0));
-        var destination=new MapSpaceObject(8002,MapFor(target),SpaceTransform.RigidPointPose(source.pose,new Vector2(120,0),0));
-        foreach(string name in new[]{"DeltaV_Weapon_RapidMainMedium","DeltaV_Weapon_HeavyMainMedium","DeltaV_Weapon_LaserMainMedium"})
-        foreach(XmlNode entry in platform.SelectNodes("/MapPrefab/thingStates/li[def='"+name+"']"))
+
+        var source = new MapSpaceObject(8001, MapFor(platform), new SpacePose(Vector3.forward, 0));
+        var destination = new MapSpaceObject(8002, MapFor(target), DeltaVTutorialService.CombatRangeTargetPose(source.pose));
+        var margin = new Vector2(12, 12);
+        var railEnd = platform.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_Weapon_RailgunAccelerator']/pos")
+            .Cast<XmlNode>().Select(node => IntVec3.FromString(node.InnerText)).OrderBy(c => c.x).Last();
+        var output = IntVec3.FromString(sourceDefs["DeltaV_Weapon_RailgunAccelerator"].SelectSingleNode(
+            "comps/li[@Class='DeltaV.CompProperties_SpaceRailgun']/outputOffset").InnerText);
+        var railMuzzle = new Vector2(railEnd.x + .5f, railEnd.z + .5f) + margin
+            + SpaceTransform.RotatePlacementOffset(new Vector2(output.x, output.z), Rot4.East);
+        var coverage = new[] { new Vector2(34,21), new Vector2(34,24), new Vector2(44,21), new Vector2(44,24), railMuzzle-margin };
+        Check(platformGuard.mode == SpaceShieldMode.Guard && platformGuard.FlickedOn && platformGuard.GuardCenter.x > 34f
+            && coverage.All(p => Vector2.Distance(p, platformGuard.GuardCenter) < platformGuard.groundRadius),
+            "the enabled east platform guard covers the rail footprint and muzzle");
+        var lanes = new List<(int group, SpaceWeaponSalvoSet bank, CompSpaceWeapon gun, CompSpaceWeaponTraverse traverse, float maxSpread)>();
+        int pluginSkill = int.Parse(sourceDefs["DeltaV_Building_AutoAimPluginII"].SelectSingleNode(
+            "comps/li[@Class='DeltaV.CompProperties_SpaceAutoAimPlugin']/equivalentSkillLevel").InnerText);
+        foreach (var (name, group) in new[] { (RangeRapidDef,1), (RangeHeavyDef,2), (RangeLaserDef,3) })
+        foreach (XmlNode entry in platform.SelectNodes("/MapPrefab/thingStates/li[def='" + name + "']"))
         {
-        var body=Raw<Building>();body.def=Raw<ThingDef>();body.def.size=IntVec2.FromString(SourceChain(name).Select(n=>n["size"]).First(n=>n!=null).InnerText);
-        Set(body,"positionInt",IntVec3.FromString(entry["pos"].InnerText)+new IntVec3(12,0,12));Set(body,"rotationInt",Rot4.East);
-        var weaponProperties=sourceDefs[name].SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']");
-        var weapon=new CompSpaceWeapon {parent=body,props=new CompProperties_SpaceWeapon {
-            turretMuzzleDistance=float.Parse(weaponProperties["turretMuzzleDistance"].InnerText,System.Globalization.CultureInfo.InvariantCulture)}};
-        weapon.coverage.arc=float.Parse(entry.SelectSingleNode("state/saveable/combatCoverage/arc").InnerText,System.Globalization.CultureInfo.InvariantCulture);
-        var traverse=new CompSpaceWeaponTraverse {parent=body,props=new CompProperties_SpaceWeaponTraverse()};
-        Set(body,"comps",new List<ThingComp> {weapon,traverse});
-        foreach(var shield in shields)
+            var body = Raw<Building>();
+            body.def = Raw<ThingDef>();
+            body.def.size = IntVec2.FromString(SourceChain(name).Select(x => x["size"]).First(x => x != null).InnerText);
+            Set(body, "positionInt", IntVec3.FromString(entry["pos"].InnerText) + new IntVec3(12, 0, 12));
+            Set(body, "rotationInt", new Rot4(int.Parse(entry["rotation"].InnerText)));
+            Check(body.Rotation == Rot4.East, "the authored turret faces east");
+            var props = sourceDefs[name].SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']");
+            var gun = new CompSpaceWeapon { parent = body, props = new CompProperties_SpaceWeapon {
+                topTurret = true, turretMuzzleDistance = XmlFloat(props, "turretMuzzleDistance") } };
+            var traverse = new CompSpaceWeaponTraverse { parent = body, props = new CompProperties_SpaceWeaponTraverse() };
+            Set(traverse, "currentAngle", 0f);
+            Set(body, "comps", new List<ThingComp> { gun, traverse });
+            var bank = Enum.Parse<SpaceWeaponSalvoSet>(entry.SelectSingleNode("state/saveable/salvoSet").InnerText);
+            float spread = 1.2f * XmlFloat(props, "baseSpreadDeg") * SpaceWeaponService.SpreadFactorForSkill(pluginSkill);
+            lanes.Add((group, bank, gun, traverse, spread));
+        }
+        var muzzles = lanes.Select(lane => SpaceWeaponGeometry.MuzzleMapPoint(lane.gun)).ToList();
+        Check(muzzles.Count == 6 && muzzles.GroupBy(p => p.y).Select(row => row.Count()).SequenceEqual(new[] {3, 3})
+            && muzzles.GroupBy(p => p.x).Count(column => column.Count() == 2) == 3,
+            "the platform has three turret pairs in two rows");
+        Check(muzzles.Min(p => p.y) < railMuzzle.y && railMuzzle.y < muzzles.Max(p => p.y),
+            "the east rail muzzle has a separate lane between turret rows");
+        var railProps = sourceDefs[RangeRailDef].SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']");
+        lanes.Add((4, SpaceWeaponSalvoSet.Secondary, null, null, 1.2f * XmlFloat(railProps, "baseSpreadDeg")
+            * SpaceWeaponService.SpreadFactorForSkill((int)XmlFloat(railProps, "intrinsicAimSkill"))));
+
+        Vector2 InTarget(Vector2 muzzle) => SpaceTransform.UniverseToMapPoint(destination, destination.map,
+            SpaceTransform.MapPointToUniverse(source, source.map, muzzle)) - margin;
+
+        var primary = shields.Single(s => s.parent.Position == new IntVec3(22, 0, 35));
+        var angled = shields.Single(s => s.parent.Position == new IntVec3(7, 0, 8));
+        DeltaVTutorialService.BindCombatRangeTerminals(terminals, destination, shields);
+        Check(terminals.All(t => t.targetObjectId == destination.objectId
+            && t.shieldThingId == (t.UsesAngledShield ? angled : primary).parent.thingIDNumber),
+            "all eleven shield terminals bind to the runtime target and the correctly placed emitter");
+        Check(shields.All(s => !s.FlickedOn), "the connector starts at the no-shield reference");
+
+        void SelectGuard(TutorialShieldPreset preset, int expectedEmitters)
         {
-            shield.GetSegment(out var a,out var b,out _);
-            foreach(float fraction in new[]{0.05f,0.5f,0.95f})
+            var terminal = terminals.Single(t => t.Preset == preset);
+            terminal.ApplyTo(shields.OrderByDescending(s => s.parent.thingIDNumber == terminal.shieldThingId).ToArray());
+            var guards = shields.Where(s => s.FlickedOn).ToArray();
+            Check(guards.Length == expectedEmitters && guards.All(s => s.mode == SpaceShieldMode.Guard)
+                && (guards.Length != 1 || guards[0] == primary), "guard preset enables the required emitters");
+            var surface = new SpaceCollision.Surface();
+            foreach (var guard in guards)
+                surface.arcs.Add(new SpaceCollision.ShieldArc { center=guard.GuardCenter, radius=guard.groundRadius,
+                    span=2f*Mathf.PI, building=(Building)guard.parent });
+            var arcHit = AccessTools.Method(typeof(SpaceCollision), "TryFindArcHit");
+            var from = InTarget(railMuzzle);
+            float spreadLimit = lanes.Single(lane => lane.group == 4).maxSpread;
+            foreach (float scatter in new[] { -spreadLimit, 0f, spreadLimit })
             {
-            Vector2 point=Vector2.Lerp(a,b,fraction)+new Vector2(12,12);
-            Vector2 aim=SpaceTransform.UniverseToMapPoint(source,source.map,SpaceTransform.MapPointToUniverse(destination,destination.map,point));
-            Vector2 direction=aim-SpaceWeaponGeometry.FootprintCenter(body);
-            Set(traverse,"currentAngle",Mathf.Atan2(direction.y,direction.x));
-            Vector2 muzzle=SpaceWeaponGeometry.MuzzleMapPoint(weapon);direction=aim-muzzle;
-            Check(weapon.CoverageError(Mathf.Atan2(direction.y,direction.x))==0 && direction.magnitude<150,
-                "both turret banks can reach shield centres and ends within restricted firing sector");
+                var direction = (InTarget(railMuzzle + SpaceTransform.Rotate(Vector2.right, scatter * Mathf.Deg2Rad)) - from).normalized;
+                object[] args = { surface, from, direction, 150f, null, null, null,
+                    new Predicate<SpaceCollision.ShieldArc>(_ => true) };
+                bool hit = (bool)arcHit.Invoke(null,args);
+                Check(hit == (expectedEmitters != 0) && (!hit ||
+                    ((SpaceCollision.ShieldArc)args[4]).building == primary.parent && ((Vector2)args[5]).x < 0f),
+                    "fixed railgun lane and spread hit the northern guard before the west wall when enabled");
+                args[7] = new Predicate<SpaceCollision.ShieldArc>(arc => arc.building != primary.parent);
+                Check(!(bool)arcHit.Invoke(null,args), "the entire railgun trace clears both lower guards");
             }
         }
+        SelectGuard(TutorialShieldPreset.GuardSingle, 1);
+        SelectGuard(TutorialShieldPreset.Guard, 3);
+
+        var projectileDocs = new XmlDocument();
+        projectileDocs.Load(Path.Combine(directory, "../../1.6/Defs/SpaceCombat/DeltaV_SpaceProjectiles.xml"));
+        var railProjectile = sourceDefs[railProps["projectileDef"].InnerText];
+        CompProperties_SpaceProjectile Projectile(XmlNode def)
+        {
+            var xml = def.SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceProjectile']");
+            var props = new CompProperties_SpaceProjectile();
+            props.shieldFragmentCount = (int)XmlFloat(xml, "shieldFragmentCount");
+            props.shieldFragmentCost = XmlFloat(xml, "shieldFragmentCost");
+            props.shieldTumbleDeltaV = XmlFloat(xml, "shieldTumbleDeltaV", props.shieldTumbleDeltaV);
+            props.shieldBreakDeltaV = XmlFloat(xml, "shieldBreakDeltaV", props.shieldBreakDeltaV);
+            return props;
         }
+        var railMagazine = sourceDefs[RangeRailDef].SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceWeaponMagazine']");
+        float railMass = XmlFloat(railMagazine, "ammoPerShot") * XmlFloat(railMagazine, "unitMass");
+        Check(railMass == 45f, "the tutorial rail has its own calibrated forty-five mass load");
+        float railEnergy = XmlFloat(railProps, "launchKineticEnergy") + 9f * XmlFloat(sourceDefs["DeltaV_Weapon_RailgunAccelerator"]
+            .SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_SpaceRailgun']"), "kineticEnergyBonus");
+        var laser = new CompProperties_SpaceProjectile { laserRange=150f };
+        var lineHit = AccessTools.Method(typeof(SpaceCollision), "TryFindLineHit");
+        var lightDirections = new List<Vector2>();
+        var heavyDeflection = new Dictionary<SpaceWeaponSalvoSet, float>();
+        // Slots follow main/secondary within each cannon family, then rail. A null allows either tumble or tear.
+        var stability = new Dictionary<(float angle, int strength), int?[]> {
+            [(0f,35)] = new int?[] {0,0,0,0,0},
+            [(-45f,7)] = new int?[] {1,0,0,0,1},
+            [(-45f,35)] = new int?[] {1,1,1,0,4},
+            [(-45f,100)] = new int?[] {3,null,1,1,4}
+        };
+        foreach (var shield in shields)
+        {
+            Set(shield, "regularCapacity", 123d);
+            Set(shield, "recoveryWaitTicks", 200);
+            Set(shield.parent.TryGetComp<CompRefuelable>(), "fuel", 456f);
+        }
+        foreach (var terminal in terminals.Where(t => t.Preset == TutorialShieldPreset.Kinetic
+            || t.Preset == TutorialShieldPreset.Electromagnetic))
+        {
+            var shield = shields.Single(s => s.parent.thingIDNumber == terminal.shieldThingId);
+            var ordered = shields.OrderByDescending(s => s == shield).ToArray();
+            terminal.ApplyTo(ordered);
+            bool kineticMode = terminal.Preset == TutorialShieldPreset.Kinetic;
+            var settings = (CompProperties_TutorialShieldTerminal)terminal.props;
+            int strength = kineticMode ? shield.kineticStrengthPercent : shield.electromagneticStrengthPercent;
+            Check(shield.FlickedOn && ordered.Skip(1).All(s => !s.FlickedOn)
+                && shield.mode == (kineticMode ? SpaceShieldMode.Kinetic : SpaceShieldMode.Electromagnetic)
+                && shield.angleDeg == settings.angleDeg && strength == settings.strengthPercent,
+                "terminal enables the bound line emitter in its authored mode, angle and strength");
+            shield.GetSegment(out Vector2 a, out Vector2 b, out Vector2 front);
+            Check(Math.Abs((b - a).magnitude - shield.ShieldProps.maxLength) < .001f && a.x < 0f && b.x < 0f,
+                "the entire maximum-length shield segment stays west of the painted wall");
+            var surface = new SpaceCollision.Surface();
+            surface.lineShields.Add(shield);
+
+            foreach (var lane in lanes)
+            {
+                bool isLaser = lane.group == 3, isRail = lane.group == 4;
+                bool secondary = lane.bank == SpaceWeaponSalvoSet.Secondary;
+                var ammo = isLaser ? default : isRail ? (railMass, SpaceKinetics.Speed(railMass, railEnergy),
+                    railProjectile["defName"].InnerText) : shots[(lane.group, lane.bank)];
+                var projectile = isLaser ? laser : Projectile(isRail ? railProjectile : projectileDocs.SelectSingleNode(
+                    $"/Defs/ThingDef[defName='{ammo.Item3}']"));
+                int aimLimit = isRail ? 0 : 5;
+                for (int aim = -aimLimit; aim <= aimLimit; aim++)
+                {
+                    if (!isRail) Set(lane.traverse, "currentAngle", aim * Mathf.Deg2Rad);
+                    var muzzle = isRail ? railMuzzle : SpaceWeaponGeometry.MuzzleMapPoint(lane.gun);
+                    var from = InTarget(muzzle);
+                    foreach (float scatter in new[] { -lane.maxSpread, 0f, lane.maxSpread })
+                    {
+                        var launch = SpaceTransform.Rotate(Vector2.right, (aim + scatter) * Mathf.Deg2Rad);
+                        var dir = (InTarget(muzzle + launch) - from).normalized;
+                        object[] args = { surface, from, dir, 150f, projectile, null, null, null, null, null, null,
+                            new Predicate<CompSpaceShield>(_ => true) };
+                        bool hit = (bool)lineHit.Invoke(null, args);
+                        var contact = (Vector2)args[6];
+                        Check(hit == (kineticMode != isLaser) && (!hit || ReferenceEquals(args[5], shield) && contact.x < 0f),
+                            $"line mode, coverage and first contact: group {lane.group}, {lane.bank}, {shield.mode}, {settings.angleDeg}, {aim}, {scatter}");
+                        if (!hit) continue;
+                        if (aim == 0 && scatter == 0f)
+                            Check(Math.Abs(SpaceTransform.IncidenceAngle(dir, front) * Mathf.Rad2Deg - Math.Abs(shield.angleDeg)) < .02f,
+                                "nominal due-east firing observes the angle set by the terminal");
+                        if (isLaser)
+                        {
+                            if (!secondary && aim == 0 && scatter == 0f)
+                                lightDirections.Add(SpaceShieldRefraction.Calculate(dir, front, strength).Direction(1f));
+                            continue;
+                        }
+
+                        float mass = ammo.Item1;
+                        Vector2 incoming = dir * ammo.Item2;
+                        float request = SpaceKinetics.ShieldImpulse(strength);
+                        float paid = SpaceKinetics.FundedShieldImpulse(mass, Vector2.Dot(incoming, front),
+                            request, projectile.shieldFragmentCost, 600);
+                        Check(paid == request, "one charged target battery funds the test pulse");
+                        int fragments = SpaceKinetics.ShieldFragmentCount(mass, incoming, front, paid, projectile);
+                        int ammoIndex = isRail ? 4 : (lane.group - 1) * 2 + (secondary ? 1 : 0);
+                        int? expected = stability[(settings.angleDeg, strength)][ammoIndex];
+                        Check(expected.HasValue ? fragments == expected : fragments == 1 || fragments == projectile.shieldFragmentCount,
+                            $"calibrated stability: group {lane.group}, {lane.bank}, {settings.angleDeg}, {strength}, {aim}, {scatter}, fragments={fragments}");
+                        if (strength == 35 && settings.angleDeg != 0f && lane.group == 2)
+                        {
+                            var outgoing = SpaceKinetics.ApplyShieldImpulse(mass, incoming, front, paid);
+                            if (aim == 0 && scatter == 0f)
+                                heavyDeflection.Add(lane.bank, Vector2.Angle(incoming, outgoing));
+                            int row = Mathf.FloorToInt(contact.y - contact.x * outgoing.y / outgoing.x);
+                            Check(outgoing.x > 0f && target.SelectSingleNode(
+                                $"/MapPrefab/thingStates/li[pos='(0, 0, {row})' and def='Wall']") != null,
+                                "both comparison rounds continue into the west armour throughout the aiming envelope");
+                        }
+                    }
+                }
+            }
+            Check(shields.All(s => s.RegularCapacity == 123d && s.EmergencyCapacity == 456d && s.RecoveryWaitTicks == 200),
+                "changing the preset preserves capacities and recovery");
+        }
+        Check(lightDirections.Count == 4
+            && lightDirections.Zip(lightDirections.Skip(1), Vector2.Distance).All(distance => distance > .5f)
+            && lightDirections[1].x > 0f && lightDirections[2].x < 0f
+            && Vector2.Distance(lightDirections[3], -Vector2.right) < .001f,
+            "the oblique beam bends forward at 20%, turns toward the front at 50%, and returns along its path at 100%");
+        Check(heavyDeflection[SpaceWeaponSalvoSet.Secondary] < heavyDeflection[SpaceWeaponSalvoSet.Main],
+            "heavier uranium deflects less than steel at the same nominal incidence, impulse and charge");
+        SelectGuard(TutorialShieldPreset.Unshielded, 0);
     }
+
+    static float XmlFloat(XmlNode node, string path, float fallback = 0f) => node.SelectSingleNode(path) is { } value
+        ? float.Parse(value.InnerText, System.Globalization.CultureInfo.InvariantCulture) : fallback;
 
     sealed class RangeEntranceSave : IExposable
     {
@@ -377,6 +616,16 @@ internal static partial class Program
             }
             var things=RimExodus.Maps.MapPrefabThingState.Instantiate(entries,"range entrance",null);
             var door=(Building_HackableDoor)things[0]; var terminal=(ThingWithComps)things[1];
+            var walls = platform.SelectNodes("/MapPrefab/thingStates/li[def='GravshipHull']/pos").Cast<XmlNode>()
+                .Select(node => IntVec3.FromString(node.InnerText)).ToHashSet();
+            bool WallAt(int x, int z) => walls.Contains(new IntVec3(x,0,z));
+            var westPort = IntVec3.FromString(platform.SelectSingleNode("/MapPrefab/thingStates/li[def='DeltaV_DockingPort']/pos").InnerText);
+            Check(westPort == new IntVec3(0,0,2) && door.Position == new IntVec3(6,0,2)
+                && terminal.Position == new IntVec3(4,0,4), "the briefing room occupies the southwest corner");
+            Check(Enumerable.Range(0,7).All(x => WallAt(x,0) && WallAt(x,5))
+                && Enumerable.Range(1,4).Where(z => z != 2).All(z => WallAt(0,z) && WallAt(6,z))
+                && !walls.Any(c => c.x > 0 && c.x < 6 && c.z > 0 && c.z < 5),
+                "the sealed entrance shares the west and south outer walls and adds only two partitions");
             var ally=new Faction {def=new FactionDef(),loadID=937};Set(door,"factionInt",ally);
             Find.FactionManager.AllFactionsListForReading.Add(ally);
             terminal.GetComp<CompTutorialRangeBriefing>().entranceDoor=door;
@@ -416,15 +665,14 @@ internal static partial class Program
         var weaponDefinitions = new XmlDocument();
         weaponDefinitions.Load(Path.Combine(directory,"../../1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml"));
         RangeEntrance(platform,harmony,directory);
-        var weaponNames = new[] { "DeltaV_Weapon_RapidMainMedium", "DeltaV_Weapon_HeavyMainMedium",
-            "DeltaV_Weapon_LaserMainMedium", "DeltaV_Weapon_RailgunLoader" };
+        var weaponNames = new[] { RangeRapidDef, RangeHeavyDef, RangeLaserDef, RangeRailDef };
         int group=0;
         var cannons=new List<RangeWeaponSave>();
         var rangeLanguage=StatsFixtureLanguage(directory,"English");
         foreach (string name in weaponNames)
         {
             group++;
-            var config=weaponDefinitions.SelectSingleNode($"/Defs/ThingDef[defName='{name}']");
+            var config=sourceDefs[name];
             var comps=config["comps"];
             var weaponConfig=comps.SelectSingleNode("li[@Class='DeltaV.CompProperties_SpaceWeapon']");
             var settings=group<=2 ? DirectXmlToObject.ObjectFromXml<CompProperties_WeaponTuning>(
@@ -433,7 +681,7 @@ internal static partial class Program
             var charge=RangeSupply(comps,GunSupplyKind.Propellant);
             if(group==4)
                 Check(comps.SelectSingleNode("li[@Class='DeltaV.CompProperties_GunSupply'][kind='Heads']/fuelFilter/thingDefs/li")
-                    .InnerText=="DeltaV_UraniumHead","the central railgun uses its uranium-only internal compartment");
+                    .InnerText=="DeltaV_UraniumHead","the east-end railgun uses its uranium-only internal compartment");
             foreach(XmlNode state in platform.SelectNodes("/MapPrefab/thingStates/li[def='"+name+"']/state/saveable"))
             {
             Check(state != null && state["groupNumber"].InnerText == group.ToString(), "four distinct fire-control groups");
@@ -452,15 +700,25 @@ internal static partial class Program
                 File.WriteAllText(file,"<root><weapon>"+doc.DocumentElement.InnerXml+"</weapon></root>");
                 RangeWeaponSave savedWeapon=null;
                 LanguageDatabase.activeLanguage=rangeLanguage;
-                Scribe.loader.InitLoading(file); Scribe_Deep.Look(ref savedWeapon,"weapon",building,settings,heads,charge);
+                var weaponProps = new CompProperties_SpaceWeapon {
+                    range=XmlFloat(weaponConfig,"range"), fireArcDeg=XmlFloat(weaponConfig,"fireArcDeg"),
+                    lockArcDeg=XmlFloat(weaponConfig,"lockArcDeg",-1f),
+                    defaultFireDeviationDeg=XmlFloat(weaponConfig,"defaultFireDeviationDeg",1f),
+                    defaultManualFireDeviationDeg=XmlFloat(weaponConfig,"defaultManualFireDeviationDeg",-1f) };
+                Scribe.loader.InitLoading(file); Scribe_Deep.Look(ref savedWeapon,"weapon",building,settings,heads,charge,weaponProps);
                 Scribe.loader.FinalizeLoading();
                 var weapon=savedWeapon.weapon;
-                Check(weapon.groupNumber==group && weapon.coverage.arc==90f && weapon.EffectiveRange==150f,
-                    "native weapon Scribe preserves group and limited firing sector");
+                Check(weapon.groupNumber==group && weapon.coverage.arc==(group==4 ? 360f : 90f)
+                    && weapon.coverage.range==(group==4 ? 0f : 150f),
+                    "native weapon Scribe preserves group and each weapon's firing sector");
                 var expectedBank=group==4 || position.z<22 ? SpaceWeaponSalvoSet.Secondary : SpaceWeaponSalvoSet.Main;
-                Check(weapon.salvoSet==expectedBank,"native Scribe restores northern main, southern secondary, and central secondary rail");
-                Check(weapon.CoverageError(0f)==0f && weapon.CoverageError(Mathf.PI)>100f
-                    && weapon.CoverageError(46f*Mathf.Deg2Rad)>0f,"station behind platform and off-sector aim rejected");
+                Check(weapon.salvoSet==expectedBank,"native Scribe restores northern main, southern secondary, and east-end secondary rail");
+                if (group == 4)
+                    Check(weapon.CoverageError(Mathf.PI) == 0f && weapon.manualFireDeviationDeg == 180f && weapon.fireDeviationDeg == 1f,
+                        "trial rail uses unrestricted manual pointing and range, with the native one-degree automatic tolerance");
+                else
+                    Check(weapon.CoverageError(0f)==0f && weapon.CoverageError(Mathf.PI)>100f
+                        && weapon.CoverageError(46f*Mathf.Deg2Rad)>0f,"turret rejects the station behind the platform and off-sector aim");
                 Check(!weapon.CompGetGizmosExtra().Any(),"allied weapon has no player settings gizmos");
                 if (heads!=null) Check(savedWeapon.supply.Fuel==heads.fuelCapacity
                     && savedWeapon.supply.TargetFuelLevel==heads.fuelCapacity,"full head stock and loading target survive native Scribe");
@@ -481,8 +739,9 @@ internal static partial class Program
                         "the cannon has its matching armour-piercing projectile");
                     weapon.WeaponProps.attachmentSlots=weaponConfig.SelectNodes("attachmentSlots/li/cell").Cast<XmlNode>()
                         .Select(slot=>new SpaceWeaponAttachmentSlot { cell=IntVec3.FromString(slot.InnerText) }).ToList();
-                    if (group==2) Check(savedWeapon.tuning.charge==48 && savedWeapon.tuning.mass==48,
-                        "both heavy cannons have the same charge and count of heads");
+                    Check(group==2 ? savedWeapon.tuning.charge==48 && savedWeapon.tuning.mass==48
+                        : savedWeapon.tuning.charge==4 && savedWeapon.tuning.mass==10,
+                        "native Scribe restores the matched training charge and count of heads");
                     cannons.Add(savedWeapon);
                 }
                 if (state["gun"]!=null)
@@ -493,102 +752,102 @@ internal static partial class Program
             finally { LanguageDatabase.activeLanguage=priorLanguage; Scribe.ForceStop(); File.Delete(file); }
         }
         }
-        RangeAmmunition(platform,weaponDefinitions,cannons,directory);
+        var shots = RangeAmmunition(platform,weaponDefinitions,cannons,directory);
         Check(platform.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_Weapon_RailgunAccelerator']").Count==9,"railgun has nine real accelerators");
         Check(platform.SelectSingleNode("/MapPrefab/thingStates/li[def='PilotConsole']/state/saveable/combat/fireControlMode").InnerText=="Disabled",
             "platform stores disabled fire control in the native combat record");
         Check(!new ShipCombatState().weaponsArmed
             && new ShipCombatState().fireControlMode==ShipFireControlMode.Automatic,
             "new player ships default to disarmed with automatic fire control preselected");
-        var armour=target.SelectNodes("/MapPrefab/thingStates/li[def='Wall' and stuff='Steel']/pos").Cast<XmlNode>()
-            .Select(n=>IntVec3.FromString(n.InnerText)).Where(c=>c.x<6).ToList();
-        Check(armour.Count==258 && Enumerable.Range(0,43).All(z=>Enumerable.Range(0,6).All(x=>armour.Contains(new IntVec3(x,0,z)))),
-            "six uninterrupted steel armour layers including the rail lane");
-        Check(platform.SelectNodes("/MapPrefab/thingStates/li[def='Battery']").Count==60,"platform has a finite 36000 Wd bank");
-        Check(target.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_ShieldGenerator']").Count==3,"target has three same-ship shield generators");
-        var shields = new List<CompSpaceShield>();
-        foreach(XmlNode entry in target.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_ShieldGenerator']"))
+        var armour = target.SelectNodes("/MapPrefab/thingStates/li[def='Wall' and stuff='Steel']/pos").Cast<XmlNode>()
+            .Select(n => IntVec3.FromString(n.InnerText)).Where(c => c.x < 6).ToHashSet();
+        Check(armour.Count == 264 && Enumerable.Range(0, 44).All(z => Enumerable.Range(0, 6)
+            .All(x => armour.Contains(new IntVec3(x, 0, z)))), "six uninterrupted steel layers on the west face");
+        var paint = target.SelectNodes("/MapPrefab/thingStates/li[state/saveable/paintColorDef]").Cast<XmlNode>().ToList();
+        Check(paint.Count == 44 && paint.All(n => n["def"].InnerText == "Wall" && IntVec3.FromString(n["pos"].InnerText).x == 0)
+            && paint.Select(n => n.SelectSingleNode("state/saveable/paintColorDef").InnerText).Distinct().Count() == 3,
+            "all colour bands are painted on the real west wall");
+        var batteries = platform.SelectNodes("/MapPrefab/thingStates/li[def='Battery']").Cast<XmlNode>().ToList();
+        Check(batteries.Count == 60 && batteries.All(b => b["rotation"].InnerText == "1")
+            && batteries.GroupBy(b => IntVec3.FromString(b["pos"].InnerText).z).OrderBy(row => row.Key)
+                .Select(row => (row.Key,row.Count())).SequenceEqual(new[] {(1,15),(3,15),(5,15),(7,15)}),
+            "the 36000 Wd bank has four horizontal rows in the south cabin");
+        foreach (XmlDocument layout in new[] { platform, target })
         {
-            var b=Raw<Building>(); b.def=Raw<ThingDef>(); Set(b,"mapIndexOrState",(sbyte)-1);
-            b.def.size=new IntVec2(3,3);
-            Set(b,"positionInt",IntVec3.FromString(entry["pos"].InnerText));
-            Set(b,"rotationInt",new Rot4(int.Parse(entry["rotation"].InnerText)));
-            string path=Path.GetTempFileName(); RangeShieldSave savedShield=null;
+            IntVec2 size = IntVec2.FromString(layout.SelectSingleNode("/MapPrefab/prefab/size").InnerText);
+            var deck = layout.SelectNodes("/MapPrefab/foundations/li/pos").Cast<XmlNode>()
+                .Select(pos => IntVec3.FromString(pos.InnerText)).ToHashSet();
+            Check(deck.Count == size.x * size.z && deck.All(c => c.x >= 0 && c.x < size.x && c.z >= 0 && c.z < size.z),
+                "the platform and target are complete rectangular decks without extensions");
+        }
+        Check(!platform.SelectNodes("/MapPrefab/thingStates/li/def").Cast<XmlNode>()
+            .Any(n => n.InnerText.Contains("PawnSpawner")), "shared platform prefab has no default pawn marker");
+
+        CompSpaceShield LoadShield(XmlNode entry, int id)
+        {
+            var building = Raw<Building>();
+            building.def = Raw<ThingDef>();
+            building.thingIDNumber = id;
+            building.def.size = new IntVec2(3, 3);
+            Set(building, "mapIndexOrState", (sbyte)-1);
+            Set(building, "positionInt", IntVec3.FromString(entry["pos"].InnerText));
+            Set(building, "rotationInt", new Rot4(int.Parse(entry["rotation"].InnerText)));
+            string shieldPath = Path.GetTempFileName();
+            RangeShieldSave savedShield = null;
             try
             {
-                File.WriteAllText(path,"<root><shield>"+entry.SelectSingleNode("state/saveable").InnerXml+"</shield></root>");
-                Scribe.loader.InitLoading(path);Scribe_Deep.Look(ref savedShield,"shield",b);Scribe.loader.FinalizeLoading();
+                File.WriteAllText(shieldPath, "<root><shield>" + entry.SelectSingleNode("state/saveable").InnerXml + "</shield></root>");
+                Scribe.loader.InitLoading(shieldPath);
+                Scribe_Deep.Look(ref savedShield, "shield", building);
+                Scribe.loader.FinalizeLoading();
             }
-            finally {Scribe.ForceStop();File.Delete(path);}
-            var s=savedShield.shield;
-            var flick=new CompFlickable { parent=b,props=new CompProperties_Flickable() };
-            var fuel=new CompRefuelable { parent=b,props=new CompProperties_Refuelable { fuelCapacity=2000 } };
-            Set(fuel,"fuel",777f); Set(s,"regularCapacity",123d); Set(s,"recoveryWaitTicks",200);
-            Set(b,"comps",new List<ThingComp> { s,flick,fuel }); shields.Add(s);
+            finally { Scribe.ForceStop(); File.Delete(shieldPath); }
+            return savedShield.shield;
         }
-        shields=shields.OrderByDescending(s=>s.groundRadius).ToList();
-        Check(shields.Select(s=>s.angleDeg).OrderBy(a=>a).SequenceEqual(new[]{-30f,0f,30f}),"stored straight and opposite tilted shields");
-        foreach(var s in shields)
+        const string shieldXPath = "/MapPrefab/thingStates/li[def='DeltaV_ShieldGenerator']";
+        var platformShield = LoadShield(platform.SelectSingleNode(shieldXPath), 986);
+        var shields = target.SelectNodes(shieldXPath).Cast<XmlNode>().Select((node,index) => LoadShield(node,987+index)).ToArray();
+        Check(shields.OrderBy(s => s.parent.Position.z).Select(s => s.groundRadius).SequenceEqual(new[] {18f,14f,39f})
+            && shields.All(s => s.parent.Rotation == Rot4.West && s.mode == SpaceShieldMode.Guard && !s.FlickedOn
+                && s.RegularCapacity == 750 && s.EmergencyCapacity == 750),
+            "native Scribe loads three distinct target emitters with full capacities and flicked off");
+
+        var definitions = new XmlDocument();
+        definitions.Load(Path.Combine(directory, "../../1.6/Defs/Tutorial/DeltaV_TutorialRange.xml"));
+        var presets = definitions.SelectNodes("/Defs/ThingDef/comps/li[@Class='DeltaV.CompProperties_TutorialShieldTerminal']")
+            .Cast<XmlNode>().ToList();
+        var terminals = presets.Select(n => new CompTutorialShieldTerminal {
+            props = DirectXmlToObject.ObjectFromXml<CompProperties_TutorialShieldTerminal>(n, false) }).ToList();
+        var terminalColumns = new Dictionary<TutorialShieldPreset, int> {
+            [TutorialShieldPreset.Unshielded]=10, [TutorialShieldPreset.Kinetic]=16, [TutorialShieldPreset.Electromagnetic]=22,
+            [TutorialShieldPreset.GuardSingle]=28, [TutorialShieldPreset.Guard]=28 };
+        var kineticPairs = new[] {(0f,35),(-45f,7),(-45f,35),(-45f,100)};
+        var electricPairs = new[] {(0f,20),(-45f,20),(-45f,50),(-45f,100)};
+        foreach (var mode in new[] {TutorialShieldPreset.Kinetic,TutorialShieldPreset.Electromagnetic})
+            Check(terminals.Where(t => t.Preset == mode).Select(t => (CompProperties_TutorialShieldTerminal)t.props)
+                .Select(p => (p.angleDeg,p.strengthPercent)).SequenceEqual(mode == TutorialShieldPreset.Kinetic ? kineticPairs : electricPairs),
+                "the four presets in each line-shield column match their authored angles and strength");
+        var columnRows = new Dictionary<int, int>();
+        for (int i=0; i<presets.Count; i++)
         {
-            Vector2 center=SpaceWeaponGeometry.FootprintCenter(s.parent);
-            float laneOffset=22.5f-center.y;
-            Check(Math.Abs(laneOffset)<s.groundRadius
-                && center.x-Math.Sqrt(s.groundRadius*s.groundRadius-laneOffset*laneOffset)<0,
-                "each guard dome crosses the rail axis before the six armour layers");
-            s.GetSegment(out var a,out var b,out var n);
-            Check(a.x<0 && b.x<0 && n.x<0,"whole native shield segment sits ahead of front armour");
-            Check(Math.Abs((b-a).magnitude-10f)<.001f,"native shield length survives prefab Scribe");
-            Check(Math.Abs(SpaceTransform.IncidenceAngle(Vector2.right,n)*Mathf.Rad2Deg-Math.Abs(s.angleDeg))<.01f,
-                "native shield normal exposes distinct incidence angles");
+            string defName = presets[i].ParentNode.ParentNode["defName"].InnerText;
+            var terminal = platform.SelectNodes("/MapPrefab/thingStates/li[def='" + defName + "']").Cast<XmlNode>().Single();
+            int column = terminalColumns[terminals[i].Preset];
+            int row = columnRows.GetValueOrDefault(column);
+            var expected = new IntVec3(column, 0, 15-2*row);
+            columnRows[column] = row+1;
+            Check(IntVec3.FromString(terminal["pos"].InnerText) == expected && terminal["rotation"].InnerText == "2",
+                "terminal is aligned with its assigned column and row, with the interaction cell facing south");
         }
-        shields[0].GetSegment(out var centralA,out var centralB,out _);
-        Check(centralA.y<22.5f && centralB.y>22.5f,"fixed rail axis crosses the central shield");
-        RangeLaserSightlines(game,platform,target,shields);
-        var definitions=new XmlDocument();definitions.Load(Path.Combine(directory,"../../1.6/Defs/Tutorial/DeltaV_TutorialRange.xml"));
-        var presets=definitions.SelectNodes("/Defs/ThingDef/comps/li[@Class='DeltaV.CompProperties_TutorialShieldTerminal']").Cast<XmlNode>().ToList();
-        Check(presets.Count==9,"nine distinct test presets plus entry briefing");
-        foreach(string mode in new[]{"Kinetic","Electromagnetic"})
-            Check(presets.Where(n=>n["preset"].InnerText==mode).Select(n=>int.Parse(n["strengthPercent"].InnerText))
-                .OrderBy(n=>n).SequenceEqual(mode=="Kinetic" ? new[]{0,20,100} : new[]{0,50,100}),"three real strength settings: "+mode);
-        foreach(var setting in presets)
-        {
-            var preset=Enum.Parse<TutorialShieldPreset>(setting["preset"].InnerText);
-            int strength=int.Parse(setting["strengthPercent"]?.InnerText ?? "0");
-            bool line=preset==TutorialShieldPreset.Kinetic || preset==TutorialShieldPreset.Electromagnetic;
-            CompTutorialShieldTerminal.ApplyPreset(shields,preset,strength);
-            Check(shields.All(s=>s.RegularCapacity==123d && s.EmergencyCapacity==777d && s.RecoveryWaitTicks==200),
-                "preset does not refill or reset recovery: "+preset);
-            Check(shields[0].FlickedOn==(preset!=TutorialShieldPreset.Unshielded)
-                && shields.Skip(1).All(s=>s.FlickedOn==(line || preset==TutorialShieldPreset.Guard)),"preset participation: "+preset);
-            Check(shields.All(s=>s.mode==(preset==TutorialShieldPreset.Kinetic ? SpaceShieldMode.Kinetic
-                : preset==TutorialShieldPreset.Electromagnetic ? SpaceShieldMode.Electromagnetic
-                : SpaceShieldMode.Guard)),"preset selects real shield mode on all three generators: "+preset);
-            Check(shields.All(s=>s.kineticStrengthPercent==strength && s.electromagneticStrengthPercent==strength),
-                "terminal strength reaches all generators: "+preset+strength);
-            Check(shields.Select(s=>s.angleDeg).OrderBy(a=>a).SequenceEqual(new[]{-30f,0f,30f}),"switching preserves authored shield angles");
-            if(line)
-                foreach(var s in shields)
-                {
-                    s.GetSegment(out _,out _,out var n);
-                    var ray=SpaceShieldRefraction.Calculate(Vector2.right,n,strength).Direction(1f);
-                    if(strength==100) Check(ray.x<-.999f,"full funded EM returns beam from straight and tilted segments");
-                    if(strength==0) Check(s.angleDeg==0 ? ray.x>.999f : Math.Abs(ray.y)>.1f,"passive EM distinguishes normal and oblique incidence");
-                    Vector2 v=new Vector2(180,0), tangent=new Vector2(n.y,-n.x);
-                    var result=SpaceKinetics.ApplyShieldImpulse(1,v,n,SpaceKinetics.ShieldImpulse(strength));
-                    Check(Math.Abs(Vector2.Dot(result-v,tangent))<.001f,"kinetic pulse preserves tangent on authored segment");
-                }
-        }
-        Vector2 deflected=SpaceShieldRefraction.Calculate(Vector2.right,Vector2.left,50).Direction(1f);
-        Vector2 reflected=SpaceShieldRefraction.Calculate(Vector2.right,Vector2.left,100).Direction(1f);
-        Check(Mathf.Abs(deflected.x)<.001f && reflected.x<-.999f,"actual electromagnetic presets deflect sideways and reflect back");
-        var saved=new TerminalSave(); saved.terminal.targetObjectId=435; saved.terminal.primaryShieldId=987;
+        RangeSightlines(game, platform, target, platformShield, shields, terminals, shots, directory);
+        var saved=new TerminalSave(); saved.terminal.targetObjectId=435; saved.terminal.shieldThingId=987;
         var xml=new XmlDocument();xml.LoadXml(Scribe.saver.DebugOutputFor(saved));string temp=Path.GetTempFileName();
         try
         {
             File.WriteAllText(temp,"<root><terminal>"+xml.DocumentElement.InnerXml+"</terminal></root>");
             Scribe.loader.InitLoading(temp);Scribe.EnterNode("terminal");var loaded=new TerminalSave();loaded.ExposeData();
             Scribe.ExitNode();Scribe.loader.FinalizeLoading();
-            Check(loaded.terminal.targetObjectId==435 && loaded.terminal.primaryShieldId==987,"terminal bindings survive native Scribe");
+            Check(loaded.terminal.targetObjectId==435 && loaded.terminal.shieldThingId==987,"terminal bindings survive native Scribe");
         }
         finally {Scribe.ForceStop();File.Delete(temp);}
         Check(AccessTools.Method(typeof(JobDriver_UseItem),"Use")!=null

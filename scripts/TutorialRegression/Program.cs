@@ -212,7 +212,7 @@ internal static partial class Program
             PrefabLifeSupport(layoutDirectory, game, "Shipyard");
             FocusThread(game, harmony);
             Caskets(args[2]);
-            Shelves(Path.Combine(tutorialPrefabs, "Salvage.xml"));
+            SalvageDeck(Path.Combine(tutorialPrefabs, "Salvage.xml"));
             PublicFacilities(game, harmony);
             Comms(game, harmony);
             Berths(prefabRoot, Path.GetDirectoryName(args[1]));
@@ -954,22 +954,19 @@ internal static partial class Program
         Check(run.forwardTicks == 30 && run.lateralTicks == 30 && run.turnTicks == 30, "real observations saturate at required game ticks");
     }
 
-    static void Shelves(string path)
+    static void SalvageDeck(string path)
     {
         var steel = Raw<ThingDef>(); steel.defName = "Steel"; steel.category = ThingCategory.Item; steel.thingClass = typeof(Thing);
         steel.stackLimit = 75; steel.comps = new List<CompProperties>();
         DefDatabase<ThingDef>.Add(steel);
-        var shelf = Raw<ThingDef>(); shelf.defName = "ShelfSmall"; shelf.category = ThingCategory.Building;
-        shelf.thingClass = typeof(Building_Storage); shelf.comps = new List<CompProperties>();
-        shelf.building = new BuildingProperties { fixedStorageSettings = new StorageSettings() };
-        DefDatabase<ThingDef>.Add(shelf);
         var xml = new XmlDocument(); xml.Load(path);
-        var entries = xml.SelectNodes("/MapPrefab/thingStates/li").Cast<XmlNode>()
-            .Select(n => new MapPrefabThingEntry { def = n["def"].InnerText == "Steel" ? steel : shelf,
+        var nodes = xml.SelectNodes("/MapPrefab/thingStates/li").Cast<XmlNode>().ToList();
+        Check(nodes.Count == 1 && nodes[0]["def"].InnerText == "Steel", "the platform contains only the loose steel");
+        Check(xml.SelectSingleNode("/MapPrefab/foundations/li[pos='" + nodes[0]["pos"].InnerText + "']") != null,
+            "the salvage stack sits directly on a foundation cell");
+        var entries = nodes.Select(n => new MapPrefabThingEntry { def = steel,
                 stateXml = n["state"]["saveable"].OuterXml }).ToList();
-        var things = MapPrefabThingState.Instantiate(entries, "salvage shelf and cargo", null);
-        Building_Storage storage = things.OfType<Building_Storage>().Single();
-        Check(storage.settings?.filter != null && storage.settings.filter.Allows(steel), "native shelf Scribe retains valid steel filter");
+        var things = MapPrefabThingState.Instantiate(entries, "salvage deck cargo", null);
         Check(things.Single(t => t.def == steel).stackCount == 75, "real salvage stock survives Scribe with the requested quantity");
     }
 
@@ -1004,7 +1001,7 @@ internal static partial class Program
         var rangePort = Raw<Building_DockingPort>(); rangePort.def = Raw<ThingDef>(); rangePort.def.defName = "RangePortFixture"; rangePort.thingIDNumber = 9403;
         foreach (TutorialStage stage in Enum.GetValues<TutorialStage>())
         {
-            var saved = new TutorialRunState { stage = stage, quest = quest, trainingShipId = 400,
+            var saved = new TutorialRunState { stage = stage, quest = quest, trainingShipId = 400, salvageObjectId = 401,
                 forwardTicks = 17, lateralTicks = 30, turnTicks = 4, recoveryDocked = true, comms = comms, berthDoor = berth,
                 rangeConsole = comms, rangeTarget = berth, rangePort = rangePort };
             string xml = Scribe.saver.DebugOutputFor(saved);
@@ -1030,7 +1027,7 @@ internal static partial class Program
                 Check(loaded.colonists != null && loaded.caskets != null, "empty collections survive Scribe " + stage);
                 Check(loaded.comms == comms && loaded.berthDoor == berth, "native Scribe resolves exact comms and berth roles " + stage);
                 Check(loaded.rangeConsole == comms && loaded.rangeTarget == berth && loaded.rangePort == rangePort, "native Scribe resolves range roles " + stage);
-                Check(loaded.trainingShipId == 400 && loaded.forwardTicks == 17 && loaded.lateralTicks == 30
+                Check(loaded.trainingShipId == 400 && loaded.salvageObjectId == 401 && loaded.forwardTicks == 17 && loaded.lateralTicks == 30
                     && loaded.turnTicks == 4 && loaded.recoveryDocked, "flight and docking evidence survives Scribe " + stage);
             }
             finally { Scribe.ForceStop(); File.Delete(tmp); }
@@ -1041,6 +1038,23 @@ internal static partial class Program
         Current.Game.components = new List<GameComponent>();
         Check(!universe.Tutorial.Active, "previous game's tutorial is inactive after changing games");
         Current.Game = game;
+        var recoveryMap = Raw<Map>();
+        var recovery = new MapSpaceObject(401, recoveryMap, new SpacePose(Vector3.forward, 0f));
+        universe.objects.Add(recovery);
+        Set(universe, "objectById", null);
+        run.stage = TutorialStage.Salvage;
+        run.trainingShipId = 400;
+        run.salvageObjectId = recovery.objectId;
+        var trainer = new DriveSubject(0, run.trainingShipId);
+        Check(universe.Tutorial.NavigationTarget?.objectId == recovery.objectId, "navigation finds the uncrewed hull by object ID");
+        Check(universe.Missions.BeginDock(trainer, Raw<Map>()) == null
+            && universe.Missions.BeginDock(new DriveSubject(0, 399), recoveryMap) == null, "only the designated trainer and wreck qualify");
+        var commit = universe.Missions.BeginDock(trainer, recoveryMap);
+        Check(commit != null && !run.recoveryDocked, "preparing an authorized hard dock does not complete it");
+        commit();
+        Check(run.recoveryDocked, "the actual successful-dock callback records recovery without a shelf");
+        universe.objects.Remove(recovery);
+        Set(universe, "objectById", null);
         universe.Tutorial.Ended(quest);
         Check(run.stage == TutorialStage.Ended && !universe.Tutorial.Active, "cleanup deactivates and releases targets");
         Check(!universe.Tutorial.Targets.Any(), "ended tutorial does not pin maps");
@@ -1154,7 +1168,8 @@ internal static partial class Program
         AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, true);
         var language = Raw<LoadedLanguage>(); Set(language, "dataIsLoaded", true);
         language.keyedReplacements = new Dictionary<string, LoadedLanguage.KeyedReplacement>();
-        foreach (string key in new[] { "DeltaV_PublicFacility_NoClaim", "DeltaV_PublicFacility_NoConstruction" })
+        foreach (string key in new[] { "DeltaV_PublicFacility_NoClaim", "DeltaV_PublicFacility_NoConstruction",
+            "DeltaV_Range_NoAccess", "DeltaV_Range_EntranceUnavailable", "DeltaV_Range_TargetUnavailable" })
             language.keyedReplacements[key] = new LoadedLanguage.KeyedReplacement { key = key, value = key };
         LanguageDatabase.activeLanguage = language;
         var dlcGate = AccessTools.PropertyGetter(typeof(TerrainDef), nameof(TerrainDef.IsSubstructure));
@@ -1192,8 +1207,24 @@ internal static partial class Program
         Set(building, "comps", new List<ThingComp> { console });
         Set(map.listerThings, "listsByDef", new Dictionary<ThingDef, List<Thing>> { [def] = new List<Thing> { building } });
         map.listerThings.AllThings.Add(building);
+        var shieldBuilding = Raw<Building>();
+        shieldBuilding.def = Raw<ThingDef>();
+        shieldBuilding.def.defName = "RangeShieldFixture";
+        shieldBuilding.def.category = ThingCategory.Building;
+        shieldBuilding.def.size = IntVec2.One;
+        shieldBuilding.def.building = new BuildingProperties();
+        var shieldProps = new CompProperties_SpaceShield();
+        shieldBuilding.def.comps = new List<CompProperties> { shieldProps };
+        shieldBuilding.thingIDNumber = 952;
+        Set(shieldBuilding, "mapIndexOrState", (sbyte)(game.Maps.Count - 1));
+        Set(shieldBuilding, "positionInt", new IntVec3(3, 0, 2));
+        Set(shieldBuilding, "comps", new List<ThingComp> {
+            new CompSpaceShield { parent = shieldBuilding, props = shieldProps }
+        });
+        map.listerThings.AllThings.Add(shieldBuilding);
         var universe = game.GetComponent<UniverseManager>();
         var frame = new MapSpaceObject(950, map, default); universe.objects.Add(frame);
+        Set(universe, "objectById", null);
         Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         var ship = console.Vessel;
         Check(PlayerAccess.CanOperate(PlayerAccessLevel.Player) && PlayerAccess.CanOperate(PlayerAccessLevel.Public)
@@ -1210,6 +1241,26 @@ internal static partial class Program
             && PublicFacility.PlayerMayUse(building), "allied public ship grants use without changing ownership");
         Check(!universe.PlayerReferenceObjects().Contains(frame), "empty public facility cannot keep itself or nearby maps loaded");
         var visitor = Raw<Pawn>(); Set(visitor, "factionInt", player);
+        var door = Raw<Building_HackableDoor>();
+        Set(door, "mapIndexOrState", (sbyte)(game.Maps.Count - 1));
+        var briefing = new CompTutorialRangeBriefing { parent = building, entranceDoor = door };
+        var shieldTerminal = new CompTutorialShieldTerminal { parent = building,
+            targetObjectId = frame.objectId, shieldThingId = shieldBuilding.thingIDNumber };
+        void CheckRangeTerminals(Pawn pawn, bool allowed, string context)
+        {
+            foreach (CompUseEffect effect in new CompUseEffect[] { briefing, shieldTerminal })
+            {
+                var access = effect.CanBeUsedBy(pawn);
+                Check(access.Accepted == allowed && (allowed || access.Reason == "DeltaV_Range_NoAccess"),
+                    effect.GetType().Name + " " + context);
+            }
+        }
+        CheckRangeTerminals(visitor, true, "allows a player colonist to operate public terminals");
+        Set(building, "factionInt", player);
+        CheckRangeTerminals(visitor, true, "allows a player colonist to operate their own terminals after ownership changes");
+        Set(building, "factionInt", ally);
+        var nonPlayerPawn = Raw<Pawn>(); Set(nonPlayerPawn, "factionInt", ally);
+        CheckRangeTerminals(nonPlayerPawn, false, "rejects a non-player operator at public terminals");
         var spawned = (List<Pawn>)AccessTools.Field(typeof(MapPawns), "pawnsSpawned").GetValue(map.mapPawns);
         spawned.Add(visitor);
         Check(universe.PlayerReferenceObjects().Contains(frame), "occupied public training ship remains an exploration reference");
@@ -1230,13 +1281,16 @@ internal static partial class Program
         console.isPublicFacility = false;
         Check(ship.PlayerAccessLevel == PlayerAccessLevel.Neutral && !ship.PlayerMayOperate
             && PublicFacility.ConsoleAt(map, building.Position) == null, "ordinary ally remains neutral without a public grant");
+        CheckRangeTerminals(visitor, false, "rejects an allied terminal without public access");
         console.isPublicFacility = true;
         relation.kind = FactionRelationKind.Neutral;
         Check(ship.PlayerAccessLevel == PlayerAccessLevel.Public && ship.PlayerMayOperate
             && PublicFacility.PlayerMayUse(building), "explicit public access remains valid for a non-hostile neutral faction");
+        CheckRangeTerminals(visitor, true, "keeps public access when the facility faction is neutral");
         relation.kind = FactionRelationKind.Hostile;
         Check(ship.PlayerAccessLevel == PlayerAccessLevel.Hostile && !ship.PlayerMayOperate
             && !PublicFacility.PlayerMayUse(building), "hostility overrides the public flag and revokes control");
+        CheckRangeTerminals(visitor, false, "rejects hostile terminals despite the public flag");
         relation.kind = FactionRelationKind.Ally;
         var placement = AccessTools.Method(typeof(Patch_PublicFacilityConstruction), "Postfix");
         def.size = new IntVec2(2, 1);
@@ -1250,8 +1304,14 @@ internal static partial class Program
         Check(((AcceptanceReport)placementArgs[5]).Accepted, "unclaimed construction remains available");
         def.size = IntVec2.One;
 
-        var shelf = Raw<Building_Storage>(); shelf.def = DefDatabase<ThingDef>.GetNamed("ShelfSmall");
+        var shelf = Raw<Building_Storage>();
+        shelf.def = Raw<ThingDef>();
+        shelf.def.defName = "PublicShelfFixture";
         shelf.def.size = IntVec2.One;
+        shelf.def.category = ThingCategory.Building;
+        shelf.def.thingClass = typeof(Building_Storage);
+        shelf.def.comps = new List<CompProperties>();
+        shelf.def.building = new BuildingProperties { fixedStorageSettings = new StorageSettings() };
         Set(shelf, "mapIndexOrState", (sbyte)(game.Maps.Count - 1));
         Set(shelf, "positionInt", new IntVec3(3, 0, 2)); Set(shelf, "factionInt", ally);
         shelf.settings = new StorageSettings(); shelf.settings.Priority = StoragePriority.Critical;
@@ -1312,6 +1372,7 @@ internal static partial class Program
         }
         finally { Scribe.ForceStop(); File.Delete(path); }
         universe.objects.Remove(frame); game.Maps.Remove(map);
+        Set(universe, "objectById", null);
         harmony.Unpatch(dlcGate, HarmonyPatchType.Prefix, harmony.Id);
         AccessTools.Field(typeof(DefOfHelper), "bindingNow").SetValue(null, false);
     }

@@ -66,22 +66,32 @@ internal static partial class Program
     {
         var projectiles=XDocument.Load(Path.Combine(repo,"1.6/Defs/SpaceCombat/DeltaV_SpaceProjectiles.xml"));
         var effects=XDocument.Load(Path.Combine(repo,"1.6/Defs/SpaceCombat/DeltaV_SpaceImpactEffects.xml"));
-        foreach (var pair in new[] { ("Shell","Shield",3,18d), ("Rail","Rail",4,.5d) })
+        foreach (var (shell, fragment, count, threshold) in new[] {
+            ("Shell", "Shield", 3, 18d), ("SteelShell", "Shield", 3, 18d), ("Rail", "Rail", 4, .5d) })
         {
-            string name="DeltaV_Projectile_"+pair.Item1+"Tumbling";
+            string name="DeltaV_Projectile_"+shell+"Tumbling";
             var def=projectiles.Root.Elements().Single(x=>(string)x.Element("defName")==name);
+            if (shell == "SteelShell")
+            {
+                Check((string)def.Attribute("ParentName") == "DeltaV_TumblingShell",
+                    "steel tumble retains the common kinetic fragment split and lifetime");
+                def = projectiles.Root.Elements().Single(x => (string)x.Attribute("Name") == "DeltaV_TumblingShell");
+            }
             var props=AuditComp(def,"DeltaV.CompProperties_SpaceProjectile");
-            Check((bool)props.Element("shieldTumbling") && (int)props.Element("shieldFragmentCount")==pair.Item3
-                && (string)props.Element("shieldFragmentDef")=="DeltaV_Projectile_"+pair.Item2+"Fragment",
+            Check((bool)props.Element("shieldTumbling") && (int)props.Element("shieldFragmentCount")==count
+                && (string)props.Element("shieldFragmentDef")=="DeltaV_Projectile_"+fragment+"Fragment",
                 "production full-mass tumble Def retains its material and later tearing path");
-            Check(AuditNumber(props,"shieldBreakDeltaV")==pair.Item4,"production tumble Def keeps original tearing threshold");
+            Check(AuditNumber(props,"shieldBreakDeltaV")==threshold,"production tumble Def keeps original tearing threshold");
             var matches=effects.Root.Elements().Where(x=>x.Element("projectileDefs")?.Elements("li").Any(n=>n.Value==name)==true).ToList();
             Check(matches.Count==3,"tumbling Def has structure, foundation and guard outcomes");
             foreach(var effect in matches)
             {
                 var impact=effect.Element("defenderEffect");
                 bool guard=(string)impact.Element("kind")=="ShieldDrain";
-                nearEffect((double)impact.Element("damage"),pair.Item1=="Rail"?.16:guard?.75:6);
+                nearEffect((double)impact.Element("damage"),shell=="Rail"?.16:guard?.75:6);
+                if (!guard)
+                    Check(impact.Element("highExplosive") == null && (bool)impact.Element("kineticMassScaling")
+                        && impact.Element("penetrates") == null, "tumbling shells deal only single-contact kinetic damage");
                 Check((string)effect.Element("attackerEffect")?.Element("kind")=="DestroySelf",
                     "full-mass tumble loses intact deep penetration");
             }

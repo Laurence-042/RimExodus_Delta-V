@@ -224,14 +224,21 @@ internal static partial class Program
         System.Xml.XmlNode Resolved(string name) => XmlInheritance.GetResolvedNodeFor(
             config.SelectSingleNode($"/Defs/DeltaV.SpaceImpactEffectDef[defName='{name}']"));
         var fullDeck = Resolved("DeltaV_Impact_SteelShellVsSubstructure");
-        var tumbleDeck = Resolved("DeltaV_Impact_TumblingSteelShellVsSubstructure");
+        var tumbleWall = Resolved("DeltaV_Impact_ShieldFragmentVsStructure");
+        var tumbleDeck = Resolved("DeltaV_Impact_ShieldFragmentVsSubstructure");
         Check(fullDeck.SelectSingleNode("substructureHitChance").InnerText == "0.03"
-            && fullDeck.SelectNodes("projectileDefs/li").Count == 2
-            && tumbleDeck.SelectSingleNode("projectileDefs/li").InnerText == "DeltaV_Projectile_SteelShellTumbling"
-            && tumbleDeck.SelectSingleNode("defenderEffect/highExplosive") != null,
-            "native XML inheritance gives intact and tumbling steel their intended deck profiles");
+            && fullDeck.SelectNodes("projectileDefs/li").Count == 2,
+            "native XML inheritance gives intact steel its explosive deck profile");
+        foreach (var kinetic in new[] { tumbleWall, tumbleDeck })
+            Check(kinetic.SelectSingleNode("projectileDefs/li[.='DeltaV_Projectile_SteelShellTumbling']") != null
+                && kinetic.SelectSingleNode("defenderEffect/highExplosive") == null
+                && kinetic.SelectSingleNode("defenderEffect/kineticMassScaling").InnerText == "true"
+                && kinetic.SelectSingleNode("attackerEffect/kind").InnerText == "DestroySelf",
+                "the resolved steel tumble effect on walls and deck is kinetic and stops at the contact");
         var profile = DirectXmlToObject.ObjectFromXml<HighExplosiveProfile>(
             fullDeck.SelectSingleNode("defenderEffect/highExplosive"), false);
+        float tumbleDamage = float.Parse(tumbleWall.SelectSingleNode("defenderEffect/damage").InnerText,
+            System.Globalization.CultureInfo.InvariantCulture);
         XmlInheritance.Clear();
         var damage = new DamageDef { defName = "BattleSteelBlast", workerClass = typeof(DamageWorker_SpaceHighExplosive),
             harmsHealth = true, explosionSnowMeltAmount = 0f };
@@ -244,8 +251,15 @@ internal static partial class Program
         var deckEffect = new SpaceImpactEffectDef { defName = "BattleSteelDeckImpact",
             projectileDefs = effect.projectileDefs, defenderEffect = part, attackerEffect = effect.attackerEffect,
             targetsSubstructure = true, substructureHitChance = .03f };
+        var tumbling = TestBuildingDef("battleTumblingSteel");
+        tumbling.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, speed = 45, collisionRadius = 0, shieldTumbling = true });
+        var tumbleEffect = new SpaceImpactEffectDef { defName = "BattleTumblingSteelImpact",
+            projectileDefs = new List<ThingDef> { tumbling }, attackerEffect = effect.attackerEffect,
+            defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, damageDef = DamageDefOf.Bullet,
+                damage = tumbleDamage, referenceSpeed = 60, incidenceMinFactor = 1, kineticMassScaling = true } };
         DefDatabase<SpaceImpactEffectDef>.Add(effect);
         DefDatabase<SpaceImpactEffectDef>.Add(deckEffect);
+        DefDatabase<SpaceImpactEffectDef>.Add(tumbleEffect);
         SpaceImpactEffects.ResetCache();
         var explosionEntry = AccessTools.Method(typeof(GenExplosion), nameof(GenExplosion.DoExplosion));
         patch.Patch(explosionEntry, prefix: new HarmonyMethod(typeof(Program), nameof(BattleSteelBlast)));
@@ -314,6 +328,18 @@ internal static partial class Program
                 Check(SubstructureOwnership.HasFoundation(map, center) != openDeck
                     && (preview.foundation > 0f) == openDeck,
                     "the wall shields its deck only while it survives the cell blast");
+                if (!openDeck)
+                {
+                    int wallBefore = wall.HitPoints, sideBefore = side.HitPoints;
+                    int blastsBefore = steelBlasts;
+                    var tumblingShot = new SpaceCollision.SweptBody { attacker = attacker, requiredDefender = frame,
+                        from = start, to = shot.to, projectileDef = tumbling, mass = 48f,
+                        sweepRadius = SpaceProjectileService.FootprintRadius(tumbling) };
+                    SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { tumblingShot });
+                    Check(tumblingShot.dead && wall.HitPoints < wallBefore && side.HitPoints == sideBefore
+                        && farther.HitPoints == 1000 && steelBlasts == blastsBefore && tumblingShot.resolvedHitRadius == 0f,
+                        "live steel tumble sweep stops and damages one wall without invoking explosion");
+                }
             }
             finally
             {
@@ -328,6 +354,7 @@ internal static partial class Program
         var remove = AccessTools.Method(typeof(DefDatabase<SpaceImpactEffectDef>), "Remove");
         remove.Invoke(null, new object[] { effect });
         remove.Invoke(null, new object[] { deckEffect });
+        remove.Invoke(null, new object[] { tumbleEffect });
         SpaceImpactEffects.ResetCache();
     }
 

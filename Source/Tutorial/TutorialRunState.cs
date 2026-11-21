@@ -19,10 +19,10 @@ namespace DeltaV
         internal Building_Door berthDoor;
         internal Thing trainingConsole, giftConsole;
         internal Thing rangeConsole, rangeTarget;
-        internal Building_Storage cargoShelf, salvageShelf;
+        internal Building_Storage cargoShelf;
         internal Building_DockingPort trainingPort, yardPort, rangePort;
         internal Building_GravEngine giftEngine;
-        internal int trainingShipId;
+        internal int trainingShipId, salvageObjectId;
         internal int forwardTicks, lateralTicks, turnTicks;
         internal bool recoveryDocked;
 
@@ -41,12 +41,12 @@ namespace DeltaV
             Scribe_References.Look(ref rangeConsole, "rangeConsole");
             Scribe_References.Look(ref rangeTarget, "rangeTarget");
             Scribe_References.Look(ref cargoShelf, "cargoShelf");
-            Scribe_References.Look(ref salvageShelf, "salvageShelf");
             Scribe_References.Look(ref trainingPort, "trainingPort");
             Scribe_References.Look(ref yardPort, "yardPort");
             Scribe_References.Look(ref rangePort, "rangePort");
             Scribe_References.Look(ref giftEngine, "giftEngine");
             Scribe_Values.Look(ref trainingShipId, "trainingShipId");
+            Scribe_Values.Look(ref salvageObjectId, "salvageObjectId");
             Scribe_Values.Look(ref forwardTicks, "forwardTicks");
             Scribe_Values.Look(ref lateralTicks, "lateralTicks");
             Scribe_Values.Look(ref turnTicks, "turnTicks");

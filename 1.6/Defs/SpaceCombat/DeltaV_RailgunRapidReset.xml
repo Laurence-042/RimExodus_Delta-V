@@ -25,7 +25,10 @@
     <comps>
       <li Class="CompProperties_Forbiddable" />
       <li Class="DeltaV.CompProperties_RailgunRapidReset">
-        <allowedHostDefs><li>DeltaV_Weapon_RailgunLoader</li></allowedHostDefs>
+        <allowedHostDefs>
+          <li>DeltaV_Weapon_RailgunLoader</li>
+          <li>DeltaV_Weapon_TutorialRailgunLoader</li>
+        </allowedHostDefs>
       </li>
     </comps>
   </ThingDef>

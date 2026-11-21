@@ -26,9 +26,8 @@ namespace DeltaV
             (m.kind == SpaceMissionKind.Combat ? (m.combatComplete ? m.source : m.enemyTarget) : m.destination)?.Navigation;
         internal IEnumerable<(string label, GlobeTarget target)> NavigationTargets()
         {
-            Thing role = universe.Tutorial.NavigationRole;
-            if (role?.Spawned == true)
-                yield return ("DeltaV_Tutorial_Title".Translate(), MissionTarget.Of(universe, role).Navigation);
+            if (universe.Tutorial.NavigationTarget is GlobeTarget tutorial)
+                yield return ("DeltaV_Tutorial_Title".Translate(), tutorial);
             foreach (var m in Active)
             {
                 GlobeTarget target = NavigationTarget(m);

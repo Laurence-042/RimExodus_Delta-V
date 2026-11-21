@@ -1,27 +1,35 @@
 <?xml version='1.0' encoding='utf-8'?>
 <LanguageData>
-  <DeltaV_RangeTerminal_Unshielded.label>1．无盾参照试验终端</DeltaV_RangeTerminal_Unshielded.label>
-  <DeltaV_RangeTerminal_Unshielded.description>由远古安保终端改装的试验设备，用于修改靶舰为无盾参照预设。</DeltaV_RangeTerminal_Unshielded.description>
-  <DeltaV_RangeTerminal_GuardSingle.label>4A．单台守卫试验终端</DeltaV_RangeTerminal_GuardSingle.label>
-  <DeltaV_RangeTerminal_GuardSingle.description>由远古安保终端改装的试验设备，用于修改靶舰为启用单台守卫护盾模式。</DeltaV_RangeTerminal_GuardSingle.description>
-  <DeltaV_RangeTerminal_Guard.label>4B．协同守卫试验终端</DeltaV_RangeTerminal_Guard.label>
-  <DeltaV_RangeTerminal_Guard.description>由远古安保终端改装的试验设备，用于修改靶舰为启用多台守卫护盾模式。</DeltaV_RangeTerminal_Guard.description>
   <DeltaV_RangeTerminal_Introduction.label>0．入场使用说明终端</DeltaV_RangeTerminal_Introduction.label>
   <DeltaV_RangeTerminal_Introduction.description>阅读武器平台的操作与安全说明，确认后解锁武器平台防爆门。</DeltaV_RangeTerminal_Introduction.description>
   <DeltaV_RangeBlastDoor.label>试验场安全防爆门</DeltaV_RangeBlastDoor.label>
   <DeltaV_RangeBlastDoor.description>上面贴着一行字：请测试员先操作入口说明终端，阅读并确认使用说明后解锁，以防误操作设备产生不必要的损失。</DeltaV_RangeBlastDoor.description>
   <DeltaV_RangeBlastDoor.comps.CompHackable.notHackedInspectString>阅读并确认入口终端说明后解锁。</DeltaV_RangeBlastDoor.comps.CompHackable.notHackedInspectString>
   <DeltaV_RangeBlastDoor.comps.CompHackable.hackedInspectString>使用说明已确认。门已解锁。</DeltaV_RangeBlastDoor.comps.CompHackable.hackedInspectString>
-  <DeltaV_RangeTerminal_KineticPassive.label>动能护盾 0% 试验终端</DeltaV_RangeTerminal_KineticPassive.label>
-  <DeltaV_RangeTerminal_KineticPassive.description>由远古安保终端改装的试验设备，用于修改靶舰为三道 0% 强度动能线盾模式，以测试不同武器在不同入射角下的表现。</DeltaV_RangeTerminal_KineticPassive.description>
-  <DeltaV_RangeTerminal_KineticLow.label>动能护盾 20% 试验终端</DeltaV_RangeTerminal_KineticLow.label>
-  <DeltaV_RangeTerminal_KineticLow.description>由远古安保终端改装的试验设备，用于修改靶舰为三道 20% 强度动能线盾模式，以测试不同武器在不同入射角下的表现。</DeltaV_RangeTerminal_KineticLow.description>
-  <DeltaV_RangeTerminal_KineticFull.label>动能护盾 100% 试验终端</DeltaV_RangeTerminal_KineticFull.label>
-  <DeltaV_RangeTerminal_KineticFull.description>由远古安保终端改装的试验设备，用于修改靶舰为三道 100% 强度动能线盾模式，以测试不同武器在不同入射角下的表现。</DeltaV_RangeTerminal_KineticFull.description>
-  <DeltaV_RangeTerminal_ElectromagneticPassive.label>电磁护盾 0% 试验终端</DeltaV_RangeTerminal_ElectromagneticPassive.label>
-  <DeltaV_RangeTerminal_ElectromagneticPassive.description>由远古安保终端改装的试验设备，用于修改靶舰为三道 0% 强度电磁线盾模式，以测试不同武器在不同入射角下的表现。</DeltaV_RangeTerminal_ElectromagneticPassive.description>
-  <DeltaV_RangeTerminal_ElectromagneticHalf.label>电磁护盾 50% 试验终端</DeltaV_RangeTerminal_ElectromagneticHalf.label>
-  <DeltaV_RangeTerminal_ElectromagneticHalf.description>由远古安保终端改装的试验设备，用于修改靶舰为三道 50% 强度电磁线盾模式，以测试不同武器在不同入射角下的表现。</DeltaV_RangeTerminal_ElectromagneticHalf.description>
-  <DeltaV_RangeTerminal_ElectromagneticFull.label>电磁护盾 100% 试验终端</DeltaV_RangeTerminal_ElectromagneticFull.label>
-  <DeltaV_RangeTerminal_ElectromagneticFull.description>由远古安保终端改装的试验设备，用于修改靶舰为三道 100% 强度电磁线盾模式，以测试不同武器在不同入射角下的表现。</DeltaV_RangeTerminal_ElectromagneticFull.description>
+  <DeltaV_RangeTerminal_Unshielded.label>1．无盾对照</DeltaV_RangeTerminal_Unshielded.label>
+  <DeltaV_RangeTerminal_Unshielded.description>关闭靶舰护盾，对照不同武器在裸装甲上的命中效果。</DeltaV_RangeTerminal_Unshielded.description>
+  <DeltaV_RangeTerminal_KineticHeadOn.label>2．动能盾 0°／35%</DeltaV_RangeTerminal_KineticHeadOn.label>
+  <DeltaV_RangeTerminal_KineticHeadOn.description>将靶舰动能线盾设为 0°、35% 出力。比较各档时保持同一武器朝正东射击。</DeltaV_RangeTerminal_KineticHeadOn.description>
+  <DeltaV_RangeTerminal_KineticObliqueLow.label>2．动能盾 45°／7%</DeltaV_RangeTerminal_KineticObliqueLow.label>
+  <DeltaV_RangeTerminal_KineticObliqueLow.description>将靶舰动能线盾设为 45°、7% 出力。比较各档时保持同一武器朝正东射击。</DeltaV_RangeTerminal_KineticObliqueLow.description>
+  <DeltaV_RangeTerminal_KineticObliqueMedium.label>2．钢弹与铀弹对照 45°／35%</DeltaV_RangeTerminal_KineticObliqueMedium.label>
+  <DeltaV_RangeTerminal_KineticObliqueMedium.description>将动能线盾设为 45°、35% 出力，比较两门重炮过盾后的弹体状态和穿深。</DeltaV_RangeTerminal_KineticObliqueMedium.description>
+  <DeltaV_RangeTerminal_KineticObliqueFull.label>2．动能盾 45°／100%</DeltaV_RangeTerminal_KineticObliqueFull.label>
+  <DeltaV_RangeTerminal_KineticObliqueFull.description>将靶舰动能线盾设为 45°、100% 出力。比较各档时保持同一武器朝正东射击。</DeltaV_RangeTerminal_KineticObliqueFull.description>
+  <DeltaV_RangeTerminal_ElectromagneticHeadOn.label>3．电磁盾 0°／20%</DeltaV_RangeTerminal_ElectromagneticHeadOn.label>
+  <DeltaV_RangeTerminal_ElectromagneticHeadOn.description>将靶舰电磁线盾设为 0°、20% 出力。比较各档时保持同一武器朝正东射击。</DeltaV_RangeTerminal_ElectromagneticHeadOn.description>
+  <DeltaV_RangeTerminal_ElectromagneticObliqueLow.label>3．电磁盾 45°／20%</DeltaV_RangeTerminal_ElectromagneticObliqueLow.label>
+  <DeltaV_RangeTerminal_ElectromagneticObliqueLow.description>将靶舰电磁线盾设为 45°、20% 出力。比较各档时保持同一武器朝正东射击。</DeltaV_RangeTerminal_ElectromagneticObliqueLow.description>
+  <DeltaV_RangeTerminal_ElectromagneticObliqueMedium.label>3．电磁盾 45°／50%</DeltaV_RangeTerminal_ElectromagneticObliqueMedium.label>
+  <DeltaV_RangeTerminal_ElectromagneticObliqueMedium.description>将靶舰电磁线盾设为 45°、50% 出力。观察朝正东射入的激光如何折回盾前。</DeltaV_RangeTerminal_ElectromagneticObliqueMedium.description>
+  <DeltaV_RangeTerminal_ElectromagneticObliqueFull.label>3．电磁盾 45°／100%</DeltaV_RangeTerminal_ElectromagneticObliqueFull.label>
+  <DeltaV_RangeTerminal_ElectromagneticObliqueFull.description>将靶舰电磁线盾设为 45°、100% 出力。比较各档时保持同一武器朝正东射击。</DeltaV_RangeTerminal_ElectromagneticObliqueFull.description>
+  <DeltaV_RangeTerminal_GuardSingle.label>4．单台守卫盾</DeltaV_RangeTerminal_GuardSingle.label>
+  <DeltaV_RangeTerminal_GuardSingle.description>启用靶舰主守卫盾，用于单台护盾对照。</DeltaV_RangeTerminal_GuardSingle.description>
+  <DeltaV_RangeTerminal_Guard.label>4．联合守卫盾</DeltaV_RangeTerminal_Guard.label>
+  <DeltaV_RangeTerminal_Guard.description>启用靶舰三台守卫盾，观察同船盾容共享。</DeltaV_RangeTerminal_Guard.description>
+  <DeltaV_Weapon_TutorialRapidMainMedium.label>试验场中型速射炮</DeltaV_Weapon_TutorialRapidMainMedium.label>
+  <DeltaV_Weapon_TutorialRapidMainMedium.description>按每发 10 份弹头标定的中型速射炮，用于武器试验场。</DeltaV_Weapon_TutorialRapidMainMedium.description>
+  <DeltaV_Weapon_TutorialRailgunLoader.label>试验场轨道炮装弹机</DeltaV_Weapon_TutorialRailgunLoader.label>
+  <DeltaV_Weapon_TutorialRailgunLoader.description>武器试验场的固定轴轨道炮装弹机，每发 45 份铀弹头。加速器获得足够电力时提高炮口速度和穿深。</DeltaV_Weapon_TutorialRailgunLoader.description>
 </LanguageData>

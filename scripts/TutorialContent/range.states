@@ -115,18 +115,6 @@
     <questTags IsNull="True" />
   </saveable>
   <saveable Class="Building">
-    <def>DeltaV_RangeTerminal_Unshielded</def>
-    <health>200</health>
-  </saveable>
-  <saveable Class="Building">
-    <def>DeltaV_RangeTerminal_GuardSingle</def>
-    <health>200</health>
-  </saveable>
-  <saveable Class="Building">
-    <def>DeltaV_RangeTerminal_Guard</def>
-    <health>200</health>
-  </saveable>
-  <saveable Class="Building">
     <def>DeltaV_RangeTerminal_Introduction</def>
     <health>200</health>
   </saveable>
@@ -137,27 +125,47 @@
     <hacked>False</hacked>
   </saveable>
   <saveable Class="Building">
-    <def>DeltaV_RangeTerminal_KineticPassive</def>
+    <def>DeltaV_RangeTerminal_Unshielded</def>
     <health>200</health>
   </saveable>
   <saveable Class="Building">
-    <def>DeltaV_RangeTerminal_KineticLow</def>
+    <def>DeltaV_RangeTerminal_KineticHeadOn</def>
     <health>200</health>
   </saveable>
   <saveable Class="Building">
-    <def>DeltaV_RangeTerminal_KineticFull</def>
+    <def>DeltaV_RangeTerminal_KineticObliqueLow</def>
     <health>200</health>
   </saveable>
   <saveable Class="Building">
-    <def>DeltaV_RangeTerminal_ElectromagneticPassive</def>
+    <def>DeltaV_RangeTerminal_KineticObliqueMedium</def>
     <health>200</health>
   </saveable>
   <saveable Class="Building">
-    <def>DeltaV_RangeTerminal_ElectromagneticHalf</def>
+    <def>DeltaV_RangeTerminal_KineticObliqueFull</def>
     <health>200</health>
   </saveable>
   <saveable Class="Building">
-    <def>DeltaV_RangeTerminal_ElectromagneticFull</def>
+    <def>DeltaV_RangeTerminal_ElectromagneticHeadOn</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_ElectromagneticObliqueLow</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_ElectromagneticObliqueMedium</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_ElectromagneticObliqueFull</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_GuardSingle</def>
+    <health>200</health>
+  </saveable>
+  <saveable Class="Building">
+    <def>DeltaV_RangeTerminal_Guard</def>
     <health>200</health>
   </saveable>
 </prototypes>
