@@ -91,6 +91,8 @@ namespace DeltaV
                 x.Remove(cell.x);
                 z.Remove(cell.z);
             }
+
+            internal void OwnerChanged() => Revision++;
         }
 
         private sealed class Entry
@@ -99,6 +101,9 @@ namespace DeltaV
             private readonly FoundationTopologyService service;
             internal readonly FoundationConnectivity connectivity;
             internal readonly HashSet<int> changed = new HashSet<int>();
+            internal long Synchronizations { get; private set; }
+            internal long SynchronizedCells { get; private set; }
+            internal long RelabeledCells { get; private set; }
             private readonly Domain[] domainByCell;
             private readonly Dictionary<int, Domain> formerDomains = new Dictionary<int, Domain>();
             internal readonly Dictionary<HashSet<IntVec3>, Domain> domains = new Dictionary<HashSet<IntVec3>, Domain>();
@@ -203,7 +208,10 @@ namespace DeltaV
                 long start = service.startTiming?.Invoke() ?? 0;
                 int work = changed.Count;
                 int[] changedCells = physical ? null : changed.ToArray();
-                foreach (int index in changed) SynchronizeCell(index, ownership);
+                if (work == 1 || (!TryAddBatch(ownership) && !TryRelabelDomains(ownership)))
+                    foreach (int index in changed) SynchronizeCell(index, ownership);
+                Synchronizations++;
+                SynchronizedCells += work;
                 changed.Clear();
                 foreach (Building building in affected) RefreshDomain(building);
                 affected.Clear();
@@ -216,6 +224,63 @@ namespace DeltaV
                 }
                 PublishBoundaryChanges();
                 if (start != 0) service.recordUpdate?.Invoke(start, work);
+            }
+
+            private bool TryAddBatch(SubstructureOwnership ownership)
+            {
+                List<(int Index, int Owner)> additions = null;
+                foreach (int index in changed)
+                {
+                    int owner = ReadOwner(ownership, map.cellIndices.IndexToCell(index));
+                    int previous = ownerByCell[index];
+                    if (owner == previous) continue;
+                    if (previous != FoundationConnectivity.Absent) return false;
+                    (additions ??= new List<(int Index, int Owner)>(changed.Count)).Add((index, owner));
+                }
+                if (additions == null) return true;
+                if (additions.Count == 1) return false;
+                connectivity.AddBatch(additions);
+                foreach (var (index, owner) in additions)
+                {
+                    IntVec3 cell = map.cellIndices.IndexToCell(index);
+                    ChangeOwner(index, cell, owner);
+                    connectivity.GetNeighbors(index, neighbors);
+                    TrackAffected(cell);
+                    JoinDomain(index);
+                }
+                return true;
+            }
+
+            private bool TryRelabelDomains(SubstructureOwnership ownership)
+            {
+                if (physical) return false;
+                var nextOwners = new Dictionary<int, int>(changed.Count);
+                foreach (int index in changed)
+                {
+                    if (ownerByCell[index] == FoundationConnectivity.Absent) return false;
+                    int owner = ReadOwner(ownership, map.cellIndices.IndexToCell(index));
+                    if (owner == FoundationConnectivity.Absent) return false;
+                    if (owner != ownerByCell[index]) nextOwners.Add(index, owner);
+                }
+                foreach (var change in nextOwners)
+                {
+                    connectivity.GetNeighbors(change.Key, neighbors);
+                    foreach (int neighbor in neighbors)
+                    {
+                        int before = ownerByCell[neighbor];
+                        int after = nextOwners.TryGetValue(neighbor, out int next) ? next : before;
+                        if ((before == ownerByCell[change.Key]) != (after == change.Value)) return false;
+                    }
+                }
+                connectivity.RelabelDomains(nextOwners);
+                var relabeled = new HashSet<Domain>();
+                foreach (var change in nextOwners)
+                {
+                    ChangeOwner(change.Key, map.cellIndices.IndexToCell(change.Key), change.Value);
+                    if (relabeled.Add(domainByCell[change.Key])) domainByCell[change.Key].OwnerChanged();
+                }
+                RelabeledCells += nextOwners.Count;
+                return true;
             }
 
             private void PublishBoundaryChanges()
@@ -416,6 +481,12 @@ namespace DeltaV
         internal event Action<Map, Building, HashSet<IntVec3>, HashSet<IntVec3>> BuildingDomainChanged;
         internal event Action<Map, HashSet<IntVec3>> HullBoundaryChanged;
         internal event Action<Map, HashSet<IntVec3>> TopologyChanged;
+
+        internal (long Syncs, long Cells, long AdditionBatches, long BatchAddedCells, long RelabeledCells, long EdgeChanges)
+            WorkOf(Map map) => map != null && maps.TryGetValue(map, out var entry)
+                ? (entry.Synchronizations, entry.SynchronizedCells, entry.connectivity.AdditionBatches,
+                    entry.connectivity.BatchAddedCells, entry.RelabeledCells, entry.connectivity.EdgeChanges)
+                : default;
 
         private Entry For(Map map)
         {

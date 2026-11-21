@@ -7,6 +7,7 @@ internal static partial class Program
 {
     static void CheckShipStructureChanges(UniverseManager universe, Faction faction)
     {
+        CheckBatchedFoundationPlacement(universe, faction);
         CheckOwnedHandoffAndTransfer(universe, faction);
         Map map = TestMap(121300);
         Map other = TestMap(121400);
@@ -64,6 +65,44 @@ internal static partial class Program
             RetireFixtureMap(map);
             RetireFixtureMap(other);
         }
+    }
+
+    static void CheckBatchedFoundationPlacement(UniverseManager universe, Faction faction)
+    {
+        var map = TestMap(121240, 12);
+        var index = universe.ShipStructure;
+        var topology = universe.FoundationTopology;
+        using var odyssey = new FixtureOdyssey();
+        try
+        {
+            var deck = FixtureFoundation("batchedPlacementDeck");
+            var bridge = AddTestConsole(map, faction, 121241);
+            var other = AddTestConsole(map, faction, 121242);
+            MoveCombatFixture(other.parent, new IntVec3(8, 0, 2));
+            SetFixtureFoundation(map, bridge.parent.Position, deck, bridge.shipId);
+            SetFixtureFoundation(map, other.parent.Position, deck, other.shipId);
+            ShipStructure ship = bridge.Vessel.StructuralState;
+            ShipStructure neighbor = other.Vessel.StructuralState;
+            var batches = new List<ShipStructureBatch>();
+            var remoteBatches = new List<ShipStructureBatch>();
+            using var local = ship.Watch(ShipStructureAspect.Foundation, batches.Add);
+            using var remote = neighbor.Watch(ShipStructureAspect.Foundation, remoteBatches.Add);
+            var before = topology.WorkOf(map);
+            using (index.BeginChanges())
+            {
+                for (int x = 2; x <= 6; x++)
+                    SetFixtureFoundation(map, new IntVec3(x, 0, 2), deck, bridge.shipId);
+                Check(batches.Count == 0 && topology.WorkOf(map) == before,
+                    "nested foundation publications defer graph synchronization to the placement boundary");
+            }
+            var after = topology.WorkOf(map);
+            Check(after.Syncs == before.Syncs + 1 && after.AdditionBatches == before.AdditionBatches + 1
+                && after.BatchAddedCells == before.BatchAddedCells + 5 && ship.Foundation.Count == 6
+                && neighbor.Foundation.Count == 1 && batches.Count == 1 && batches[0].Changes.Count == 5
+                && remoteBatches.Count == 0,
+                "prefab-sized foundation batches publish exact local facts and retain independent same-map hull ownership");
+        }
+        finally { RetireFixtureMap(map); }
     }
 
     static void CheckOwnedHandoffAndTransfer(UniverseManager universe, Faction faction)

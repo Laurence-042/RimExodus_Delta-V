@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Xml.Linq;
 using DeltaV;
 using DeltaV.Topology;
 using Verse;
@@ -18,10 +19,97 @@ internal static class Program
         try
         {
             Exhaustive(); RandomRectangles(); LargeMaps(); Lifetimes(); Membership(); PerformanceWork();
+            PrefabPlacement(); MixedAdditionBatch();
             Console.WriteLine($"PASS {checks} checks; {states} differential states (production-source algorithm/index/service)");
             return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+    }
+
+    private static void PrefabPlacement()
+    {
+        const string relative = "Common/Prefabs/Tutorial/Shipyard.xml";
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory != null && !File.Exists(Path.Combine(directory.FullName, relative))) directory = directory.Parent;
+        if (directory == null) throw new FileNotFoundException(relative);
+        IntVec3[] cells = XElement.Load(Path.Combine(directory.FullName, relative)).Element("foundations").Elements("li")
+            .Select(node => node.Element("pos").Value.Trim('(', ')').Split(',').Select(int.Parse).ToArray())
+            .Select(p => new IntVec3(p[0] + 12, 0, p[2] + 12)).ToArray();
+        var map = new Map(cells.Max(cell => cell.x) + 13, cells.Max(cell => cell.z) + 13);
+        var service = new FoundationTopologyService();
+        Check(service.DomainCount(map) == 0, "prefab starts with an already registered, empty topology");
+        var expected = cells.ToHashSet();
+        int edges = cells.Sum(cell => (expected.Contains(new IntVec3(cell.x + 1, 0, cell.z)) ? 1 : 0)
+            + (expected.Contains(new IntVec3(cell.x, 0, cell.z + 1)) ? 1 : 0));
+        var clock = Stopwatch.StartNew();
+        foreach (IntVec3 cell in cells)
+        {
+            map.Set(map.cellIndices.CellToIndex(cell), 0);
+            service.NotifyChanged(map, cell);
+        }
+        var domain = service.DomainAt(map, cells[0]);
+        double placementMs = clock.Elapsed.TotalMilliseconds;
+        var afterPlacement = service.WorkOf(map);
+        Check(cells.Length == 6620 && domain.SetEquals(expected)
+            && afterPlacement == (1L, cells.LongLength, 1L, cells.LongLength, 0L, edges),
+            "prefab placement constructs the authored shipyard domain in one graph addition");
+        int revision = service.DomainRevision(map, domain);
+        int boundaryEvents = 0;
+        service.HullBoundaryChanged += (_, _) => boundaryEvents++;
+        clock.Restart();
+        foreach (IntVec3 cell in domain)
+        {
+            map.Set(map.cellIndices.CellToIndex(cell), 41);
+            service.NotifyChanged(map, cell);
+        }
+        var afterClaimDomain = service.DomainAt(map, cells[0]);
+        double claimMs = clock.Elapsed.TotalMilliseconds;
+        var afterClaim = service.WorkOf(map);
+        Check(ReferenceEquals(domain, afterClaimDomain) && service.DomainRevision(map, domain) != revision
+            && service.OwnerCells(map)[41].SetEquals(expected) && !service.OwnerCells(map).ContainsKey(0)
+            && afterClaim == (2L, 2L * cells.Length, 1L, cells.LongLength, cells.LongLength, edges) && boundaryEvents == 0,
+            "whole prefab ownership claim keeps the domain and its edges intact");
+        Console.WriteLine(FormattableString.Invariant(
+            $"Shipyard topology: placeMs={placementMs:F3} claimMs={claimMs:F3} syncs={afterClaim.Syncs} cells={afterClaim.Cells} additionBatches={afterClaim.AdditionBatches} batchAddedCells={afterClaim.BatchAddedCells} relabeledCells={afterClaim.RelabeledCells} placementEdgeChanges={afterPlacement.EdgeChanges} claimEdgeChanges={afterClaim.EdgeChanges - afterPlacement.EdgeChanges}"));
+    }
+
+    private static void MixedAdditionBatch()
+    {
+        var map = new Map(8, 3);
+        var service = new FoundationTopologyService();
+        Put(1, 1); Put(5, 1); Put(6, 2);
+        service.DomainAt(map, new IntVec3(1, 0, 1));
+        long initialBatches = service.WorkOf(map).AdditionBatches;
+        Put(4, 1); Put(2, 1); Put(3, 1); Put(7, 2); Put(5, 1);
+        var merged = service.DomainAt(map, new IntVec3(1, 0, 1));
+        Check(merged.Count == 5 && service.DomainCount(map) == 2
+            && service.DomainAt(map, new IntVec3(7, 0, 1)).Count == 2
+            && service.WorkOf(map).AdditionBatches == initialBatches + 1,
+            "a mixed-owner placement merges old domains through shuffled new cells and keeps the foreign hull separate");
+        Put(3, -1); Put(7, 3);
+        Check(service.DomainAt(map, new IntVec3(1, 0, 1)).Count == 2
+            && service.DomainAt(map, new IntVec3(5, 0, 1)).Count == 2 && service.DomainCount(map) == 4,
+            "real removal and partial ownership edits still split the affected domains");
+        long oldEdges = service.WorkOf(map).EdgeChanges;
+        Put(4, 2); Put(5, 2);
+        Check(service.DomainAt(map, new IntVec3(6, 0, 1)).Count == 3
+            && service.WorkOf(map).EdgeChanges > oldEdges && service.WorkOf(map).RelabeledCells == 0,
+            "whole-domain recoloring takes the edge-update path when it joins a neighbor");
+        var firstDomain = service.DomainAt(map, new IntVec3(1, 0, 1));
+        var remainingDomain = service.DomainAt(map, new IntVec3(6, 0, 1));
+        oldEdges = service.WorkOf(map).EdgeChanges;
+        Put(1, 3); Put(2, 3); Put(4, 1); Put(5, 1); Put(6, 1);
+        Check(ReferenceEquals(firstDomain, service.DomainAt(map, new IntVec3(1, 0, 1)))
+            && ReferenceEquals(remainingDomain, service.DomainAt(map, new IntVec3(6, 0, 1)))
+            && service.WorkOf(map).EdgeChanges == oldEdges && service.WorkOf(map).RelabeledCells == 5,
+            "one owner-only batch can preserve several intact domains without touching edges");
+
+        void Put(int x, int owner)
+        {
+            var cell = new IntVec3(x, 0, 1);
+            map.Set(map.cellIndices.CellToIndex(cell), owner);
+            service.NotifyChanged(map, cell);
+        }
     }
 
     private static void PerformanceWork()

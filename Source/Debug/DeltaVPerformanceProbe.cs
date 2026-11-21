@@ -30,6 +30,7 @@ namespace DeltaV
         NpcTactics, NpcThrustLog, NpcArchive, NpcCleanup,
         CombatFacts, CombatFactsHull, CombatFactsHullBaseline, CombatFactsThrust, CombatFactsShield, CombatFactsWeapons,
         StructureBootstrap, StructureCommit, StructureTopologyUpdate, StructureTopologySplit, StructureTopologyReclaim,
+        PrefabPlacement,
         Count
     }
 
@@ -238,6 +239,28 @@ namespace DeltaV
             structureReclaimWork += work;
             structureReclaimed += reclaimed;
             structureReclaimPeak = System.Math.Max(structureReclaimPeak, work);
+        }
+
+        internal void RecordPrefabPlacement(string prefab, Map map, bool success, long elapsed,
+            long throughFoundations, long claim, long finalize,
+            (long Syncs, long Cells, long AdditionBatches, long BatchAddedCells, long RelabeledCells, long EdgeChanges) before,
+            (long Syncs, long Cells, long AdditionBatches, long BatchAddedCells, long RelabeledCells, long EdgeChanges) after)
+        {
+            if (!Enabled) return;
+            RecordElapsed(PerformanceStage.PrefabPlacement, elapsed);
+            var log = new StringBuilder("prefab=").Append(prefab).Append(' ').Append(UniverseManager.MapTag(map))
+                .Append(" success=").Append(success);
+            AppendMs(log.Append(" placementMs="), elapsed);
+            AppendMs(log.Append(" throughFoundationsMs="), throughFoundations);
+            AppendMs(log.Append(" claimMs="), claim);
+            AppendMs(log.Append(" finalizeMs="), finalize);
+            log.Append(" topologySyncs=").Append(after.Syncs - before.Syncs)
+                .Append(" topologyCells=").Append(after.Cells - before.Cells)
+                .Append(" topologyAdditionBatches=").Append(after.AdditionBatches - before.AdditionBatches)
+                .Append(" topologyBatchAddedCells=").Append(after.BatchAddedCells - before.BatchAddedCells)
+                .Append(" topologyRelabeledCells=").Append(after.RelabeledCells - before.RelabeledCells)
+                .Append(" topologyEdgeChanges=").Append(after.EdgeChanges - before.EdgeChanges);
+            DeltaVLog.Message(DeltaVLogModule.Performance, log.ToString());
         }
 
         private void AppendStructureStats(StringBuilder sb) => sb

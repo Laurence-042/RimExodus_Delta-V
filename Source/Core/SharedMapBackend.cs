@@ -41,13 +41,39 @@ namespace DeltaV
         internal static PrefabPlacementResult Place(MapPrefabDocument doc, Map map, IntVec3 position, Faction faction,
             int ownerId, Rot4 rot, UniverseManager universe, bool blankSpace, bool expandMarkers)
         {
-            RemoveMissingStorageFilterDefs(doc);
+            var runtime = universe ?? Current.Game?.GetComponent<UniverseManager>();
+            var structure = runtime?.ShipStructure;
+            var perf = runtime?.Performance;
+            long start = perf?.Start() ?? 0;
+            var workBefore = start != 0 ? structure.Topology.WorkOf(map) : default;
+            long claimElapsed = 0;
+            long foundationsElapsed = 0;
+            long finalizeElapsed = 0;
+            IDisposable changes = null;
+            bool success = false;
+
+            void FinishChanges()
+            {
+                var scope = changes;
+                changes = null;
+                scope?.Dispose();
+            }
+
             var options = new PrefabPlacement
             {
                 Faction = faction, OmitSpace = blankSpace,
                 FoundationsPlaced = (target, first) =>
                 {
-                    if (ownerId > 0 && first.IsValid) SubstructureOwnership.For(target).ClaimConnectedDomain(first, ownerId);
+                    FinishChanges();
+                    if (start != 0) foundationsElapsed = perf.Elapsed(start);
+                    if (ownerId > 0 && first.IsValid)
+                    {
+                        long claimStart = perf?.Start() ?? 0;
+                        using (structure?.BeginChanges())
+                            SubstructureOwnership.For(target).ClaimConnectedDomain(first, ownerId);
+                        if (claimStart != 0) claimElapsed = perf.Elapsed(claimStart);
+                    }
+                    changes = structure?.BeginChanges();
                 },
                 BeforeSpawn = (thing, entry, root, rotation) =>
                 {
@@ -79,14 +105,40 @@ namespace DeltaV
                 },
                 Completed = (target, things, root, rotation) =>
                 {
-                    MapContentSpawner.RelinkGravshipComponents(target);
-                    if (!expandMarkers) return;
-                    var context = new PrefabSpawnContext(target, faction, ownerId, root, rotation, universe);
-                    foreach (Thing thing in things.ToList()) thing.TryGetComp<CompPrefabMarker>()?.Expand(context);
-                    things.RemoveAll(t => t.Destroyed);
+                    FinishChanges();
+                    long finalizeStart = perf?.Start() ?? 0;
+                    try
+                    {
+                        MapContentSpawner.RelinkGravshipComponents(target);
+                        if (!expandMarkers) return;
+                        var context = new PrefabSpawnContext(target, faction, ownerId, root, rotation, universe);
+                        foreach (Thing thing in things.ToList()) thing.TryGetComp<CompPrefabMarker>()?.Expand(context);
+                        things.RemoveAll(t => t.Destroyed);
+                    }
+                    finally
+                    {
+                        if (finalizeStart != 0) finalizeElapsed = perf.Elapsed(finalizeStart);
+                    }
                 }
             };
-            return MapPrefabs.Rebuild(doc, map, position, rot, options);
+            try
+            {
+                RemoveMissingStorageFilterDefs(doc);
+                changes = structure?.BeginChanges();
+                var result = MapPrefabs.Rebuild(doc, map, position, rot, options);
+                success = result.Success;
+                return result;
+            }
+            finally
+            {
+                try { FinishChanges(); }
+                finally
+                {
+                    if (start != 0)
+                        perf.RecordPrefabPlacement(doc?.name, map, success, perf.Elapsed(start), foundationsElapsed, claimElapsed,
+                            finalizeElapsed, workBefore, structure.Topology.WorkOf(map));
+                }
+            }
         }
 
         // Exported shelves can retain filter entries from mods no longer loaded.
