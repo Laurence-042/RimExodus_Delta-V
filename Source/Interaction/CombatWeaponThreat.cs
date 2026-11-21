@@ -164,13 +164,11 @@ namespace DeltaV
         internal static Vector2 HullHalfExtents(ShipBase ship)
         {
             Vector2 center = ship.HullCenter;
-            float halfX = 0.5f, halfY = 0.5f;
-            foreach (IntVec3 cell in ship.HullCells)
-            {
-                halfX = Mathf.Max(halfX, Mathf.Abs(cell.x + 0.5f - center.x) + 0.5f);
-                halfY = Mathf.Max(halfY, Mathf.Abs(cell.z + 0.5f - center.y) + 0.5f);
-            }
-            return new Vector2(halfX, halfY);
+            CellRect bounds = ShipRegistry.HullBounds(ship);
+            if (bounds.Area == 0) return new Vector2(0.5f, 0.5f);
+            return new Vector2(
+                Mathf.Max(0.5f, center.x - bounds.minX, bounds.maxX + 1f - center.x),
+                Mathf.Max(0.5f, center.y - bounds.minZ, bounds.maxZ + 1f - center.y));
         }
     }
 }

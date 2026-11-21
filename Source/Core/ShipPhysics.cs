@@ -1,4 +1,6 @@
+using System;
 ﻿using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -93,6 +95,15 @@ namespace DeltaV
             /// 自动驾驶/未来舰船 AI 共用同一分配器）；火焰表现层（地图路径与
             /// 船壳路径）只读此值。运行时派生状态，不参与物理积分或存档。</summary>
             public float throttle;
+
+            internal Thruster NominalSnapshot()
+            {
+                var snapshot = (Thruster)MemberwiseClone();
+                snapshot.thrust = baseThrust;
+                snapshot.throttle = 0f;
+                snapshot.operational = true;
+                return snapshot;
+            }
         }
 
         public sealed class MassReport
@@ -101,7 +112,10 @@ namespace DeltaV
             public float mass;
             public Vector2 comLocal;
             public float inertia;
-            public readonly List<Thruster> thrusters = new List<Thruster>();
+            public readonly List<Thruster> thrusters;
+
+            public MassReport() : this(new List<Thruster>()) { }
+            internal MassReport(List<Thruster> thrusters) => this.thrusters = thrusters;
 
             /// <summary>动力模型版本：结构重测、推进器可用性或加力改变时递增，
             /// 使对象的分配结果与自动驾驶预览立即失效。不存档。</summary>
@@ -167,40 +181,18 @@ namespace DeltaV
 
         // ---- 质量模型 ----
 
-        internal static MassReport Measure(SpaceObject container) => Measure(container, out _);
-
-        private static MassReport Measure(SpaceObject container, out MassMoments moments)
-        {
-            Map map = container.map;
-            var report = new MassReport();
-            foreach (ShipBase ship in container.Ships)
-                if (ship.CanDriveIn(container) && !ship.AllowsAngularMotion) report.allowsAngularMotion = false;
-            Vector2 origin = SpaceTransform.ShipLocalOrigin(map);
-
-            moments = default;
-
-            foreach (IntVec3 cell in SubstructureOwnership.CellsOnMap(map))
-            {
-                var r = new Vector2(cell.x + 0.5f - origin.x, cell.z + 0.5f - origin.y);
-                moments.Add(MassPerDeckCell, r);
-            }
-
-            foreach (Building thing in SubstructureOwnership.For(map).SpawnedBuildings)
-            {
-                double weight = BuildingMass(thing);
-                if (thing.TryGetComp<CompSpaceCargo>() is { } cargo) weight += Mathf.Max(0f, cargo.StoredMass);
-                moments.AddBuilding(thing, origin, weight);
-            }
-
-            moments.WriteTo(report);
-            if (moments.mass >= 1d) report.thrusters.AddRange(container.BuildThrusters());
-            return report;
-        }
-
-        private struct MassMoments
+        internal struct MassMoments
         {
             internal double mass;
             private double momentX, momentZ, originInertia;
+
+            internal void Add(MassMoments contribution)
+            {
+                mass += contribution.mass;
+                momentX += contribution.momentX;
+                momentZ += contribution.momentZ;
+                originInertia += contribution.originInertia;
+            }
 
             internal void Add(double weight, Vector2 center, double intrinsicPerMass = 0d)
             {
@@ -211,9 +203,8 @@ namespace DeltaV
                 originInertia += weight * (x * x + z * z + intrinsicPerMass);
             }
 
-            internal void AddBuilding(Building building, Vector2 origin, double weight)
+            internal void AddBuilding(CellRect rect, Vector2 origin, double weight)
             {
-                CellRect rect = building.OccupiedRect();
                 var center = new Vector2((rect.minX + rect.maxX + 1) * 0.5f - origin.x,
                     (rect.minZ + rect.maxZ + 1) * 0.5f - origin.y);
                 Add(weight, center, (rect.Width * rect.Width + rect.Height * rect.Height) / 12d);
@@ -235,7 +226,7 @@ namespace DeltaV
         }
 
         /// <summary>实体推进器的唯一数值适配；所属船决定是否纳入布局。</summary>
-        public static Thruster BuildInstalledThruster(Thing thing)
+        public static Thruster BuildInstalledThruster(Thing thing, bool readOperational = true)
         {
             CompThrusterPowerLimit limit = thing.TryGetComp<CompThrusterPowerLimit>();
             float configured = ThrusterPower.BaseThrust(thing.def);
@@ -246,7 +237,7 @@ namespace DeltaV
                 localPos = SpaceTransform.BoundsCenterOfCells(thing.OccupiedRect().Cells)
                     - SpaceTransform.ShipLocalOrigin(thing.Map),
                 dir = ThrustDir(thing.Rotation) * (configured < 0f ? -1f : 1f),
-                operational = ThrusterPower.IsOperational(thing) && thrust > 0f,
+                operational = readOperational && ThrusterPower.IsOperational(thing) && thrust > 0f,
                 thrust = thrust
             };
         }
@@ -255,6 +246,9 @@ namespace DeltaV
         /// 建筑质量：def 带 Mass stat（如 LargeThruster=30）用 stat 实值，否则用
         /// MassPerBuilding。
         /// </summary>
+        internal static double BuildingWeight(Building building) =>
+            BuildingMass(building) + (building.TryGetComp<CompStructureMass>()?.PublishedMass ?? 0d);
+
         private static float BuildingMass(Thing thing)
         {
             float mass = MassPerBuilding;
@@ -807,58 +801,259 @@ namespace DeltaV
 
         // ---- 报告缓存 ----
 
-        private sealed class CachedReport
+        /// <summary>Exact contribution ledger in the stable map frame.</summary>
+        internal sealed class MassIndex
         {
-            public MassReport report;
-            public int structureVersion = -1;
-            public MassMoments moments;
+            private readonly Vector2 origin;
+            private readonly HashSet<IntVec3> foundations = new HashSet<IntVec3>();
+            private readonly Dictionary<Building, (CellRect footprint, double weight)> buildings =
+                new Dictionary<Building, (CellRect, double)>();
+            private MassMoments moments;
+
+            internal MassIndex(Map map) => origin = SpaceTransform.ShipLocalOrigin(map);
+            internal MassMoments Moments => moments;
+            internal IEnumerable<IntVec3> FoundationCells => foundations;
+
+            internal bool SetFoundation(IntVec3 cell, bool present)
+            {
+                if (present ? !foundations.Add(cell) : !foundations.Remove(cell)) return false;
+                moments.Add(present ? MassPerDeckCell : -MassPerDeckCell,
+                    new Vector2(cell.x + 0.5f - origin.x, cell.z + 0.5f - origin.y));
+                return true;
+            }
+
+            internal void SetBuilding(Building building, CellRect footprint, double weight)
+            {
+                if (buildings.TryGetValue(building, out var before))
+                {
+                    if (before.footprint == footprint)
+                    {
+                        if (before.weight == weight) return;
+                        moments.AddBuilding(footprint, origin, weight - before.weight);
+                        buildings[building] = (footprint, weight);
+                        return;
+                    }
+                    moments.AddBuilding(before.footprint, origin, -before.weight);
+                }
+                moments.AddBuilding(footprint, origin, weight);
+                buildings[building] = (footprint, weight);
+            }
+
+            internal void RemoveBuilding(Building building)
+            {
+                if (buildings.Remove(building, out var previous))
+                    moments.AddBuilding(previous.footprint, origin, -previous.weight);
+            }
         }
 
-        private static readonly Dictionary<Map, CachedReport> Cache = new Dictionary<Map, CachedReport>();
+        internal sealed class CachedReport : IDisposable
+        {
+            private sealed class HullLayout
+            {
+                internal IDisposable Subscription;
+                internal IReadOnlyList<Thruster> VirtualLayout;
+                internal readonly HashSet<Thruster> Entries = new HashSet<Thruster>();
+            }
+
+            private const ShipStructureAspect HullChanges = ShipStructureAspect.Propulsion | ShipStructureAspect.Membership
+                | ShipStructureAspect.Footprint | ShipStructureAspect.Primary | ShipStructureAspect.Representation;
+            internal MassReport report = new MassReport();
+            private readonly SpaceObject container;
+            private readonly ShipStructureIndex.MapView view;
+            private readonly IDisposable watch;
+            private readonly Dictionary<ShipStructure, HullLayout> hulls = new Dictionary<ShipStructure, HullLayout>();
+            private readonly Dictionary<Thing, Thruster> installed = new Dictionary<Thing, Thruster>();
+            private int massRevision = -1;
+            private MassMoments measured;
+            private bool entriesChanged;
+
+            internal CachedReport(ShipStructureIndex index, SpaceObject container, ShipStructureIndex.MapView view)
+            {
+                this.container = container;
+                this.view = view;
+                if (container is MapSpaceObject)
+                    RefreshHulls();
+                else
+                    report.thrusters.AddRange(container.BuildThrusters());
+                report.version = 1;
+                entriesChanged = false;
+                watch = index.WatchMap(container.map, ShipStructureAspect.Membership | ShipStructureAspect.Primary
+                    | ShipStructureAspect.Foundation | ShipStructureAspect.Terrain | ShipStructureAspect.Footprint
+                    | ShipStructureAspect.Representation, OnMapChanged);
+            }
+
+            internal bool Matches(SpaceObject next) => container == next;
+
+            internal MassReport ReadReport()
+            {
+                if (massRevision != view.MassRevision)
+                {
+                    measured = view.TotalMass();
+                    massRevision = view.MassRevision;
+                    if (measured.WriteTo(report)) report.version++;
+                }
+                return report;
+            }
+
+            private void OnMapChanged(ShipStructureBatch batch)
+            {
+                if (container is not MapSpaceObject) return;
+                bool representationChanged = batch.Changes.Any(change => change.Aspect == ShipStructureAspect.Representation);
+                if (representationChanged || view.Shuttles.Any() || batch.Changes.Any(change => change.Aspect == ShipStructureAspect.Primary
+                    || change.Thing.TryGetComp<CompDeltaVPilotConsole>() != null
+                    || change.Thing.TryGetComp<CompSpaceShuttle>() != null))
+                {
+                    RefreshHulls();
+                    if (entriesChanged || representationChanged) RefreshDriveView();
+                }
+            }
+
+            private void RefreshHulls()
+            {
+                var active = new HashSet<ShipStructure>();
+                bool angular = true;
+                foreach (ShipBase ship in container.Ships)
+                {
+                    if (!ship.CanDriveIn(container) || ship.StructuralState is not { } structure || !active.Add(structure)) continue;
+                    angular &= ship.AllowsAngularMotion;
+                    if (hulls.ContainsKey(structure)) continue;
+                    var layout = new HullLayout();
+                    hulls.Add(structure, layout);
+                    layout.Subscription = structure.Watch(HullChanges, batch => OnHullChanged(structure, layout, batch));
+                    ReplaceEntries(layout, structure);
+                }
+                foreach (var entry in hulls.ToArray())
+                {
+                    if (active.Contains(entry.Key)) continue;
+                    entry.Value.Subscription.Dispose();
+                    foreach (var thruster in entry.Value.Entries) RemoveEntry(thruster);
+                    hulls.Remove(entry.Key);
+                }
+                if (report.allowsAngularMotion != angular)
+                {
+                    report.allowsAngularMotion = angular;
+                    report.version++;
+                }
+            }
+
+            private void OnHullChanged(ShipStructure structure, HullLayout layout, ShipStructureBatch batch)
+            {
+                if (!hulls.TryGetValue(structure, out var live) || live != layout) return;
+                if (structure.Vessel is ShuttleShip || batch.Changes.Any(c => c.Aspect == ShipStructureAspect.Representation))
+                {
+                    ReplaceEntries(layout, structure);
+                }
+                else
+                {
+                    foreach (var change in batch.Changes)
+                    {
+                        if (change.Thing is not Building building) continue;
+                        Thruster current = structure.InstalledThruster(building);
+                        if (installed.TryGetValue(building, out var previous) && layout.Entries.Contains(previous))
+                        {
+                            if (previous == current)
+                            {
+                                if (change.Aspect == ShipStructureAspect.Propulsion) report.version++;
+                                continue;
+                            }
+                            layout.Entries.Remove(previous);
+                            RemoveEntry(previous);
+                        }
+                        if (current != null && layout.Entries.Add(current)) AddEntry(current);
+                    }
+                }
+                if (entriesChanged) RefreshDriveView();
+            }
+
+            private void ReplaceEntries(HullLayout layout, ShipStructure structure)
+            {
+                IEnumerable<Thruster> entries = structure.InstalledThrusters;
+                if (structure.Vessel is ShuttleShip)
+                {
+                    var virtualLayout = structure.VirtualThrusters;
+                    if (ReferenceEquals(layout.VirtualLayout, virtualLayout)) return;
+                    layout.VirtualLayout = virtualLayout;
+                    entries = virtualLayout.Select(thruster => thruster.NominalSnapshot());
+                }
+                var next = new HashSet<Thruster>(entries);
+                foreach (Thruster old in layout.Entries.Where(t => !next.Contains(t)).ToArray())
+                {
+                    RemoveEntry(old);
+                    layout.Entries.Remove(old);
+                }
+                foreach (Thruster current in next)
+                    if (layout.Entries.Add(current)) AddEntry(current);
+            }
+
+            private void AddEntry(Thruster entry)
+            {
+                if (entry.thing != null)
+                {
+                    if (installed.TryGetValue(entry.thing, out var former)) RemoveEntry(former);
+                    installed[entry.thing] = entry;
+                    entry.operational = ThrusterPower.IsOperational(entry.thing) && entry.thrust > 0f;
+                }
+                report.thrusters.Add(entry);
+                entriesChanged = true;
+            }
+
+            private void RemoveEntry(Thruster entry)
+            {
+                if (entry.thing != null && installed.TryGetValue(entry.thing, out var current) && current == entry)
+                    installed.Remove(entry.thing);
+                entriesChanged |= report.thrusters.Remove(entry);
+            }
+
+            internal void NotifyOperationalChange(Thruster entry)
+            {
+                if (installed.TryGetValue(entry.thing, out var current) && entry == current) report.version++;
+            }
+
+            private void RefreshDriveView()
+            {
+                var next = new MassReport(report.thrusters)
+                {
+                    version = report.version + 1,
+                    allowsAngularMotion = report.allowsAngularMotion
+                };
+                measured.WriteTo(next);
+                report = next;
+                entriesChanged = false;
+            }
+
+            public void Dispose()
+            {
+                watch.Dispose();
+                foreach (var hull in hulls.Values) hull.Subscription.Dispose();
+                hulls.Clear();
+            }
+        }
 
         internal static MassReport GetReport(SpaceObject container)
         {
             Map map = container.map;
-            if (map == null || map.Disposed)
+            if (map == null || map.Disposed) return null;
+            ShipStructureIndex index = Current.Game.GetComponent<UniverseManager>().ShipStructure;
+            ShipStructureIndex.MapView view = index.For(map);
+            if (view.PhysicsReport is not { } cached || !cached.Matches(container))
             {
-                return null;
+                view.ForgetPhysics();
+                view.PhysicsReport = cached = new CachedReport(index, container, view);
             }
-            if (!Cache.TryGetValue(map, out CachedReport cached))
-                Cache.Add(map, cached = new CachedReport());
-            var changes = Current.Game?.GetComponent<UniverseManager>()?.CargoMassUpdates.Collect(map);
-            int structureVersion = SubstructureOwnership.StructureVersion(map);
-            if (cached.report == null || cached.structureVersion != structureVersion)
-            {
-                MassReport fresh = Measure(container, out cached.moments);
-                fresh.version = (cached.report?.version ?? 0) + 1;
-                if (DeltaVLog.Enabled(DeltaVLogModule.Physics)
-                    && cached.report != null && MassModelChanged(cached.report, fresh))
-                {
-                    DeltaVLog.Message(DeltaVLogModule.Physics,
-                        $"mass model changed on '{map.Parent?.Label ?? map.ToString()}': mass {cached.report.mass:F0}->{fresh.mass:F0}, " +
-                        $"thrusters {cached.report.thrusters.Count}->{fresh.thrusters.Count}, com {cached.report.comLocal:F2}->{fresh.comLocal:F2}, " +
-                        $"inertia {cached.report.inertia:F0}->{fresh.inertia:F0}");
-                }
-                cached.report = fresh;
-                cached.structureVersion = structureVersion;
-            }
-            else if (changes != null)
-            {
-                Vector2 origin = SpaceTransform.ShipLocalOrigin(map);
-                foreach (var change in changes)
-                    cached.moments.AddBuilding((Building)change.cabinet.parent, origin,
-                        (double)Mathf.Max(0f, change.current) - Mathf.Max(0f, change.previous));
-                if (cached.moments.WriteTo(cached.report)) cached.report.version++;
-            }
-            return cached.report;
+            return cached.ReadReport();
         }
 
-        private static bool MassModelChanged(MassReport oldReport, MassReport newReport)
+        internal static Thruster InstalledThruster(ShipStructure structure, Building building)
         {
-            return Mathf.Abs(oldReport.mass - newReport.mass) > 0.01f
-                || (oldReport.comLocal - newReport.comLocal).sqrMagnitude > 0.0001f
-                || Mathf.Abs(oldReport.inertia - newReport.inertia) > 1f
-                || oldReport.thrusters.Count != newReport.thrusters.Count;
+            Thruster thruster = structure.InstalledThruster(building);
+            if (thruster == null) return null;
+            bool operational = ThrusterPower.IsOperational(building) && thruster.thrust > 0f;
+            if (thruster.operational != operational)
+            {
+                thruster.operational = operational;
+                PhysicsView(building.Map)?.PhysicsReport?.NotifyOperationalChange(thruster);
+            }
+            return thruster;
         }
 
         /// <summary>
@@ -868,7 +1063,7 @@ namespace DeltaV
         /// </summary>
         internal static void ClearThrottles(Map map)
         {
-            if (map == null || !Cache.TryGetValue(map, out CachedReport cached) || cached.report == null)
+            if (PhysicsView(map)?.PhysicsReport is not { } cached)
             {
                 return;
             }
@@ -882,15 +1077,13 @@ namespace DeltaV
         }
 
         /// <summary>读档 / 场景重置时清空（与 ShellRenderer 的缓存自愈纪律一致）。</summary>
-        public static void ClearCache()
-        {
-            Cache.Clear();
-        }
+        public static void ClearCache() =>
+            Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.ClearPhysicsReports();
 
-        public static void Forget(Map map)
-        {
-            if (map != null) Cache.Remove(map);
-        }
+        public static void Forget(Map map) => PhysicsView(map)?.ForgetPhysics();
+
+        private static ShipStructureIndex.MapView PhysicsView(Map map) =>
+            Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.ExistingView(map);
 
     }
 }

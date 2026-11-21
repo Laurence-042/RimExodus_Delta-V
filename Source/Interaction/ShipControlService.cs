@@ -11,25 +11,14 @@ namespace DeltaV
     {
         private readonly UniverseManager universe;
         private readonly Dictionary<DriveSubject, ShipController> controllers = new Dictionary<DriveSubject, ShipController>();
+        private readonly Dictionary<DriveSubject, (ShipStructure State, System.IDisposable Handle)> loadoutSubscriptions =
+            new Dictionary<DriveSubject, (ShipStructure, System.IDisposable)>();
         private readonly HashSet<Map> pendingGunnerMaps = new HashSet<Map>();
         private readonly List<ShipController> tickBuffer = new List<ShipController>();
         private DriveSubject activeAimOwnerId;
         private int lastPlayerDecisionTick = -1;
 
-        private readonly Dictionary<DriveSubject, ShipBase> shipsByIdentity = new Dictionary<DriveSubject, ShipBase>();
-        private int identityVersion = -1;
-        internal ShipBase ResolveShip(DriveSubject identity)
-        {
-            if (identity.key <= 0) return ShipBase.Invalid;
-            if (SubstructureOwnership.CacheNeedsRefresh(identityVersion))
-            {
-                shipsByIdentity.Clear();
-                foreach (Map map in Find.Maps)
-                    foreach (ShipBase ship in ShipRegistry.AllShipsOnMap(map)) shipsByIdentity[ship.Identity] = ship;
-                identityVersion = SubstructureOwnership.GlobalStructureVersion;
-            }
-            return shipsByIdentity.TryGetValue(identity, out ShipBase found) && found.IsValid ? found : ShipBase.Invalid;
-        }
+        internal ShipBase ResolveShip(DriveSubject identity) => universe.ShipStructure.Resolve(identity);
 
         internal ShipControlService(UniverseManager universe) { this.universe = universe; }
 
@@ -50,7 +39,7 @@ namespace DeltaV
         public ShipController For(ShipBase ship, bool debugTakeover = false)
         {
             if (!ship.IsValid || universe.FrameOf(ship.Map)?.HasTag(SpaceObjectTag.Ship) != true) return null;
-            shipsByIdentity[ship.Identity] = ship;
+            universe.ShipStructure.BindIdentity(ship);
             Faction faction = ship.Faction;
             if (faction == null) return null;
             bool playerAuthority = ship.PlayerMayOperate
@@ -65,6 +54,7 @@ namespace DeltaV
                     || !playerAuthority && existing is NpcShipController)
                 {
                     existing.BindShip(ship);
+                    BindLoadout(ship, existing);
                     return existing;
                 }
                 Remove(ship.Identity);
@@ -77,7 +67,24 @@ namespace DeltaV
                 };
             controllers.Add(ship.Identity, controller);
             controller.BindShip(ship);
+            BindLoadout(ship, controller);
             return controller;
+        }
+
+        private void BindLoadout(ShipBase ship, ShipController controller)
+        {
+            if (ship.StructuralState is not { } state) return;
+            if (loadoutSubscriptions.TryGetValue(ship.Identity, out var previous))
+            {
+                if (previous.State == state) return;
+                previous.Handle.Dispose();
+            }
+            loadoutSubscriptions[ship.Identity] = (state, state.Watch(ShipStructureAspect.Loadout, batch =>
+            {
+                foreach (ShipStructureChange change in batch.Changes)
+                    if (change.After is CompSpaceWeapon weapon)
+                        controller.FireControl.WeaponParametersChanged(weapon);
+            }));
         }
 
         internal PlayerShipController PlayerFor(ShipBase ship, bool debugTakeover = false)
@@ -105,11 +112,9 @@ namespace DeltaV
         {
             if (ownerId.key <= 0) return;
             universe.Missions.ShipChanged(ownerId);
-            changedMap ??= shipsByIdentity.TryGetValue(ownerId, out var previous) ? previous.Map
-                : ShipRegistry.ShipByIdentity(ownerId).Map;
-            SubstructureOwnership.BumpStructureVersion(changedMap);
-            identityVersion = -1;
-            ShipBase ship = ShipRegistry.ShipByIdentity(ownerId);
+            if (changedMap != null && !changedMap.Disposed) universe.ShipStructure.For(changedMap);
+            ShipBase ship = ResolveShip(ownerId);
+            changedMap ??= ship.Map;
             if (ship.IsValid && ship.Faction != null) For(ship);
             else Remove(ownerId);
             universe.Weapons.QueuePower(changedMap);
@@ -118,6 +123,7 @@ namespace DeltaV
         private void Remove(DriveSubject ownerId)
         {
             if (!controllers.TryGetValue(ownerId, out ShipController controller)) return;
+            if (loadoutSubscriptions.Remove(ownerId, out var subscription)) subscription.Handle.Dispose();
             controller.FireControl.Dispose();
             universe.ForgetPilotController(controller);
             universe.SoftDock.StopSteeringFor(ownerId);
@@ -141,21 +147,9 @@ namespace DeltaV
                 controller.FireControl.RefreshPointDefenseFilter(weapon);
         }
 
-        internal void NotifyWeaponOwnershipChanged(Map map)
-        {
-            universe.Weapons.QueuePower(map);
-            foreach (ShipController controller in controllers.Values)
-            {
-                ShipBase ship = ShipRegistry.ShipByIdentity(controller.OwnerId);
-                if (!ship.IsValid || ship.Map == map) controller.FireControl.PrunePointDefense(ship, force: true);
-            }
-        }
-
         internal void ForgetMap(Map map)
         {
             foreach (ShipController controller in controllers.Values) controller.FireControl.ForgetMap(map);
-            shipsByIdentity.Clear();
-            identityVersion = -1;
             (universe.FrameOf(map) as MapSpaceObject)?.ClearMemberCaches();
             pendingGunnerMaps.Remove(map);
             foreach (DriveSubject ownerId in new List<DriveSubject>(controllers.Keys))
@@ -163,8 +157,6 @@ namespace DeltaV
                 ShipBase ship = ShipRegistry.ShipByIdentity(ownerId);
                 if (!ship.IsValid || ship.Map == map) Remove(ownerId);
             }
-            shipsByIdentity.Clear();
-            identityVersion = -1;
         }
 
         internal void Rebuild()
@@ -181,11 +173,7 @@ namespace DeltaV
 
         internal void Reset()
         {
-            shipsByIdentity.Clear();
-            identityVersion = -1;
             foreach (DriveSubject ownerId in new List<DriveSubject>(controllers.Keys)) Remove(ownerId);
-            shipsByIdentity.Clear();
-            identityVersion = -1;
             pendingGunnerMaps.Clear();
             activeAimOwnerId = default;
             lastPlayerDecisionTick = -1;

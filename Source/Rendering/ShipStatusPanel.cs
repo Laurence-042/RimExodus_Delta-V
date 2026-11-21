@@ -77,7 +77,7 @@ namespace DeltaV
             {
                 var structures = ShipRegistry.StructuresOnMap(map).ToList();
                 if (structures.Count == 0) return false;
-                identity = structures.OrderByDescending(id => ShipRegistry.StructureCells(map, id).Count())
+                identity = structures.OrderByDescending(id => ShipRegistry.StructureCellCount(map, id))
                     .ThenBy(id => id.key).First();
             }
             selectedShipByMap[map] = identity;
@@ -159,7 +159,7 @@ namespace DeltaV
             SpacePose shipPose = hasStructure ? ShipRegistry.StructurePose(map, selectedStructure) : frame.pose;
             Vector2 focusPoint = hasStructure
                 ? (hasShip ? selected.HullCenter
-                    : SpaceTransform.BoundsCenterOfCells(ShipRegistry.StructureCells(map, selectedStructure)))
+                    : ShipRegistry.StructureCenter(map, selectedStructure))
                 : SpaceTransform.ShipLocalOrigin(map);
             Vector3 cameraCenter = Find.CameraDriver.CurrentViewRect.CenterVector3;
             bool showRefocus = Vector2.Distance(new Vector2(cameraCenter.x, cameraCenter.z), focusPoint)

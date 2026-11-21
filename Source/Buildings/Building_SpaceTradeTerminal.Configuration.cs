@@ -61,19 +61,18 @@ namespace DeltaV
         }
 
         internal IEnumerable<ISpaceCargoContainer> CargoCandidates()
-            => Map.listerThings.AllThings.OfType<ISpaceCargoContainer>()
+            => ShipStructureIndex.Read(Map).BuildingsOf<ISpaceCargoContainer>()
                 .OrderBy(c => c.Position.x).ThenBy(c => c.Position.z);
 
         internal AcceptanceReport BindingReport(ISpaceCargoContainer cargo, bool delivery)
         {
             if (!Spawned || cargo?.Spawned != true || cargo.Map != Map)
                 return "DeltaV_TradeCargoDisconnected".Translate();
-            var connected = new HashSet<IntVec3>();
-            SubstructureOwnership.CollectConnected(Map, Position, connected, null);
-            if (!connected.Contains(cargo.Position)) return "DeltaV_TradeCargoDisconnected".Translate();
+            var connected = ShipStructureIndex.Read(Map)?.PhysicalDomainAt(Position);
+            if (connected?.Contains(cargo.Position) != true) return "DeltaV_TradeCargoDisconnected".Translate();
             if (cargo.IsUnlocked != delivery)
                 return (delivery ? "DeltaV_TradeDeliveryNeedsUnlock" : "DeltaV_TradeSupplyNeedsLock").Translate();
-            if (Map.listerThings.AllThings.OfType<Building_SpaceTradeTerminal>()
+            if (ShipStructureIndex.Read(Map).BuildingsOf<Building_SpaceTradeTerminal>()
                 .Any(t => t != this && (t.deliveryCargo == cargo || t.supplyCargo.Contains(cargo))))
                 return "DeltaV_TradeCargoAlreadyBound".Translate();
             return true;

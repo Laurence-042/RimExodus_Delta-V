@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Collections.Generic;
 using RimWorld;
 using RimWorld.Planet;
@@ -282,9 +281,6 @@ namespace DeltaV
                 : new DriveSubject(0, entry.ship.key, entry.ship.shuttle);
             if (!SilhouetteCache.TryGetValue(map, out var byShip))
                 SilhouetteCache[map] = byShip = new Dictionary<DriveSubject, CachedSilhouette>();
-            if (byShip.TryGetValue(key, out var previous) && !ReferenceEquals(previous.source, entry)
-                && previous.source.mapAnchor == entry.mapAnchor
-                && previous.source.cells.SequenceEqual(entry.cells)) previous.source = entry;
             if (!byShip.TryGetValue(key, out var cached) || !ReferenceEquals(cached.source, entry))
             {
                 if (cached?.texture != null) Object.Destroy(cached.texture);
@@ -332,6 +328,13 @@ namespace DeltaV
                     if (cached.texture != null) Object.Destroy(cached.texture);
             SilhouetteCache.Clear();
             Legends.Clear();
+        }
+
+        internal static void ReleaseSilhouette(Map map, DriveSubject key)
+        {
+            if (!SilhouetteCache.TryGetValue(map, out var byShip) || !byShip.Remove(key, out var cached)) return;
+            if (cached.texture != null) Object.Destroy(cached.texture);
+            if (byShip.Count == 0) SilhouetteCache.Remove(map);
         }
 
         public static void InvalidateSilhouette(Map map)

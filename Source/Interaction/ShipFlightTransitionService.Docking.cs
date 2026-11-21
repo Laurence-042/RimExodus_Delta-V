@@ -51,8 +51,7 @@ namespace DeltaV
             DriveSubject identity = ship.Identity;
             Map source = ship.Map;
             SpaceObject frame = universe.FrameOf(source);
-            int version = frame.RepresentationVersion;
-            int structureVersion = SubstructureOwnership.StructureVersion(source);
+            var revision = new TransitionRevision(universe, ship);
             string text = "DeltaV_PilotDepartConfirm".Translate(ship.Label);
             if (ship is FoundationShip foundation)
             {
@@ -72,9 +71,7 @@ namespace DeltaV
             {
                 ClearPending();
                 ShipBase current = ShipRegistry.ShipByIdentity(identity);
-                if (!current.IsValid || current.Map != source || universe.FrameOf(source) != frame
-                    || frame.RepresentationVersion != version || !universe.Pilot.CanPlayerControl(current)
-                    || SubstructureOwnership.StructureVersion(source) != structureVersion) return;
+                if (!revision.Matches(universe, current) || !universe.Pilot.CanPlayerControl(current)) return;
                 AcceptanceReport gate = CanDepart(current);
                 if (!gate)
                 {
@@ -244,16 +241,13 @@ namespace DeltaV
             if (!pendingShuttleSeparations.Add(identity)) return false;
             Map source = ship.Map;
             SpaceObject frame = universe.FrameOf(source);
-            int version = frame.RepresentationVersion;
-            int structureVersion = SubstructureOwnership.StructureVersion(source);
+            var revision = new TransitionRevision(universe, ship);
             var plan = extract ? PlanForceDomain(source, null, ship) : null;
             void Execute() => universe.QueueFrameAction(() =>
             {
                 if (!pendingShuttleSeparations.Remove(identity)) return;
                 ShipBase current = ShipRegistry.ShipByIdentity(identity);
-                if (!current.IsValid || current.Map != source || frame.RepresentationVersion != version
-                    || universe.FrameOf(source) != frame || frame.IsWorksite != extract
-                    || SubstructureOwnership.StructureVersion(source) != structureVersion) return;
+                if (!revision.Matches(universe, current) || frame.IsWorksite != extract) return;
                 if (!extract)
                 {
                     if (current.CanDriveIn(frame)) universe.Scatter.ScatterLoose(source);
@@ -289,13 +283,10 @@ namespace DeltaV
         {
             pendingSeparationOwnerIds.Add(ship.ownerId);
             string text = textKey.Translate(summary);
-            int version = SubstructureOwnership.StructureVersion(ship.map);
-            SpaceObject frame = universe.FrameOf(ship.map);
-            int representation = frame.RepresentationVersion;
+            var revision = new TransitionRevision(universe, ship, movesResidual: !ShipRegistry.RequiresOwnPocket(ship));
             void Confirm() => universe.QueueFrameAction(() =>
             {
-                if (universe.FrameOf(ship.map) == frame && frame.RepresentationVersion == representation
-                    && SubstructureOwnership.StructureVersion(ship.map) == version)
+                if (revision.Matches(universe, ShipRegistry.ShipByOwner(ship.ownerId)))
                     ExecuteSeparation(universe, ship.ownerId);
                 else pendingSeparationOwnerIds.Remove(ship.ownerId);
             });
@@ -328,16 +319,11 @@ namespace DeltaV
         {
             pendingSeparationOwnerIds.Add(ownerId);
             Ship ship = ShipRegistry.ShipByOwner(ownerId);
-            SpaceObject source = ship.IsValid ? universe.FrameOf(ship.map) : null;
-            int sourceId = source?.objectId ?? 0, version = source?.RepresentationVersion ?? -1;
-            int structureVersion = SubstructureOwnership.StructureVersion(ship.map);
+            var revision = new TransitionRevision(universe, ship,
+                movesResidual: ship.IsValid && !ShipRegistry.RequiresOwnPocket(ship));
             universe.QueueFrameAction(delegate
             {
-                SpaceObject currentSource = universe.ObjectById(sourceId);
-                Ship currentShip = ShipRegistry.ShipByOwner(ownerId);
-                if (currentSource?.RepresentationVersion != version || !currentShip.IsValid
-                    || currentShip.map != currentSource.map
-                    || SubstructureOwnership.StructureVersion(currentShip.map) != structureVersion)
+                if (!revision.Matches(universe, ShipRegistry.ShipByOwner(ownerId)))
                 {
                     pendingSeparationOwnerIds.Remove(ownerId);
                     return;
@@ -479,6 +465,7 @@ namespace DeltaV
                 ? ShipOrientation.PlacementRotation(anchor.Rotation, targetConsoleFacing) : Rot4.North;
             preview.Rotation = rotation;
             if (!ShipPocketMapFactory.TryGenerateForGravship(preview, universe, out Map pocketMap, out IntVec3 pocketRoot, mapMargin, reserveRotations)) return null;
+            using var structureChanges = universe.ShipStructure.BeginChanges();
             // Generation and geometry preflight precede the consuming CaptureDomain call.
             Gravship gravship = GravshipInterop.CaptureDomain(sourceMap, cells, mainConsole, faction, includeTerrain, includeItems, buildings);
             if (gravship == null)
@@ -500,10 +487,7 @@ namespace DeltaV
             };
             universe.RegisterObject(container);
             focus?.selection.Transferred(cells, pocketMap, retainedOwnerId, buildings);
-            PlanetGlobeRenderer.InvalidateSilhouette(sourceMap);
             HostColonistBarVisibility.NotifyDockingStateChanged();
-            ShipPhysics.Forget(sourceMap);
-            ShipPhysics.Forget(pocketMap);
             return container;
         }
 
@@ -616,6 +600,7 @@ namespace DeltaV
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"docking transfer: {target.Label} {UniverseManager.MapTag(pocketMap)} -> host "
                 + $"{UniverseManager.MapTag(targetMap)} (root {landingRoot}, rot {landingRot})");
+            using var structureChanges = universe.ShipStructure.BeginChanges();
             GravshipInterop.StripDomain(gravship, pocketMap, domain, includeTerrain);
             GravshipInterop.PlaceIntoMap(gravship, landingRoot, targetMap, structureId);
             sourceMap = pocketMap;
@@ -667,7 +652,7 @@ namespace DeltaV
             if (container != null)
                 foreach (ShipBase other in container.Ships)
                     if (other.IsValid && !other.HullCells.Any(departing.Contains)) retained.UnionWith(other.HullCells);
-            return map.listerThings.AllThings.Where(t => t.Spawned && !t.Destroyed && SpaceScatterService.IsCargo(t)
+            return ShipStructureIndex.Read(map).Cargo.Where(t => t.Spawned && !t.Destroyed
                 && !departing.Contains(t.Position) && !retained.Contains(t.Position)).ToList();
         }
 
@@ -980,7 +965,6 @@ namespace DeltaV
                     ConvertLeftoverSubstructureToWreck(universe, sourceMap,
                         pose ?? new SpacePose(Vector3.right, 0f));
                     MapOverlayRenderer.Release(sourceMap);
-                    PlanetGlobeRenderer.InvalidateSilhouette(sourceMap);
                     universe.Lifecycle.DestroyPocketMap(sourceMap);
                     universe.UnregisterObject(ownPocket);
                     ShipPhysics.Forget(sourceMap);
@@ -1069,7 +1053,6 @@ namespace DeltaV
                 new SpacePose(OrbitSphere.TileCenterDirection(map.Tile), 0f));
             GravshipUtility.AbandonMap(map);
             ShipPhysics.Forget(map);
-            PlanetGlobeRenderer.InvalidateSilhouette(map);
             DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                 $"{mapLabel}: unanchored sector map abandoned after strategic takeoff");
         }

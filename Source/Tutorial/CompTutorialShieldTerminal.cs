@@ -31,11 +31,11 @@ namespace DeltaV
         {
             Map map = Universe?.ObjectById(targetObjectId)?.map;
             if (map == null || map.Disposed) return new List<CompSpaceShield>();
-            Thing primary = map.listerThings.AllThings.FirstOrDefault(t => t.thingIDNumber == primaryShieldId);
+            Thing primary = Universe.ShipStructure.For(map).Find(primaryShieldId);
             ShipBase ship = primary == null ? ShipBase.Invalid : ShipRegistry.ShipOf(primary, requireWholeFootprint: true);
             if (!ship.IsValid) return new List<CompSpaceShield>();
-            return map.listerThings.AllThings.Select(t => t.TryGetComp<CompSpaceShield>())
-                .Where(s => s != null && ShipRegistry.ShipOf(s.parent, requireWholeFootprint: true).Identity == ship.Identity)
+            return ship.StructuralState.Shields
+                .Where(s => ShipRegistry.ShipOf(s.parent, requireWholeFootprint: true).Identity == ship.Identity)
                 .OrderBy(s => s.parent.thingIDNumber == primaryShieldId ? 0 : 1).ToList();
         }
 

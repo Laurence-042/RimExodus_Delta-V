@@ -67,12 +67,12 @@ namespace DeltaV
             {
                 // A caller must invalidate after other membership-changing operations.
                 // Batches never escape their synchronous traversal or enter a frame action.
-                if (references == null || structureVersion != SubstructureOwnership.GlobalStructureVersion
+                if (references == null || structureVersion != ShipStructureIndex.UniverseRevision
                     || objectCount != universe.objects.Count || mapCount != Find.Maps.Count
                     || focusedMap != Find.CurrentMap)
                 {
                     references = universe.PlayerReferenceObjects();
-                    structureVersion = SubstructureOwnership.GlobalStructureVersion;
+                    structureVersion = ShipStructureIndex.UniverseRevision;
                     objectCount = universe.objects.Count;
                     mapCount = Find.Maps.Count;
                     focusedMap = Find.CurrentMap;
@@ -692,7 +692,6 @@ namespace DeltaV
         private void Forget(Map map, bool projectileTargetsAlreadyReviewed)
         {
             pendingStructureChecks.Remove(map);
-            SubstructureOwnership.TryGet(map)?.ClearMapSupportIndex();
             dormancy.Forget(map);
             universe.ForgetMapRuntimeState(map, projectileTargetsAlreadyReviewed);
             universe.Weapons.ForgetMap(map);
@@ -703,7 +702,6 @@ namespace DeltaV
             ShipPhysics.Forget(map);
             ThrusterAudio.Forget(map);
             PlanetGlobeRenderer.ClearRuntimeCaches();
-            universe.Structures.Forget(map);
         }
 
         public void DestroyPocketMap(Map map)

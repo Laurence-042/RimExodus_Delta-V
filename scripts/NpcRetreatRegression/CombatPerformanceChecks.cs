@@ -71,7 +71,7 @@ internal static partial class Program
                         var gun = AddTestBuilding(map, faction, id + 3 + g, TestBuildingDef("benchGun" + i + "_" + g), weapon);
                         MoveCombatFixture(gun, new IntVec3(2 + g % 2, 0, 2 + g / 2));
                     }
-                    SubstructureOwnership.BumpStructureVersion(); universe.Controls.For(hull);
+                    Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll(); universe.Controls.For(hull);
                     ships.Add((hull, frame, universe.Controls.For(hull).FireControl));
                 }
                 Set(universe, "objectById", null); Set(universe, "objectByMap", null);
@@ -80,7 +80,7 @@ internal static partial class Program
                 double rebuild = 0;
                 for (int window = 0; window < 24; window++)
                 {
-                    if (window == 23) SubstructureOwnership.BumpStructureVersion();
+                    if (window == 23) Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
                     var watch = Stopwatch.StartNew();
                     double targetTime = 0;
                     for (int tick = 0; tick < 60; tick++)
@@ -136,7 +136,7 @@ internal static partial class Program
         for (int step = 0; step < 24; step++)
         {
             Set(Find.TickManager, "ticksGameInt", 4000 + step * 30);
-            if (step == 12) SubstructureOwnership.BumpStructureVersion();
+            if (step == 12) Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
             foreach (var item in ships)
             {
                 item.frame.pose.velocity = new Vector2(1f, item.ship.Identity.key % 3 - 1f);
@@ -202,7 +202,7 @@ internal static partial class Program
             int index = map.cellIndices.CellToIndex(new IntVec3(x, 0, z));
             map.terrainGrid.foundationGrid[index] = foundation; owners[index] = console.shipId;
         }
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         Vector2 center = console.Vessel.HullCenter;
         var watch = Stopwatch.StartNew();
         long bytes = GC.GetAllocatedBytesForCurrentThread();

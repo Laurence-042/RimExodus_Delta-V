@@ -23,6 +23,11 @@ internal static partial class Program
     static void Check(bool condition, string label)
     { if (!condition) throw new Exception(label); checks++; }
     static bool Error(string text) { errors.Add(text); return false; }
+    static bool FixtureBuildingMaxHealth(ref int __result)
+    {
+        __result = 100;
+        return false;
+    }
     static void Set(object value, string name, object fieldValue) => AccessTools.Field(value.GetType(), name).SetValue(value, fieldValue);
 
     static int Main(string[] args)
@@ -42,6 +47,8 @@ internal static partial class Program
                 harmony.Patch(AccessTools.Method(typeof(Log), method, new[] { typeof(string) }),
                     prefix: new HarmonyMethod(typeof(Program), nameof(Error)));
             using var logLock = Log.LockMessages();
+            harmony.Patch(AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.MaxHitPoints)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(FixtureBuildingMaxHealth)));
             DeepProfiler.enabled = false;
             Game game = Raw<Game>();
             Set(game, "maps", new List<Map>());
@@ -119,6 +126,15 @@ internal static partial class Program
                     VerifySearchMotion(Path.Combine(directory,selected.GetProperty("name").GetString()+".records.json"));
                 Check(errors.Count == 0, "Unexpected generated assembly logs: " + string.Join("\n", errors));
                 Console.WriteLine($"PASS {checks} generated ship checks. No game launched.");
+                return 0;
+            }
+            if (args.Length > 4 && args[4] == "missile-module")
+            {
+                string path = Path.Combine(prefabRoot, "Templates", "Modules", "ModuleMissile.xml");
+                CheckPrefabContent(new[] { path });
+                Geometry(Path.Combine(Path.GetDirectoryName(args[1]), "ModuleMissile.records.json"), game);
+                Check(errors.Count == 0, "Unexpected missile module logs: " + string.Join("\n", errors));
+                Console.WriteLine($"PASS {checks} missile module prefab and rotated socket checks.");
                 return 0;
             }
             if (args.Length > 4 && args[4] == "modules")
@@ -391,19 +407,23 @@ internal static partial class Program
             var magazines = buildings.Where(b => b.def.defName == "DeltaV_Building_MissileMagazine").ToList();
             Check(launchers.Count == 3 && magazines.Count == 2, "three launchers share two magazines");
             var sockets = sourceDefs[launchers[0].def.defName].SelectNodes(
-                "comps/li[@Class='DeltaV.CompProperties_MissileAutoloader']/magazineRootOffsets/li");
-            var properties = new CompProperties_MissileAutoloader {
-                magazineDefs = magazines.Select(b => b.def).ToList(),
-                magazineRootOffsets = sockets.Cast<XmlNode>().Select(n => IntVec3.FromString(n.InnerText)).ToList()
-            };
-            foreach (var launcher in launchers)
-                launcher.def.comps = new List<CompProperties> { properties };
+                "comps/li[@Class='DeltaV.CompProperties_SpaceWeapon']/attachmentSlots/li[external='true']")
+                .Cast<XmlNode>().Select(node => new SpaceWeaponAttachmentSlot
+                {
+                    cell = IntVec3.FromString(node["cell"].InnerText),
+                    external = true,
+                }).ToList();
+            Check(sockets.Count == 2, "missile launcher declares exactly two exterior weapon slots");
             for (int n = 0; n < 4; n++)
             {
                 var turn = new Rot4(n);
                 IntVec3 Root(Building b) => PrefabUtility.GetAdjustedThingLocalPosition(b.def, turn, b.Position);
-                bool Fits(Building launcher, Building magazine) => SpaceMissileMagazineGeometry.Fits(
-                    launcher.def, Root(launcher), turn, magazine.def, Root(magazine), turn);
+                bool Fits(Building launcher, Building magazine) => sockets.Any(slot => SpaceWeaponAttachmentSlots.Fits(
+                    launcher.def, Root(launcher), turn, slot, magazine.def, Root(magazine), turn));
+                Check(sockets.All(slot => !SpaceWeaponAttachmentSlots.Fits(launchers[0].def,
+                    Root(launchers[0]), turn, slot, magazines[0].def,
+                    Root(launchers[0]) + slot.cell.RotatedBy(turn), new Rot4((n + 1) % 4))),
+                    "exterior slots reject a sideways magazine in native rotation " + n);
                 Check(magazines.All(magazine => launchers.Count(launcher => Fits(launcher, magazine)) == 2),
                     "each magazine links to two launchers in native rotation " + n);
                 foreach (var launcher in launchers)
@@ -1174,7 +1194,7 @@ internal static partial class Program
         map.listerThings.AllThings.Add(building);
         var universe = game.GetComponent<UniverseManager>();
         var frame = new MapSpaceObject(950, map, default); universe.objects.Add(frame);
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         var ship = console.Vessel;
         Check(PlayerAccess.CanOperate(PlayerAccessLevel.Player) && PlayerAccess.CanOperate(PlayerAccessLevel.Public)
             && !PlayerAccess.CanOperate(PlayerAccessLevel.Neutral) && !PlayerAccess.CanOperate(PlayerAccessLevel.Hostile),

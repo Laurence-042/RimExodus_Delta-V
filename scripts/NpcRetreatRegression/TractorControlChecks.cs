@@ -328,7 +328,7 @@ internal static partial class Program
                 targetMap.terrainGrid.foundationGrid[targetMap.cellIndices.CellToIndex(cell)] = deck;
                 universe.NotifyFoundationChanged(targetMap, cell);
             }
-            SubstructureOwnership.BumpStructureVersion();
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
             foreach (ImpactEffectKind kind in new[] { ImpactEffectKind.TractorPull, ImpactEffectKind.CoupleMotion })
             {
                 pullEffect.kind = kind;
@@ -350,7 +350,7 @@ internal static partial class Program
             Fire(a.weapon, a.body, hit);
             targetMap.terrainGrid.foundationGrid[targetMap.cellIndices.CellToIndex(hitCell)] = null;
             universe.NotifyFoundationChanged(targetMap, hitCell);
-            SubstructureOwnership.BumpStructureVersion();
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
             Call(universe, "RunFrameActions");
             Check(tractorTransferred == null, "frame action rejects a component destroyed after targeting");
             var shuttle = AddTestHull(targetMap, enemy, 51032);
@@ -367,7 +367,7 @@ internal static partial class Program
             {
                 targetMap.terrainGrid.foundationGrid[targetMap.cellIndices.CellToIndex(cell)] = value;
                 universe.NotifyFoundationChanged(targetMap, cell);
-                SubstructureOwnership.BumpStructureVersion(targetMap);
+                Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(targetMap);
             }
             SetDeck(firstContact, deck);
             SetDeck(secondContact, deck);

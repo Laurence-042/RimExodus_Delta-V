@@ -20,6 +20,7 @@
 	<Operation Class="PatchOperationAdd">
 		<xpath>/Defs/ThingDef[defName="PassengerShuttle"]/comps</xpath>
 		<value>
+			<li Class="DeltaV.CompProperties_StructureMass" />
 			<li Class="DeltaV.CompProperties_SpaceShuttle">
 				<canBoard>false</canBoard>
 				<!--

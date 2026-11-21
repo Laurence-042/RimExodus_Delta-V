@@ -95,7 +95,7 @@ namespace DeltaV
                 var center = CombatTarget.ForShip(handle.Ship);
                 if (center.TryResolve(universe, out var victim) && CandidateValid(ship, own, victim.Container, victim.Ship))
                 {
-                    var part = knownPart ?? victim.Ship.Map.listerThings.AllThings.FirstOrDefault(t => t.thingIDNumber == handle.SystemId);
+                    var part = knownPart ?? victim.Ship.StructuralState.FindBuilding(handle.SystemId);
                     if (part?.thingIDNumber == handle.SystemId && part.Map == victim.Ship.Map
                         && ExternalCombatPart(part).HasValue && victim.Ship.Contains(part))
                     {
@@ -112,6 +112,9 @@ namespace DeltaV
 
         internal static float HullRadius(ShipBase ship)
         {
+            if (ship.GetType() == typeof(FoundationShip) && ship.StructuralState?.Foundation is { } domain
+                && Current.Game?.GetComponent<UniverseManager>()?.FoundationTopology.RadiusOf(ship.Map, domain) is float indexed)
+                return indexed;
             Vector2 center = ship.HullCenter;
             float radius = 0.5f;
             foreach (IntVec3 cell in ship.HullCells)
@@ -363,7 +366,7 @@ namespace DeltaV
         internal void PrunePointDefense(ShipBase ship, bool force = false)
         {
             if (pointDefense.Count == 0) return;
-            int structureVersion = SubstructureOwnership.StructureVersion(ship.Map);
+            int structureVersion = ship.StructuralState?.TransferRevision ?? -1;
             if (!force && ship.IsValid && pointDefensePrunedVersion == structureVersion) return;
             // 归属、模式与移除事件可能在下一次 tick 前发生；每次消费前仍复核。
             validPointDefenseWeapons.Clear();
@@ -502,26 +505,37 @@ namespace DeltaV
         private readonly List<Vector3> leadPoints = new List<Vector3>();
         private readonly HashSet<Vector3> uniqueLeadPoints = new HashSet<Vector3>();
 
-        internal IReadOnlyList<Vector3> LeadPoints(ShipBase ship)
+        internal IReadOnlyList<Vector3> LeadPoints(ShipBase ship, HashSet<Map> dependencies = null)
         {
             leadPoints.Clear(); uniqueLeadPoints.Clear(); aimCapabilities.Clear();
             SpaceObject own = ship.IsValid ? universe.FrameOf(ship.Map) : null;
             if (own == null) return leadPoints;
+            dependencies?.Add(ship.Map);
+            Vector3 shooterPosition = ShipRegistry.ShipPose(ship).position;
             foreach (CompSpaceWeapon weapon in ship.Weapons)
                 if (WeaponBelongsHere(weapon, own) && weapon.SpaceModeEnabled
                     && weapon.GroupActive && weapon.aimMode == SpaceWeaponAimMode.Volley)
                     aimCapabilities.Add((weapon, SpaceWeaponService.AimInfo(weapon, own)));
             foreach (SpaceObject container in universe.objects)
-            foreach (ShipBase member in Candidates(ship, own, container))
             {
-                if (!CombatTarget.ForShip(member.Identity).TryResolve(universe, out var resolved)) continue;
-                foreach (var capability in aimCapabilities)
+                if (container?.map != null && !container.map.Disposed && container.baseTag != SpaceObjectTag.Projectile
+                    && container != own && dependencies != null)
                 {
-                    WeaponAimInfo info = capability.aim;
-                    Vector3 point = resolved.Pose.position;
-                    if (!SpaceWeaponBallistics.TryAim(info, own.pose, resolved.Pose, out point)) continue;
-                    if (!capability.weapon.Covers(own, point, info.Muzzle)) continue;
-                    if (uniqueLeadPoints.Add(point)) leadPoints.Add(point);
+                    float reach = DeltaVMod.CurrentSettings.poiActiveRadius + container.map.Size.LengthHorizontal;
+                    if (OrbitSphere.ArcCells(container.pose.position, shooterPosition) <= reach)
+                        dependencies.Add(container.map);
+                }
+                foreach (ShipBase member in Candidates(ship, own, container))
+                {
+                    if (!CombatTarget.ForShip(member.Identity).TryResolve(universe, out var resolved)) continue;
+                    foreach (var capability in aimCapabilities)
+                    {
+                        WeaponAimInfo info = capability.aim;
+                        Vector3 point = resolved.Pose.position;
+                        if (!SpaceWeaponBallistics.TryAim(info, own.pose, resolved.Pose, out point)) continue;
+                        if (!capability.weapon.Covers(own, point, info.Muzzle)) continue;
+                        if (uniqueLeadPoints.Add(point)) leadPoints.Add(point);
+                    }
                 }
             }
             return leadPoints;

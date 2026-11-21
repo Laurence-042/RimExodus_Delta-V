@@ -187,9 +187,7 @@ namespace DeltaV
 
         internal Building InterceptionBody => payload?.InterceptionBody
             ?? (InterceptionEligible && map != null
-                ? map.listerThings.AllThings.OfType<Building>().FirstOrDefault(building => !building.Destroyed
-                    && (building.def.GetCompProperties<CompProperties_SpaceShuttle>() != null
-                        || building.def.GetCompProperties<CompProperties_SpaceProjectile>() != null))
+                ? ShipStructureIndex.Read(map)?.InterceptionBody
                 : null);
 
         internal SpaceObjectTag InterceptionTargetTag

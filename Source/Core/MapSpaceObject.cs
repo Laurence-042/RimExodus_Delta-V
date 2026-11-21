@@ -26,10 +26,12 @@ namespace DeltaV
             get
             {
                 if (interior == null || interior.Disposed) return System.Array.Empty<ShipBase>();
-                if (SubstructureOwnership.CacheNeedsRefresh(membersVersion, interior))
+                var index = Current.Game.GetComponent<UniverseManager>().ShipStructure;
+                int revision = index.ShipRevision(interior);
+                if (membersVersion != revision)
                 {
                     members = ShipRegistry.DiscoverShipsOnMap(interior).ToArray();
-                    membersVersion = SubstructureOwnership.StructureVersion(interior);
+                    membersVersion = index.ShipRevision(interior);
                 }
                 return members;
             }
@@ -44,11 +46,14 @@ namespace DeltaV
             get
             {
                 if (interior == null || interior.Disposed) return 0;
-                if (SubstructureOwnership.CacheNeedsRefresh(rolesVersion, interior))
+                int revision = ShipStructureIndex.ReadRevision(interior, ShipStructureAspect.Foundation
+                    | ShipStructureAspect.Membership | ShipStructureAspect.Footprint | ShipStructureAspect.Terrain
+                    | ShipStructureAspect.Primary | ShipStructureAspect.Representation);
+                if (rolesVersion != revision)
                 {
                     memberTags = 0;
                     foreach (ShipBase ship in Ships) memberTags |= ship.RolesIn(this);
-                    rolesVersion = SubstructureOwnership.StructureVersion(interior);
+                    rolesVersion = revision;
                 }
                 return memberTags;
             }
@@ -62,13 +67,20 @@ namespace DeltaV
             {
                 if (interior == null || interior.Disposed) yield break;
                 if (IsScattered) yield break;
-                var covered = new HashSet<IntVec3>();
+                var structure = ShipStructureIndex.Read(interior);
+                if (structure == null) yield break;
+                var occupied = new HashSet<IntVec3>(SubstructureOwnership.CellsOnMap(interior));
+                occupied.UnionWith(structure.OccupiedBuildingCells);
+                var custom = new HashSet<IntVec3>();
                 foreach (ShipBase ship in Ships)
+                {
+                    if (ship.GetType() == typeof(FoundationShip) || ship.GetType() == typeof(ShuttleShip)) continue;
                     foreach (SpaceCollisionCell cell in ship.CollisionCells)
-                        if (cell.cell.InBounds(interior) && covered.Add(cell.cell)) yield return cell;
-                // 无主残骸、天然岩石与船体范围外的建筑仍由同一地图分类入口提供。
-                foreach (SpaceCollisionCell cell in SpaceStructureRules.CollisionCells(interior,
-                    CellRect.WholeMap(interior).Where(cell => !covered.Contains(cell)))) yield return cell;
+                        if (cell.cell.InBounds(interior) && custom.Add(cell.cell)) yield return cell;
+                }
+                occupied.ExceptWith(custom);
+                foreach (SpaceCollisionCell cell in SpaceStructureRules.CollisionCells(interior, occupied))
+                    yield return cell;
             }
         }
         protected override ShipPhysics.MassReport MotionReport

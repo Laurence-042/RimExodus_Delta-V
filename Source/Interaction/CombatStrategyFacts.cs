@@ -23,51 +23,44 @@ namespace DeltaV
 
         internal CombatStrategyFacts(UniverseManager universe, ShipBase ship, SpaceObject own)
         {
+            var performance = universe.Performance;
+            using var measure = performance.Measure(PerformanceStage.CombatFacts);
             this.universe = universe; this.ship = ship; this.own = own;
-            float hp = 0f, maximum = 0f;
-            foreach (Thing thing in ship.Map.listerThings.AllThings)
-                if (thing is Building building && ship.Contains(thing) && !thing.Destroyed)
-                { hp += building.HitPoints; maximum += Mathf.Max(1, building.MaxHitPoints); }
+            long start = performance.Start();
+            ShipStructure structure = ship.StructuralState;
+            float hp = structure.HullHealth, maximum = structure.MaximumHullHealth;
+            performance.Record(PerformanceStage.CombatFactsHull, start);
             CompShipCombatAI ai = ship.CombatAI;
             ai?.EnsureBaselineFor(ship);
             if (ai != null && ai.initialHullHp <= 0f)
-                ai.initialHullHp = ship.Map.listerThings.AllThings
-                    .Where(t => ship.Contains(t) && (t == ship.Anchor
-                        || t.TryGetComp<CompDeltaVPilotConsole>() != null))
-                    .OfType<ThingWithComps>()
-                    .Select(t => t.TryGetComp<CompShipCombatAI>())
+            {
+                using var baselineMeasure = performance.Measure(PerformanceStage.CombatFactsHullBaseline);
+                ai.initialHullHp = structure.CombatConsoles
                     .Where(c => c?.baselineShipKey == ship.Identity.key)
                     .Select(c => c.initialHullHp)
                     .FirstOrDefault(value => value > 0f);
+            }
             if (ai != null && ai.initialHullHp <= 0f && maximum > 0f)
                 ai.initialHullHp = maximum;
             hullFraction = maximum > 0f
                 ? Mathf.Clamp01(hp / Mathf.Max(maximum, ai?.initialHullHp ?? 0f)) : 1f;
+            start = performance.Start();
             float thrust = ship.BuildThrusters().Where(t => t.operational).Sum(t => t.thrust);
             if (ai != null && ai.initialThrust <= 0f && thrust > 0f)
             {
-                float remembered = ship.Map.listerThings.AllThings
-                    .Where(t => ship.Contains(t) && (t == ship.Anchor
-                        || t.TryGetComp<CompDeltaVPilotConsole>() != null))
-                    .OfType<ThingWithComps>()
-                    .Select(t => t.TryGetComp<CompShipCombatAI>())
+                float remembered = structure.CombatConsoles
                     .Where(c => c?.baselineShipKey == ship.Identity.key)
                     .Select(c => c.initialThrust).FirstOrDefault(value => value > 0f);
                 ai.initialThrust = remembered > 0f ? remembered : thrust;
             }
             float baseline = ship.CombatAI?.initialThrust ?? 0f;
             thrustFraction = baseline > 0f ? Mathf.Clamp01(thrust / baseline) : thrust > 0f ? 1f : 0f;
-            float shield = 0f, shieldMax = 0f;
-            foreach (Thing thing in ship.Map.listerThings.AllThings)
-            {
-                if (!ship.Contains(thing) || thing is not Building building) continue;
-                CompSpaceShield comp = building.TryGetComp<CompSpaceShield>();
-                if (comp == null) continue;
-                shield += comp.mode == SpaceShieldMode.Guard ? (float)(comp.RegularCapacity + comp.EmergencyCapacity)
-                    : comp.State == SpaceShieldState.LineActive ? 1f : 0f;
-                shieldMax += comp.mode == SpaceShieldMode.Guard ? Mathf.Max(1, (comp.ShieldProps.regularCapacity + comp.ShieldProps.emergencyCapacity)) : 1f;
-            }
-            shieldFraction = shieldMax > 0f ? Mathf.Clamp01(shield / shieldMax) : 0f;
+            performance.Record(PerformanceStage.CombatFactsThrust, start);
+            start = performance.Start();
+            var shield = structure.CombatShieldTotals;
+            shieldFraction = shield.Maximum > 0 ? Mathf.Clamp01((float)(shield.Available / shield.Maximum)) : 0f;
+            performance.Record(PerformanceStage.CombatFactsShield, start);
+            start = performance.Start();
             int weapons = 0, ready = 0;
             foreach (CompSpaceWeapon weapon in ship.Weapons)
             {
@@ -77,6 +70,7 @@ namespace DeltaV
                 if (WeaponAvailable(weapon)) ready++;
             }
             readyFraction = weapons > 0 ? (float)ready / weapons : 0f;
+            performance.Record(PerformanceStage.CombatFactsWeapons, start);
         }
 
         internal static bool WeaponReady(CompSpaceWeapon weapon) =>

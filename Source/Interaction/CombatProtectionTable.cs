@@ -14,33 +14,38 @@ namespace DeltaV
         private readonly Dictionary<Map, Dictionary<DriveSubject, Receiver>> maps = new();
         internal long Scans, Cells, Layers;
 
-        internal Receiver For(ShipBase ship, SpaceObject frame, int version)
+        internal Receiver For(ShipBase ship, SpaceObject frame, FoundationTopologyService topology)
         {
             if (!maps.TryGetValue(ship.Map, out var ships))
                 maps.Add(ship.Map, ships = new Dictionary<DriveSubject, Receiver>());
-            if (!ships.TryGetValue(ship.Identity, out var receiver) || receiver.Version != version)
-                ships[ship.Identity] = receiver = new Receiver(this, ship, frame, version);
+            var structure = ship.StructuralState;
+            var domain = structure?.Foundation;
+            int geometry = structure?.GeometryRevision ?? 0;
+            if (ship.GetType() != typeof(FoundationShip) && ship.GetType() != typeof(ShuttleShip))
+                geometry = ShipStructureIndex.ReadRevision(ship.Map, ShipStructureAspect.Foundation | ShipStructureAspect.Ownership
+                    | ShipStructureAspect.Membership | ShipStructureAspect.Footprint | ShipStructureAspect.Roof
+                    | ShipStructureAspect.ShieldGeometry | ShipStructureAspect.Representation);
+            var revision = (domain, topology.DomainRevision(ship.Map, domain), geometry);
+            if (!ships.TryGetValue(ship.Identity, out var receiver) || receiver.Revision != revision
+                || receiver.Frame != frame || receiver.Representation != frame?.RepresentationVersion)
+            {
+                receiver?.Dispose();
+                ships[ship.Identity] = receiver = new Receiver(this, ship, frame, revision);
+            }
             return receiver;
         }
 
         internal void Forget(Map map)
         {
-            if (map == null) maps.Clear();
-            else maps.Remove(map);
-        }
-
-        internal void HealthChanged(Map map, Thing building, int before)
-        {
-            if (!maps.TryGetValue(map, out var ships)) return;
-            using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.EngagementProtectionUpdate);
-            foreach (var receiver in ships.Values) receiver.HealthChanged(building, before);
-        }
-
-        internal void GuardChanged(Map map)
-        {
-            if (map == null || !maps.TryGetValue(map, out var ships)) return;
-            using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.EngagementProtectionUpdate);
-            foreach (var receiver in ships.Values) receiver.GuardChanged();
+            if (map == null)
+            {
+                foreach (var group in maps.Values)
+                    foreach (var receiver in group.Values) receiver.Dispose();
+                maps.Clear();
+                return;
+            }
+            if (maps.Remove(map, out var ships))
+                foreach (var receiver in ships.Values) receiver.Dispose();
         }
 
         internal readonly struct AimTarget
@@ -73,12 +78,17 @@ namespace DeltaV
             {
                 Interceptor = arc.interceptor;
                 Shield = arc.building.TryGetComp<CompSpaceShield>();
-                var members = Shield?.OwnedShields;
-                Bank = members?.Count > 0 && members.Contains(Shield) ? members : (object)Shield;
+                Bank = BankOf(Shield);
+            }
+
+            internal static object BankOf(CompSpaceShield shield)
+            {
+                var members = shield?.OwnedShields;
+                return members?.Count > 0 && members.Contains(shield) ? members : (object)shield;
             }
         }
 
-        internal sealed class Receiver
+        internal sealed class Receiver : IDisposable
         {
             private readonly CombatProtectionTable owner;
             private readonly Map map;
@@ -87,21 +97,33 @@ namespace DeltaV
             private readonly ShipFireControl.ExternalTargets targets;
             private readonly Dictionary<(Thing, int), Path> paths = new();
             private readonly Dictionary<Thing, List<Path>> byBuilding = new();
-            private readonly Dictionary<object, float> regularCapacity = new();
-            internal int Version { get; }
+            private readonly IDisposable structureChanges;
+            internal (HashSet<IntVec3> Domain, int DomainRevision, int Geometry) Revision { get; }
+            internal SpaceObject Frame { get; }
+            internal int? Representation { get; }
             internal int CriticalTotal { get; }
             internal ThingDef[] GuardDefinitions { get; }
 
-            internal Receiver(CombatProtectionTable owner, ShipBase ship, SpaceObject frame, int version)
+            internal Receiver(CombatProtectionTable owner, ShipBase ship, SpaceObject frame,
+                (HashSet<IntVec3> Domain, int DomainRevision, int Geometry) revision)
             {
                 this.owner = owner;
-                Version = version;
+                Revision = revision;
+                Frame = frame;
+                Representation = frame?.RepresentationVersion;
                 map = ship.Map;
                 hullCenter = ship.HullCenter;
                 ray = new SpaceCollision.RayQuery(frame, ship, collectCover: false);
                 GuardDefinitions = ray.GuardDefinitions().Distinct().ToArray();
                 targets = new ShipFireControl.ExternalTargets(ship);
                 CriticalTotal = 5 * targets.weapons.Count + 4 * targets.propulsion.Count;
+                structureChanges = ship.StructuralState?.Watch(ShipStructureAspect.Health, batch =>
+                {
+                    using var timing = DeltaVPerformanceProbe.MeasureCurrent(PerformanceStage.EngagementProtectionUpdate);
+                    foreach (var change in batch.Changes)
+                        if (change.Before is int before && change.After is int after)
+                            HealthChanged(change.Thing, before, after);
+                });
             }
 
             internal AimTarget[] Select(Vector2 source, CombatPart priority)
@@ -166,20 +188,15 @@ namespace DeltaV
                 return path;
             }
 
-            internal void HealthChanged(Thing building, int before)
+            private void HealthChanged(Thing building, int before, int after)
             {
                 if (!byBuilding.TryGetValue(building, out var pathsForBuilding)) return;
-                int after = Math.Max(0, building.HitPoints);
-                foreach (var path in pathsForBuilding) path.SetLayer(Math.Max(0, before), after);
+                foreach (var path in pathsForBuilding) path.SetLayer(Math.Max(0, before), Math.Max(0, after));
             }
 
-            internal void GuardChanged() => regularCapacity.Clear();
-            internal float RegularCapacity(Guard guard)
-            {
-                if (!regularCapacity.TryGetValue(guard.Bank, out float amount))
-                    regularCapacity.Add(guard.Bank, amount = (float)guard.Shield.SharedRegularCapacity);
-                return amount;
-            }
+            internal float RegularCapacity(Guard guard) => (float)guard.Shield.SharedRegularCapacity;
+
+            public void Dispose() => structureChanges?.Dispose();
         }
     }
 }

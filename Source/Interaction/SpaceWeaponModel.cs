@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using RimWorld;
 using UnityEngine;
@@ -11,7 +12,9 @@ namespace DeltaV
         internal readonly CompSpaceWeapon weapon;
         internal readonly Map map;
         private readonly bool cacheable;
-        internal readonly int version, ownerId;
+        internal readonly int ownerId;
+        private readonly IDisposable structureChanges;
+        private bool dirty;
         internal readonly IntVec3 position;
         internal readonly Rot4 rotation;
         internal readonly List<ThingWithComps> attachments;
@@ -26,9 +29,10 @@ namespace DeltaV
             // Unregistered generation/ground maps do not receive the universe structure events yet.
             cacheable = weapon.Container != null;
             ownerId = SpaceWeaponGeometry.OwnerIdOf(weapon.parent);
-            map = weapon.parent.Map; version = SubstructureOwnership.StructureVersion(map);
+            map = weapon.parent.Map;
             position = weapon.parent.Position; rotation = weapon.parent.Rotation;
-            attachments = new List<ThingWithComps>(weapon.DiscoverAttachedThings());
+            var dependencies = new HashSet<IntVec3>(weapon.parent.OccupiedRect());
+            attachments = new List<ThingWithComps>(weapon.DiscoverAttachedThings(dependencies));
             var own = weapon.Component<CompSpaceWeaponMagazine>();
             if (own != null) magazines.Add(own);
             foreach (var thing in attachments)
@@ -36,22 +40,44 @@ namespace DeltaV
                 var magazine = thing.TryGetComp<CompSpaceWeaponMagazine>();
                 if (magazine != null) magazines.Add(magazine);
             }
-            acceleration = CompSpaceRailgun.TraceConnections(weapon);
+            acceleration = CompSpaceRailgun.TraceConnections(weapon, dependencies);
             foreach (var segment in acceleration.segments)
-                segmentAttachments.Add(segment, new List<ThingWithComps>(segment.AttachedThings()));
+                segmentAttachments.Add(segment, new List<ThingWithComps>(segment.DiscoverAttachments(dependencies)));
+            if (cacheable && map != null)
+            {
+                const ShipStructureAspect aspects =
+                    ShipStructureAspect.Foundation | ShipStructureAspect.Ownership | ShipStructureAspect.Membership
+                    | ShipStructureAspect.Footprint | ShipStructureAspect.Faction | ShipStructureAspect.Representation
+                    | ShipStructureAspect.Loadout;
+                void Invalidate(ShipStructureBatch _)
+                {
+                    if (dirty) return;
+                    dirty = true;
+                    own?.QueueReload();
+                }
+
+                structureChanges = weapon.OwnerShip.StructuralState is { } ship
+                    ? ship.Watch(aspects, Invalidate, dependencies.Contains)
+                    : weapon.Universe?.ShipStructure.WatchMap(map, aspects, Invalidate, dependencies.Contains);
+            }
         }
 
-        internal bool Matches(CompSpaceWeapon weapon) => cacheable && map == weapon.parent.Map
-            && version == SubstructureOwnership.StructureVersion(map)
+        internal bool Matches(CompSpaceWeapon weapon) => cacheable && !dirty && map == weapon.parent.Map
             && position == weapon.parent.Position && rotation == weapon.parent.Rotation;
 
         internal void Bind()
         {
             foreach (var segment in acceleration.segments) segment.Binding = this;
+            if (cacheable)
+                foreach (ThingWithComps attachment in attachments)
+                    attachment.TryGetComp<CompMissileMagazineFacility>()?.AddConnection(this);
         }
 
         internal void Release()
         {
+            structureChanges?.Dispose();
+            foreach (ThingWithComps attachment in attachments)
+                attachment.TryGetComp<CompMissileMagazineFacility>()?.RemoveConnection(this);
             foreach (var segment in acceleration.segments)
             {
                 // Shared parts have already joined the replacement layout; do not drop their load.

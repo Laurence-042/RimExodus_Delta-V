@@ -186,7 +186,37 @@ namespace DeltaV
             public Vector2 boundsCenter;
             public float boundsRadius;
             public bool anySolid;
-            public int structureVersion = -1;
+            internal System.IDisposable Changes;
+            internal readonly HashSet<IntVec3> ChangedCells = new HashSet<IntVec3>();
+            internal bool NeedsHullSnapshot;
+
+            internal void Apply(ShipStructureBatch batch)
+            {
+                foreach (ShipStructureChange change in batch.Changes)
+                {
+                    if (change.Aspect == ShipStructureAspect.ShieldGeometry
+                        || change.Thing is Building building && building.TryGetComp<CompProjectileInterceptor>() != null)
+                        shieldsDirty = true;
+                    if (change.Aspect == ShipStructureAspect.ShieldGeometry) continue;
+                    bool localized = false;
+                    if (change.Before is CellRect previous)
+                    {
+                        ChangedCells.UnionWith(previous);
+                        localized = true;
+                    }
+                    if (change.After is CellRect current)
+                    {
+                        ChangedCells.UnionWith(current);
+                        localized = true;
+                    }
+                    if (change.Cell is IntVec3 cell)
+                    {
+                        ChangedCells.Add(cell);
+                        localized = true;
+                    }
+                    if (!localized) NeedsHullSnapshot = true;
+                }
+            }
             public float hullRadius;
             public SpaceObject owner;
             public bool incremental;
@@ -200,20 +230,16 @@ namespace DeltaV
         /// <summary>读档 / 场景重置时清空（可重建缓存纪律，AGENTS §15）。</summary>
         public static void ClearCaches()
         {
+            foreach (Surface surface in Caches.Values) surface.Changes?.Dispose();
             Caches.Clear();
         }
 
         /// <summary>图销毁时释放（SpaceLifecycle.Forget 调用）。</summary>
         public static void Forget(Map map)
         {
-            if (map != null) Caches.Remove(map);
-        }
-
-        public static void InvalidateShield(Map map)
-        {
-            if (map == null) return;
-            if (Caches.TryGetValue(map, out Surface surface)) surface.shieldsDirty = true;
-            Current.Game?.GetComponent<UniverseManager>()?.ForgetCombatProtection(map);
+            if (map == null || !Caches.TryGetValue(map, out Surface surface)) return;
+            surface.Changes?.Dispose();
+            Caches.Remove(map);
         }
 
         /// <summary>容器的碰撞面（需要炮口外推起点的发射侧也可查询）。</summary>
@@ -225,16 +251,23 @@ namespace DeltaV
                 surface = new Surface();
                 Caches[map] = surface;
             }
-            int version = SubstructureOwnership.StructureVersion(map);
-            if (surface.owner != obj || surface.kinds == null || surface.structureVersion != version)
+            if (surface.Changes == null)
             {
-                var changed = SubstructureOwnership.TakeCollisionChanges(map, out bool full);
-                if (!full && surface.owner == obj && surface.incremental && !obj.IsScattered)
-                    surface.RefreshBlocks(map, changed);
+                var index = Current.Game?.GetComponent<UniverseManager>()?.ShipStructure;
+                surface.Changes = index?.WatchMap(map, ShipStructureAspect.Foundation | ShipStructureAspect.Terrain
+                    | ShipStructureAspect.Footprint | ShipStructureAspect.Membership | ShipStructureAspect.Representation
+                    | ShipStructureAspect.ShieldGeometry, surface.Apply);
+            }
+            bool rebuild = surface.owner != obj || surface.kinds == null || surface.NeedsHullSnapshot;
+            if (rebuild || surface.ChangedCells.Count != 0)
+            {
+                if (!rebuild && surface.incremental && !obj.IsScattered)
+                    surface.RefreshBlocks(map, surface.ChangedCells);
                 else
                     RebuildHull(obj, surface);
+                surface.ChangedCells.Clear();
+                surface.NeedsHullSnapshot = false;
                 surface.UpdateHullBounds(map);
-                surface.structureVersion = version;
                 if (surface.shieldsDirty) RebuildShields(map, surface);
                 UpdateShieldBounds(surface);
             }
@@ -342,11 +375,11 @@ namespace DeltaV
             // 使用拦截器的逐实例半径和状态。两种形态共用此碰撞面。
             surface.arcs.Clear();
             surface.lineShields.Clear();
-            foreach (Thing thing in map.listerThings.AllThings)
+            var index = Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.For(map);
+            if (index == null) return;
+            foreach (CompProjectileInterceptor interceptor in index.All.Interceptors)
             {
-                if (thing is not Building building || building.Destroyed) continue;
-                CompProjectileInterceptor interceptor = building.TryGetComp<CompProjectileInterceptor>();
-                if (interceptor == null) continue;
+                if (interceptor.parent is not Building building || !building.Spawned || building.Destroyed) continue;
                 CompSpaceShield shield = building.TryGetComp<CompSpaceShield>();
                 if (shield != null && shield.mode != SpaceShieldMode.Guard)
                 {

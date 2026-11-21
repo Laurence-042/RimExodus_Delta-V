@@ -41,7 +41,7 @@ namespace DeltaV
             DeltaVLog.Message(DeltaVLogModule.AI,
                 $"maneuver tick={now} ship={ownerId} object={own.objectId} {UniverseManager.MapTag(ship.Map)} "
                 + $"target={anchorTarget.Ship} rule='{rule.name}' behavior={attackPose.behavior} offense={offenseEnabled} "
-                + $"cause={cause} reset={reset} driveVersion={tacticDriveVersion} structureVersion={tacticStructureVersion} "
+                + $"cause={cause} reset={reset} driveVersion={tacticDriveVersion} shipGeometryRevision={tacticStructureVersion} "
                 + $"range={offset.magnitude:F2}->{attackPose.distance:F2} bearing={settings.bearing} "
                 + $"phaseDeg={phase * Mathf.Rad2Deg:F2}->{goal * Mathf.Rad2Deg:F2} oldPreviewDeg={oldPhase * Mathf.Rad2Deg:F2} "
                 + $"previewArc={error * offset.magnitude:F2} intentSpeed={maneuverIntent.tangentSpeed:F3} radialSpeed={radialSpeed:F3} tangentSpeed={tangentSpeed:F3} "

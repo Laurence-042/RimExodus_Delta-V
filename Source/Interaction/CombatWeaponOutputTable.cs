@@ -76,8 +76,6 @@ namespace DeltaV
             using var timing = universe.Performance.Measure(PerformanceStage.EngagementWeaponTable);
             var friendly = universe.ProtectionFor(own);
             var hostile = universe.ProtectionFor(enemy);
-            friendly.GuardChanged();
-            hostile.GuardChanged();
             var ownPose = ShipRegistry.ShipPose(own);
             ownPose.angle -= own.FrameAngle;
             var outgoingOrigin = new Geometry(ownPose, target).Center;

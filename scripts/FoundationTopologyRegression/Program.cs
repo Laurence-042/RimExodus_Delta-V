@@ -17,11 +17,42 @@ internal static class Program
     {
         try
         {
-            Exhaustive(); RandomRectangles(); LargeMaps(); Lifetimes(); Membership();
+            Exhaustive(); RandomRectangles(); LargeMaps(); Lifetimes(); Membership(); PerformanceWork();
             Console.WriteLine($"PASS {checks} checks; {states} differential states (production-source algorithm/index/service)");
             return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
+    }
+
+    private static void PerformanceWork()
+    {
+        var map = new Map(9, 5);
+        foreach (int cell in new[] { 9, 10, 11, 12, 13, 40, 41 }) map.Set(cell, 1);
+        int bootstraps = 0, updates = 0, splits = 0, splitCells = 0, reclaimPeak = 0, reclaimed = 0;
+        var service = new FoundationTopologyService(Stopwatch.GetTimestamp,
+            (_, cells, _) => { if (cells == 45) bootstraps++; },
+            (_, cells) => { splits++; splitCells += cells; },
+            (_, work, count) => { reclaimPeak = Math.Max(reclaimPeak, work); reclaimed += count; },
+            (_, cells) => updates += cells);
+        IntVec3 origin = map.cellIndices.IndexToCell(9), other = map.cellIndices.IndexToCell(40);
+        var domain = service.DomainAt(map, origin);
+        var independent = service.DomainAt(map, other);
+        int version = service.DomainRevision(map, domain), otherVersion = service.DomainRevision(map, independent);
+        map.Set(11, -1);
+        service.NotifyChanged(map, map.cellIndices.IndexToCell(11));
+        Check(service.DomainAt(map, origin).Count == 2 && service.DomainRevision(map, domain) != version
+            && service.DomainRevision(map, independent) == otherVersion && splits == 1 && splitCells == 4,
+            "split timing is scoped to the old domain and preserves unrelated domain revisions");
+        IntVec3 churn = map.cellIndices.IndexToCell(0);
+        for (int i = 0; i < 100; i++)
+        {
+            map.Set(0, i % 2 == 0 ? 2 : -1);
+            service.NotifyChanged(map, churn);
+            service.DomainAt(map, origin);
+        }
+        Check(bootstraps == 1 && updates == 101 && splits == 1 && reclaimPeak > 0 && reclaimPeak <= 2 * GridTopology.ReclaimBudget
+            && reclaimed > 0, "local churn registers work without another bootstrap or split");
+        Console.WriteLine($"Structure timing work bootstraps={bootstraps}, updatedCells={updates}, splits={splits}, splitCells={splitCells}, reclaimPeak={reclaimPeak}, reclaimed={reclaimed}");
     }
 
     private static void Exhaustive()
@@ -67,16 +98,18 @@ internal static class Program
         var churn = new Map(4, 4); var churnIndex = new FoundationConnectivity(4, 4, churn.Read);
         var core = Core(churnIndex);
         var fg = (UnionFind)typeof(GridTopology).GetField("_fg", Fields).GetValue(core);
-        int previousNodes = fg.NodeCount, compactions = 0;
+        var bg = (UnionFind)typeof(GridTopology).GetField("_bg", Fields).GetValue(core);
         for (int step = 0; step < 4000; step++)
         {
             int owner = step % 2 == 0 ? 1 : -1;
             churn.Set(5, owner); churnIndex.Update(5, owner);
-            if (fg.NodeCount < previousNodes) compactions++;
-            previousNodes = fg.NodeCount; Verify(churn, churnIndex);
+            Check(fg.LastReclaimWork <= GridTopology.ReclaimBudget && bg.LastReclaimWork <= GridTopology.ReclaimBudget,
+                "node reclamation stays within per-operation budget");
+            Verify(churn, churnIndex);
         }
-        Check(compactions > 0, "must exercise automatic node-pool compaction");
-        Console.WriteLine($"Random rectangles and reinsertion/compaction passed; automatic compactions={compactions}");
+        Check(fg.Reclaimed > 0 && bg.Reclaimed > 0 && fg.NodeCount < 32 && bg.NodeCount < 32,
+            "repeated isolated edits reclaim nodes without growing the pool");
+        Console.WriteLine($"Random rectangles and reinsertion passed; bounded reclamation fg={fg.Reclaimed}, bg={bg.Reclaimed}");
     }
 
     private static void LargeMaps()
@@ -116,6 +149,17 @@ internal static class Program
         for (int y = 100; y < 125; y++) for (int x = 100; x < 140; x++) map.Set(y * 250 + x, 1);
         var service = new FoundationTopologyService(); var ship = new Ship(map, 1, 100 * 250 + 100);
         Check(!service.HasResidual(ship), "clean ship initialization");
+        var domain = service.DomainAt(map, ship.console.parent.Position);
+        Check(service.BoundsOf(map, domain) == CellRect.FromLimits(100, 100, 139, 124),
+            "stable domain publishes exact bounds");
+        float ExpectedRadius()
+        {
+            var center = service.CenterOf(map, domain);
+            return domain.Max(cell => MathF.Sqrt(MathF.Pow(cell.x + 0.5f - center.x, 2)
+                + MathF.Pow(cell.z + 0.5f - center.y, 2))) + 0.71f;
+        }
+        Check(MathF.Abs(service.RadiusOf(map, domain).Value - ExpectedRadius()) < 0.0001f,
+            "indexed extrema give the same combat radius as exhaustive cells");
         map.FoundationReads = 0;
         var clock = Stopwatch.StartNew();
         for (int n = 0; n < 10000; n++) Check(!service.HasResidual(ship), "stable clean query");
@@ -125,6 +169,9 @@ internal static class Program
         map.Foundations[hole] = false; // Persistent old owner may still be present during terrain callback.
         for (int n = 0; n < 1000; n++) service.NotifyChanged(map, map.cellIndices.IndexToCell(hole));
         Check(!service.HasResidual(ship) && map.FoundationReads == 1, "hole expansion coalesces and reads only one changed cell");
+        Check(ReferenceEquals(domain, service.DomainAt(map, ship.console.parent.Position))
+            && service.BoundsOf(map, domain) == CellRect.FromLimits(100, 100, 139, 124),
+            "interior loss preserves domain identity and external bounds");
         map.Set(hole, 2); service.NotifyChanged(map, map.cellIndices.IndexToCell(hole));
         Check(service.HasResidual(ship), "touching foreign owner must remain a distinct domain");
         map.Set(hole, 1); service.NotifyChanged(map, map.cellIndices.IndexToCell(hole));
@@ -189,6 +236,7 @@ internal static class Program
         Check(service.DomainUnder(map, new[] { gap }) == null, "adjacency without overlap has no domain");
         var building = new Building { Map = map, Footprint = new[] { left, gap, right } };
         map.thingGrid.Buildings.Add(building);
+        service.NotifyBuilding(map, building);
         Check(!service.BuildingsIn(map, service.DomainAt(map, left)).Contains(building),
             "ordinary cross-domain building is excluded from the move");
         map.Set(map.cellIndices.CellToIndex(left), -1);
@@ -198,7 +246,7 @@ internal static class Program
         Check(service.BuildingsIn(map, service.DomainAt(map, right)).Contains(building),
             "same building moves with the remaining domain");
         building.Footprint = new[] { left, gap };
-        map.StructureVersion++;
+        service.NotifyBuilding(map, building);
         Check(!service.BuildingsIn(map, service.DomainAt(map, right)).Contains(building),
             "building change refreshes membership without changing topology");
     }

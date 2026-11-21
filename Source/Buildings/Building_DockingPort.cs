@@ -19,6 +19,16 @@ namespace DeltaV
 
         public bool ChannelExtended => channelFace.IsValid;
 
+        internal IEnumerable<IntVec3> ChannelDependencies
+        {
+            get
+            {
+                if (!ChannelExtended) yield break;
+                yield return channelFace;
+                foreach (IntVec3 cell in channelCells) yield return cell;
+            }
+        }
+
         public void RebasePrefabLocalState(Map map, IntVec3 sourceMin, IntVec3 root, Rot4 rotation)
         {
             if (channelFace.IsValid)
@@ -76,9 +86,9 @@ namespace DeltaV
         public static void NotifyLandingSettled(Map map)
         {
             if (map == null || map.Disposed) return;
-            foreach (Thing thing in map.listerThings.ThingsOfDef(DeltaVDefOf.DeltaV_DockingPort).ToList())
+            foreach (Building_DockingPort port in PortsOn(map).ToList())
             {
-                if (thing is Building_DockingPort port && !port.ChannelExtended)
+                if (!port.ChannelExtended)
                 {
                     port.TryExtendChannel(silent: true);
                 }
@@ -130,6 +140,7 @@ namespace DeltaV
                 return false;
             }
             finally { changingChannel = false; }
+            Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.NotifyChannel(map, this, true);
             if (!silent && cells.Count > 0)
             {
                 Messages.Message("DeltaV_DockChannelLaid".Translate(cells.Count), this,
@@ -181,6 +192,7 @@ namespace DeltaV
             }
             Map map = Map;
             changingChannel = true;
+            Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.NotifyChannel(map, this, false);
             try
             {
                 foreach (IntVec3 cell in channelCells)
@@ -227,15 +239,23 @@ namespace DeltaV
             return baseText.NullOrEmpty() ? channelText : baseText + "\n" + channelText;
         }
 
+        private static IEnumerable<Building_DockingPort> PortsOn(Map map)
+        {
+            var universe = Current.Game?.GetComponent<UniverseManager>();
+            return universe?.ShipStructure.Tracks(map) == true
+                ? universe.ShipStructure.For(map).BuildingsOf<Building_DockingPort>()
+                : map.listerThings.ThingsOfDef(DeltaVDefOf.DeltaV_DockingPort).OfType<Building_DockingPort>();
+        }
+
         // 结构/地形事件只复核相关端口；没有逐 tick 轮询或第二套通道几何。
         internal static void NotifyCellChanged(Map map, IntVec3 cell)
         {
             if (map == null || map.Disposed) return;
-            List<Thing> ports = map.listerThings.ThingsOfDef(DeltaVDefOf.DeltaV_DockingPort);
-            if (ports.Count == 0) return;
-            foreach (Thing thing in ports.ToList())
+            var index = Current.Game?.GetComponent<UniverseManager>()?.ShipStructure;
+            var candidates = index?.Tracks(map) == true ? index.For(map).ChannelsAt(cell) : PortsOn(map);
+            foreach (Building_DockingPort port in candidates.ToArray())
             {
-                if (!(thing is Building_DockingPort port) || !port.Spawned || port.changingChannel
+                if (!port.Spawned || port.changingChannel
                     || !port.ChannelExtended || (port.channelFace != cell && !port.channelCells.Contains(cell))) continue;
                 var cells = new List<IntVec3>();
                 bool valid = TryFindChannel(map, port.Position, port.Rotation, port.ChannelRange,
@@ -287,9 +307,9 @@ namespace DeltaV
         {
             var leftBehind = new List<Thing>();
             if (map == null || departingDomain == null) return leftBehind;
-            foreach (Thing thing in map.listerThings.ThingsOfDef(DeltaVDefOf.DeltaV_DockingPort))
+            foreach (Building_DockingPort port in PortsOn(map))
             {
-                if (!(thing is Building_DockingPort port) || !port.Spawned
+                if (!port.Spawned
                     || !port.ChannelExtended || !port.ChannelRelatesTo(departingDomain))
                 {
                     continue;
@@ -307,9 +327,9 @@ namespace DeltaV
         public static void RetractChannelsFor(Map map, HashSet<IntVec3> departingDomain)
         {
             if (map == null || departingDomain == null) return;
-            foreach (Thing thing in map.listerThings.ThingsOfDef(DeltaVDefOf.DeltaV_DockingPort).ToList())
+            foreach (Building_DockingPort port in PortsOn(map).ToList())
             {
-                if (thing is Building_DockingPort port && port.Spawned && port.ChannelExtended
+                if (port.Spawned && port.ChannelExtended
                     && port.ChannelRelatesTo(departingDomain))
                 {
                     port.RetractChannel();

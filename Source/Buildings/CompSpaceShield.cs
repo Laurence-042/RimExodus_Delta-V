@@ -73,6 +73,7 @@ namespace DeltaV
         private CompPowerTrader power;
         private CompFlickable flick;
         private CompProjectileInterceptor interceptor;
+        private bool outlineActive;
         private CompRefuelable silverFuel;
         private CompProperties_ProjectileInterceptor instanceInterceptorProps;
         private Material[] topMaterials;
@@ -210,12 +211,21 @@ namespace DeltaV
             base.CompTick();
             AdvanceGuardTick(GuardRecoveryPowered);
             UpdatePowerDraw();
+            ObserveGuardOutline(UsesRegular && (interceptor ??= parent.TryGetComp<CompProjectileInterceptor>())?.Active == true);
+        }
+
+        internal void ObserveGuardOutline(bool regularActive)
+        {
+            if (outlineActive == regularActive) return;
+            outlineActive = regularActive;
+            Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.InvalidateGuardOutline(this);
         }
 
         public override void ReceiveCompSignal(string signal)
         {
             base.ReceiveCompSignal(signal);
             UpdatePowerDraw();
+            NotifyProtectionGuard();
         }
 
         private void EnsureInstanceInterceptorProps()
@@ -252,7 +262,7 @@ namespace DeltaV
         {
             EnsureInstanceInterceptorProps();
             UpdatePowerDraw();
-            SpaceCollision.InvalidateShield(parent.Map);
+            NotifyProtectionGuard();
         }
 
         public void GetSegment(out Vector2 start, out Vector2 end, out Vector2 frontNormal)

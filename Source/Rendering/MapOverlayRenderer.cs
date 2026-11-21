@@ -39,8 +39,8 @@ namespace DeltaV
             public readonly HashSet<Thing> deckThings = new HashSet<Thing>();
             public readonly List<PrintBatch> printed = new List<PrintBatch>();
             public Dictionary<Thing, TurretTopDamage> turretTopDamage;
-            public SectionLayer_GravshipHull gravshipHull;
-            public SectionLayer_SubstructureProps substructureProps;
+            public SectionLayer gravshipHull;
+            public SectionLayer substructureProps;
             public ShellHullVisuals.EdgeMeshes hullEdges;
             public Mesh roofEdges;
             public ShellTerrainBatches terrain;
@@ -264,16 +264,15 @@ namespace DeltaV
             deckTerrainCommands = hullTerrainCommands = 0;
             if (map == null || map.Disposed
                 || Current.Game?.GetComponent<UniverseManager>()?.Generation?.IsGenerating(map) == true) return false;
-            // Fields extend beyond their projector's section and even beyond the map bounds.
-            // Read the native interceptor registry once, rather than culling by the building root.
-            foreach (Thing thing in map.listerThings.ThingsInGroup(ThingRequestGroup.ProjectileInterceptor))
-            {
-                if (thing.TryGetComp<CompSpaceShield>() == null
-                    || allowedCells != null && !allowedCells.Contains(thing.Position)) continue;
-                CompProjectileInterceptor field = thing.TryGetComp<CompProjectileInterceptor>();
-                if (field != null)
+            // A field can extend beyond its projector's section and map bounds.
+            var structure = ShipStructureIndex.Read(map);
+            if (structure != null)
+                foreach (CompProjectileInterceptor field in structure.All.Interceptors)
+                {
+                    if (field.parent.TryGetComp<CompSpaceShield>() == null
+                        || allowedCells != null && !allowedCells.Contains(field.parent.Position)) continue;
                     ShellDrawCapture.Capture(field.PostDraw, matrix, ShellSurfaceLayer.Exposed, 0f);
-            }
+                }
             if (!localView.Overlaps(CellRect.WholeMap(map))) return Commands.Count > 0;
             EnsureRules();
             CellRect visible = localView.ClipInsideMap(map);
@@ -891,14 +890,12 @@ namespace DeltaV
             result.roofEdges = ShellRoofEdges.Build(map, rect);
             if (odyssey)
             {
-                // Corner cells can be empty and are absent from result.things.
-                // Use the source map's section coordinates so vanilla evaluates
-                // the same 17x17 cells as its focused-map layer.
-                result.gravshipHull = new SectionLayer_GravshipHull(map.mapDrawer.SectionAt(rect.Min));
-                result.gravshipHull.Regenerate();
-                result.substructureProps = new SectionLayer_SubstructureProps(
-                    map.mapDrawer.SectionAt(rect.Min));
-                result.substructureProps.Regenerate();
+                result.gravshipHull = new SectionLayer_ThingsGeneral(sourceSection);
+                result.substructureProps = new SectionLayer_ThingsGeneral(sourceSection);
+                ShellHullVisuals.PrintAngles(map, rect, result.gravshipHull);
+                ShellHullVisuals.PrintFoundationEdges(map, rect, result.substructureProps);
+                CompleteLayer(result.gravshipHull);
+                CompleteLayer(result.substructureProps);
             }
         }
 
@@ -1005,7 +1002,7 @@ namespace DeltaV
             ulong relevant = (ulong)MapMeshFlagDefOf.Terrain | (ulong)MapMeshFlagDefOf.Things
                 | (ulong)MapMeshFlagDefOf.Buildings | (ulong)MapMeshFlagDefOf.Roofs;
             ulong damage = (ulong)MapMeshFlagDefOf.BuildingsDamage;
-            if (map == null || (flags & (relevant | damage)) == 0
+            if (Patch_ShipHullRendering.MarkingFocusedSections || map == null || (flags & (relevant | damage)) == 0
                 || !Caches.TryGetValue(map, out MapCache cache)) return;
             if ((flags & relevant) == 0 && !HasDamageOverlayBuildingAt(map, cell)) return;
             int sx = cell.x / SectionSize;
@@ -1017,7 +1014,8 @@ namespace DeltaV
                 | (ulong)MapMeshFlagDefOf.Buildings;
             int radius = (flags & angleFlags) != 0 ? 2 : 1;
             cache.MarkSectionsDirty(CellRect.CenteredOn(cell, radius));
-            // A roof or loss of its foundation can uncover a building rooted in another section.
+            // The native mesh callback also runs during spawn, before the structure batch is published.
+            // Consult just this cell to invalidate the section containing a covered building's root.
             if ((flags & ((ulong)MapMeshFlagDefOf.Roofs | (ulong)MapMeshFlagDefOf.Terrain)) != 0
                 && cell.InBounds(map))
                 foreach (Thing thing in map.thingGrid.ThingsListAtFast(cell))
@@ -1029,6 +1027,11 @@ namespace DeltaV
                 for (int x = sx - 1; x <= sx + 1; x++)
                     if (x >= 0 && z >= 0) cache.snapshots.MarkDirty(x, z);
             }
+        }
+
+        internal static void MarkHullSectionDirty(Map map, IntVec3 section)
+        {
+            if (Caches.TryGetValue(map, out var cache)) cache.snapshots.MarkDirty(section.x, section.z);
         }
 
         public static Map MapOf(MapDrawer drawer) => DrawerMapField?.GetValue(drawer) as Map;

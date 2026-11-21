@@ -1,11 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
-  <JobDef>
-    <defName>DeltaV_LoadMissileLauncher</defName>
-    <driverClass>DeltaV.JobDriver_LoadMissileLauncher</driverClass>
-    <reportString>loading TargetA.</reportString>
-    <suspendable>false</suspendable>
-  </JobDef>
   <WorkGiverDef>
     <defName>DeltaV_LoadMissileLaunchers</defName>
     <label>load missile launchers</label>

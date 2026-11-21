@@ -111,7 +111,7 @@ namespace DeltaV
             private readonly TargetView target;
             private readonly Surface surface;
             private readonly Map map;
-            private readonly HashSet<IntVec3> cells;
+            private readonly Func<IntVec3, bool> contains;
             private readonly HashSet<Thing> hullBuildings = new HashSet<Thing>();
             internal readonly List<IntVec3> foundationCells = new List<IntVec3>();
             private readonly SweptBody footprint = new SweptBody();
@@ -122,7 +122,16 @@ namespace DeltaV
                 map = this.target.map;
                 surface = map != null && this.target.Valid ? SurfaceFor(target) : null;
                 includeBody = Includes;
-                if (scope != null) cells = new HashSet<IntVec3>(scope.HullCells);
+                if (scope != null)
+                {
+                    if (scope.GetType() == typeof(ShuttleShip))
+                        contains = scope.Anchor.OccupiedRect().Contains;
+                    else
+                    {
+                        IEnumerable<IntVec3> hull = scope.HullCells;
+                        contains = (hull as HashSet<IntVec3> ?? new HashSet<IntVec3>(hull)).Contains;
+                    }
+                }
                 if (surface == null)
                 {
                     if (this.target.Valid && this.target.entity != null) hullBuildings.Add(this.target.entity);
@@ -138,7 +147,7 @@ namespace DeltaV
                     if (building != null) hullBuildings.Add(building);
                 }
             }
-            private bool Includes(IntVec3 cell) => cells == null || cells.Contains(cell);
+            private bool Includes(IntVec3 cell) => contains == null || contains(cell);
             internal IEnumerable<ThingDef> GuardDefinitions()
             {
                 if (surface == null || !target.Valid) yield break;

@@ -31,31 +31,26 @@ namespace DeltaV
     [HarmonyPatch(typeof(TerrainGrid), nameof(TerrainGrid.SetFoundation))]
     public static class Patch_TerrainGrid_SetFoundation_Ownership
     {
-        public static void Postfix(TerrainGrid __instance, IntVec3 c, TerrainDef newTerr)
+        private static void Prefix(TerrainGrid __instance, IntVec3 c, out TerrainDef __state)
         {
             Map map = TerrainGridOwnershipAccess.MapOf(__instance);
-            if (newTerr == null || !SubstructureOwnership.HasFoundation(map, c))
-            {
-                return;
-            }
-            SubstructureOwnership ownership = SubstructureOwnership.For(map);
-            SubstructureOwnership.BumpStructureVersion(map, CellRect.SingleCell(c));
-            if (ownership.TryGetStamp(c, out int stamped))
-            {
-                ownership.Assign(c, stamped);
-                return;
-            }
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (universe?.FrameOf(map) == null)
-            {
-                return;
-            }
-            // 「未占有」语义（2026-09-18 用户决策；2026-09-24 解耦修订）：继承唯一有效
-            // 邻接归属并整域吸收相连未占有区域；孤立建造保持未占有（不分配新 ID），
-            // 等待后续相连吸收或经驾驶台认领。多归属邻接同样保持未占有，交由玩家
-            // 「修改基架归属」划分（不再拒建，PlaceWorker_DeltaVSubstructureOwnership
-            // 仅提示不拦截）。
-            ownership.ResolveBuilt(c);
+            __state = SubstructureOwnership.FoundationAt(map, c);
+        }
+
+        public static void Postfix(TerrainGrid __instance, IntVec3 c, TerrainDef newTerr, TerrainDef __state)
+        {
+            Map map = TerrainGridOwnershipAccess.MapOf(__instance);
+            TerrainDef next = SubstructureOwnership.FoundationAt(map, c);
+            if (next == null || next != newTerr) return;
+            var universe = Current.Game?.GetComponent<UniverseManager>();
+            var ownership = SubstructureOwnership.For(map);
+            using var changes = universe?.ShipStructure.BeginChanges();
+            int beforeOwner = ownership.OwnerAt(c);
+            if (ownership.TryGetStamp(c, out int stamped)) ownership.Assign(c, stamped);
+            else if (universe?.FrameOf(map) != null) ownership.ResolveBuilt(c);
+            universe?.NotifyFoundationChanged(map, c);
+            if (universe?.SpaceObjectOnMap(map) != null || universe?.ShipStructure.Tracks(map) == true)
+                universe.ShipStructure.NotifyCell(map, c, ShipStructureAspect.Foundation, __state, next, beforeOwner, ownership.OwnerAt(c));
         }
     }
 
@@ -70,11 +65,28 @@ namespace DeltaV
     [HarmonyPatch(typeof(TerrainGrid), nameof(TerrainGrid.RemoveFoundation))]
     public static class Patch_TerrainGrid_RemoveFoundation_Ownership
     {
-        public static void Postfix(TerrainGrid __instance, IntVec3 c)
+        private static void Prefix(TerrainGrid __instance, IntVec3 c, out (TerrainDef Foundation, int Owner) __state)
         {
             Map map = TerrainGridOwnershipAccess.MapOf(__instance);
+            __state = (SubstructureOwnership.FoundationAt(map, c), SubstructureOwnership.TryGet(map)?.OwnerAt(c) ?? 0);
+        }
+
+        public static void Postfix(TerrainGrid __instance, IntVec3 c, (TerrainDef Foundation, int Owner) __state) =>
+            NotifyRemoval(TerrainGridOwnershipAccess.MapOf(__instance), c, __state);
+
+        internal static void NotifyRemoval(Map map, IntVec3 cell, (TerrainDef Foundation, int Owner) previous)
+        {
             if (map == null) return;
-            SubstructureOwnership.TryGet(map)?.NotifyFoundationRemoved(c);
+            var universe = Current.Game?.GetComponent<UniverseManager>();
+            using var changes = universe?.ShipStructure.BeginChanges();
+            var ownership = SubstructureOwnership.TryGet(map);
+            ownership?.UpdateSupportCell(cell);
+            TerrainDef next = SubstructureOwnership.FoundationAt(map, cell);
+            if (next == null && previous.Foundation != null) ownership?.NotifyFoundationRemoved(cell);
+            if (universe?.SpaceObjectOnMap(map) == null && universe?.ShipStructure.Tracks(map) != true) return;
+            universe.NotifyFoundationChanged(map, cell);
+            universe.NotifySupportChanged(map, cell);
+            universe.ShipStructure.NotifyCell(map, cell, ShipStructureAspect.Foundation, previous.Foundation, next, previous.Owner);
         }
     }
 
@@ -83,18 +95,14 @@ namespace DeltaV
     {
         // 参数名按目标方法真实签名绑定（RemoveGravshipTerrainUnsafe(IntVec3 cell, int index)，
         // 与 RemoveFoundation 的 c 不同；名字不匹配会中断整个 PatchAll）。
-        public static void Postfix(TerrainGrid __instance, IntVec3 cell)
+        private static void Prefix(TerrainGrid __instance, IntVec3 cell, out (TerrainDef Foundation, int Owner) __state)
         {
             Map map = TerrainGridOwnershipAccess.MapOf(__instance);
-            if (map == null) return;
-            var ownership = SubstructureOwnership.TryGet(map);
-            ownership?.UpdateSupportCell(cell);
-            ownership?.NotifyFoundationRemoved(cell);
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (universe?.FrameOf(map) == null) return;
-            universe.NotifyFoundationChanged(map, cell);
-            universe.NotifySupportChanged(map, cell);
+            __state = (SubstructureOwnership.FoundationAt(map, cell), SubstructureOwnership.TryGet(map)?.OwnerAt(cell) ?? 0);
         }
+
+        public static void Postfix(TerrainGrid __instance, IntVec3 cell, (TerrainDef Foundation, int Owner) __state) =>
+            Patch_TerrainGrid_RemoveFoundation_Ownership.NotifyRemoval(TerrainGridOwnershipAccess.MapOf(__instance), cell, __state);
     }
 
         /// <summary>

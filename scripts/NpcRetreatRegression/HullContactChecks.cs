@@ -239,7 +239,8 @@ internal static partial class Program
         var bareDeck = (TerrainDef)Raw(typeof(TerrainDef)); bareDeck.defName = "HullRoundBareDeck";
         bareDeck.isFoundation = true; bareDeck.tags = new List<string> { "Substructure" };
         deckTarget.body.map.terrainGrid.foundationGrid[deckTarget.body.map.cellIndices.CellToIndex(bare)] = bareDeck;
-        SubstructureOwnership.BumpStructureVersion(deckTarget.body.map);
+        universe.NotifyFoundationChanged(deckTarget.body.map, bare);
+        universe.ShipStructure.NotifyCell(deckTarget.body.map, bare, ShipStructureAspect.Foundation, null, bareDeck);
         var striker = f.Craft(faction,0,0,new Vector2(900,0),false);
         f.Step();
         Check(striker.wall.Destroyed && !SubstructureOwnership.HasFoundation(deckTarget.body.map,bare),
@@ -267,7 +268,7 @@ internal static partial class Program
         sideDef.useHitPoints = sideDef.destroyable = sideDef.building.isWall = true;
         var low = PlaceHullFixtureBuilding(wideB.body.map, new IntVec3(6,0,5), sideDef, 10000, 55110);
         var high = PlaceHullFixtureBuilding(wideB.body.map, new IntVec3(6,0,7), sideDef, 10000, 55111);
-        SubstructureOwnership.BumpStructureVersion(wideB.body.map);
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(wideB.body.map);
         f.Step();
         Check(f.Requests == 1 && wideB.wall.Destroyed && (low.HitPoints < 10000 || high.HitPoints < 10000),
             $"a wide face distributes one damage request across multiple columns: requests={f.Requests}");
@@ -330,20 +331,20 @@ internal static partial class Program
         foreach (var cell in cells) owners[deck.body.map.cellIndices.CellToIndex(cell)] = console.shipId;
         Set(SubstructureOwnership.TryGet(deck.body.map), "ownerGrid", owners);
         foreach (var cell in cells) universe.NotifyFoundationChanged(deck.body.map, cell);
-        SubstructureOwnership.BumpStructureVersion(deck.body.map);
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(deck.body.map);
         var pilot = (PlayerShipController)universe.Controls.For(console.Vessel);
         pilot.SetCollisionAvoidanceEnabled(false); f.Prepare();
         int beforeObjects = f.Registered;
         var breach = new IntVec3(1,0,3);
         deck.body.map.terrainGrid.foundationGrid[deck.body.map.cellIndices.CellToIndex(breach)] = null;
         universe.NotifyFoundationChanged(deck.body.map, breach);
-        SubstructureOwnership.BumpStructureVersion(deck.body.map, CellRect.SingleCell(breach)); f.Prepare();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(deck.body.map, CellRect.SingleCell(breach)); f.Prepare();
         var view = CollisionView(deck.body);
         object[] structureArgs = {breach, null, null};
         Check(!(bool)Call(view, "TryStructure", structureArgs), "local breach is absent from the unified structure view");
         deck.body.map.terrainGrid.foundationGrid[deck.body.map.cellIndices.CellToIndex(breach)] = foundation;
         universe.NotifyFoundationChanged(deck.body.map, breach);
-        SubstructureOwnership.BumpStructureVersion(deck.body.map, CellRect.SingleCell(breach)); f.Prepare();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(deck.body.map, CellRect.SingleCell(breach)); f.Prepare();
         structureArgs = new object[] {breach, null, null};
         Check((bool)Call(CollisionView(deck.body), "TryStructure", structureArgs), "repair restores the authoritative structure");
         Check(f.Registered == beforeObjects && f.Requests == 0, "structural edits do not allocate collision projectiles");
@@ -358,7 +359,7 @@ internal static partial class Program
         {
             map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = def;
             Current.Game.GetComponent<UniverseManager>().NotifyFoundationChanged(map,cell);
-            SubstructureOwnership.BumpStructureVersion(map,CellRect.SingleCell(cell));
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(map,CellRect.SingleCell(cell));
         }
         return def;
     }
@@ -442,7 +443,7 @@ internal static partial class Program
             layers[depth] = decks[depth].Select(c => PlaceHullFixtureBuilding(target, c, wall, 20,
                 53500 + c.x * 10 + c.z)).ToArray();
         }
-        SubstructureOwnership.BumpStructureVersion(target);
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(target);
         hullObservedMap = striking.body.map;
         for (int depth = 0; depth < layers.Length; depth++)
         {
@@ -464,7 +465,7 @@ internal static partial class Program
         striking = f.Craft(faction, 0f, 0f, new Vector2(100f, 0f), false, hp:10000);
         defending = f.Craft(faction, 5.25f, 0f, Vector2.zero, true, hp:10000);
         var outer = PlaceHullFixtureBuilding(defending.body.map, new IntVec3(2, 0, 6), wall, 20, 53580);
-        SubstructureOwnership.BumpStructureVersion(defending.body.map);
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(defending.body.map);
         f.Step();
         Check(outer.Destroyed && defending.wall.HitPoints == 10000 && f.Requests == 1,
             $"a bulkhead beyond an empty compartment is intact on the breach tick: outer={outer.Destroyed}, hp={defending.wall.HitPoints}");
@@ -480,7 +481,7 @@ internal static partial class Program
         defending = f.Craft(faction, 5.25f, 0f, Vector2.zero, true, hp:10000);
         outer = PlaceHullFixtureBuilding(defending.body.map, new IntVec3(2, 0, 6), wall, 20, 53581);
         var inner = PlaceHullFixtureBuilding(defending.body.map, new IntVec3(3, 0, 6), wall, 10000, 53582);
-        SubstructureOwnership.BumpStructureVersion(defending.body.map);
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(defending.body.map);
         var third = f.Craft(faction, -2.5f, 0f, new Vector2(230f, 0f), false, hp:10000);
         f.Step();
         Check(outer.Destroyed && inner.HitPoints == 10000 && defending.wall.HitPoints == 10000 && f.Requests >= 2

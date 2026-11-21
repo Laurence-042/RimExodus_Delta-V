@@ -16,13 +16,12 @@ namespace DeltaV
             foreach (ShipBase ship in ShipRegistry.AllShipsOnMap(Map))
                 if (PlayerConsoleShip(ship)) yield return ship;
 
-            var connected = new HashSet<IntVec3>();
-            SubstructureOwnership.CollectConnected(Map, Position, connected, null);
+            var connected = ShipStructureIndex.Read(Map)?.PhysicalDomainAt(Position);
             var seen = new HashSet<DriveSubject>();
-            foreach (Building_DockingPort port in Map.listerThings.AllThings.OfType<Building_DockingPort>())
+            foreach (Building_DockingPort port in ShipStructureIndex.Read(Map).BuildingsOf<Building_DockingPort>())
             {
                 Building_DockingPort peer = port.Docking?.Peer;
-                if (!connected.Contains(port.Position) || port.Docking?.Connected != true
+                if (connected?.Contains(port.Position) != true || port.Docking?.Connected != true
                     || peer?.Spawned != true || peer.Map == Map) continue;
                 foreach (ShipBase ship in ShipRegistry.AllShipsOnMap(peer.Map))
                     if (PlayerConsoleShip(ship) && ship.Contains(peer) && seen.Add(ship.Identity))

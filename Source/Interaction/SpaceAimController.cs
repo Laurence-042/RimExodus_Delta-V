@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using RimWorld.Planet;
 using RimWorld;
@@ -27,7 +28,10 @@ namespace DeltaV
         private readonly AimButtonLatch buttons = new AimButtonLatch();
         private Map inputMap;
         private bool sampledAllowed, sampledMain, sampledSecondary;
-        private int previewFrame = -1, previewStructureVersion = -1;
+        private int previewFrame = -1, previewObjectCount = -1;
+        private readonly Dictionary<Map, IDisposable> previewSubscriptions = new Dictionary<Map, IDisposable>();
+        private readonly HashSet<Map> previewDependencies = new HashSet<Map>();
+        private readonly List<Map> staleDependencies = new List<Map>();
         private IReadOnlyList<Vector3> previewPoints;
 
         /// <summary>瞄准的船（带种类的跨图稳定身份）。</summary>
@@ -100,11 +104,13 @@ namespace DeltaV
             SampleFrame(Time.frameCount);
             long start = universe.Performance.Start();
             int slot = baseSlot;
-            if (previewFrame != Time.frameCount || previewStructureVersion != SubstructureOwnership.GlobalStructureVersion)
+            if (previewFrame != Time.frameCount || previewObjectCount != universe.objects.Count)
             {
-                previewPoints = fireControl.LeadPoints(Vessel);
+                previewDependencies.Clear();
+                previewPoints = fireControl.LeadPoints(Vessel, previewDependencies);
+                SyncPreviewSubscriptions();
                 previewFrame = Time.frameCount;
-                previewStructureVersion = SubstructureOwnership.GlobalStructureVersion;
+                previewObjectCount = universe.objects.Count;
             }
             foreach (Vector3 point in previewPoints)
                 AimMarkersRenderer.EmitMarker(frame, frameMap, point, AimMarkerKind.Lead, layer, ref slot);
@@ -112,6 +118,24 @@ namespace DeltaV
                 SpaceTransform.MapPointToUniverse(frame, frameMap, LocalAimPoint), AimMarkerKind.Aim, layer, ref slot);
             universe.Performance.Record(PerformanceStage.AimPreview, start);
             return slot;
+        }
+
+        private void SyncPreviewSubscriptions()
+        {
+            staleDependencies.Clear();
+            foreach (Map map in previewSubscriptions.Keys)
+                if (!previewDependencies.Contains(map)) staleDependencies.Add(map);
+            foreach (Map map in staleDependencies)
+            {
+                previewSubscriptions[map].Dispose();
+                previewSubscriptions.Remove(map);
+            }
+            foreach (Map map in previewDependencies)
+                if (!previewSubscriptions.ContainsKey(map))
+                    previewSubscriptions.Add(map, universe.ShipStructure.WatchMap(map, ShipStructureAspect.Foundation
+                        | ShipStructureAspect.Ownership | ShipStructureAspect.Membership | ShipStructureAspect.Footprint
+                        | ShipStructureAspect.Primary | ShipStructureAspect.Faction | ShipStructureAspect.Representation,
+                        _ => previewFrame = -1));
         }
 
         internal void SampleFrame(int frame)
@@ -174,6 +198,10 @@ namespace DeltaV
             disposed = true;
             universe.PlayerInput.InvalidateGate(); inputMap = null;
             previewFrame = -1; previewPoints = null;
+            foreach (var subscription in previewSubscriptions.Values) subscription.Dispose();
+            previewSubscriptions.Clear();
+            previewDependencies.Clear();
+            staleDependencies.Clear();
 #if !RIMWORLD_1_7
             Application.focusChanged -= OnFocusChanged;
 #endif

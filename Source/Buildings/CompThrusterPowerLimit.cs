@@ -23,12 +23,24 @@ namespace DeltaV
     public class CompThrusterPowerLimit : ThingComp
     {
         /// <summary>出力百分比 [0,100]（0 = 完全停用；默认 100）。</summary>
-        public float powerPercent = 100f;
+        private float limit = 100f;
+        public float powerPercent
+        {
+            get => limit;
+            set
+            {
+                float before = limit;
+                if (before == value) return;
+                limit = value;
+                Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.NotifyProperty(
+                    parent, ShipStructureAspect.Propulsion, before, value);
+            }
+        }
 
         public override void PostExposeData()
         {
             base.PostExposeData();
-            Scribe_Values.Look(ref powerPercent, "DeltaV_powerPercent", 100f);
+            Scribe_Values.Look(ref limit, "DeltaV_powerPercent", 100f);
         }
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()

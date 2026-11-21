@@ -20,6 +20,7 @@ internal static partial class Program
 {
     static int checks;
     static int breachEvents;
+    static int nextFixtureBuildingId = 10000;
     static bool CaptureBreach(Map map, IntVec3 cell)
     {
         Check(map.terrainGrid.FoundationAt(cell) == null, "fragment event follows actual foundation removal");
@@ -30,6 +31,29 @@ internal static partial class Program
     static void Set(object obj, string field, object value) => AccessTools.Field(obj.GetType(), field).SetValue(obj, value);
     static object Call(Type type, string name, params object[] args) => AccessTools.Method(type, name).Invoke(null, args);
     static bool Skip() => false;
+    static void NotifyFixtureBuilding(Map map, Building building)
+    {
+        var universe = Current.Game.GetComponent<UniverseManager>();
+        object index = AccessTools.Property(typeof(UniverseManager), "ShipStructure").GetValue(universe);
+        AccessTools.Method(index.GetType(), "NotifyBuilding").Invoke(index, new object[] { map, building, null });
+    }
+
+    static void RegisterFixtureBuilding(Map map, Building building)
+    {
+        building.def.comps ??= new List<CompProperties>();
+        if (building.thingIDNumber <= 0) building.thingIDNumber = ++nextFixtureBuildingId;
+        map.thingGrid.Register(building);
+        map.listerThings.AllThings.Add(building);
+        NotifyFixtureBuilding(map, building);
+    }
+
+    static void RemoveFixtureBuilding(Map map, Building building)
+    {
+        map.thingGrid.Deregister(building);
+        map.listerThings.AllThings.Remove(building);
+        Set(building, "mapIndexOrState", (sbyte)-2);
+        NotifyFixtureBuilding(map, building);
+    }
     static bool SetRoofWithoutNotifications(IntVec3 c, RoofDef def, Map ___map, RoofDef[] ___roofGrid)
     { ___roofGrid[___map.cellIndices.CellToIndex(c)] = def; return false; }
     sealed class TestBuilding : Building
@@ -43,7 +67,7 @@ internal static partial class Program
             Check(Map.terrainGrid.FoundationAt(Position) == null,
                 "foundation is gone before building death callback");
             if (notifyDespawn) DeSpawn(DestroyMode.KillFinalize);
-            else Map.thingGrid.Deregister(this);
+            else RemoveFixtureBuilding(Map, this);
             Set(this, "mapIndexOrState", (sbyte)-2);
             if (linked != null && !linked.Destroyed) linked.Kill();
         }
@@ -147,19 +171,19 @@ internal static partial class Program
 
         Building barrier = Fixture("vacuum barrier", Traversability.PassThroughOnly, 1f,
             building: (Building_VacuumBarrier)Raw(typeof(Building_VacuumBarrier)));
-        map.thingGrid.Register(barrier);
+        RegisterFixtureBuilding(map, barrier);
         Check(SpaceStructureRules.ClassifyCell(map, cell, out _) == SpaceCellKind.Substructure,
             "vacuum barrier leaves its foundation as the collision surface");
 
         cover.def.fillPercent = 1f;
-        map.thingGrid.Register(cover);
-        map.thingGrid.Register(equipment);
+        RegisterFixtureBuilding(map, cover);
+        RegisterFixtureBuilding(map, equipment);
         Check(SpaceStructureRules.ClassifyCell(map, cell, out Thing hit) == SpaceCellKind.Building
             && hit == equipment && !SubstructureDamageUtility.CanDamage(map, cell),
             "impassable machinery takes priority over full passable cover and protects the foundation");
-        map.thingGrid.Deregister(equipment);
-        map.thingGrid.Deregister(cover);
-        map.thingGrid.Deregister(barrier);
+        RemoveFixtureBuilding(map, equipment);
+        RemoveFixtureBuilding(map, cover);
+        RemoveFixtureBuilding(map, barrier);
     }
 
     static void Run()
@@ -167,6 +191,8 @@ internal static partial class Program
         using var logs = Log.LockMessages();
         DeepProfiler.enabled = false;
         var harmony = new Harmony("DeltaV.SubstructureDamageRegression");
+        harmony.Patch(AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.MaxHitPoints)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(FixtureBasicHealth)));
         harmony.Patch(AccessTools.Method(typeof(SpaceProjectileService), "NotifyFoundationDestroyed"),
             prefix: new HarmonyMethod(typeof(Program), nameof(CaptureBreach)));
         harmony.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
@@ -282,7 +308,7 @@ internal static partial class Program
         conduitDef.building = new BuildingProperties { isPowerConduit = true, canBeDamagedByAttacks = false };
         var conduit = (TestBuilding)Raw(typeof(TestBuilding)); conduit.def = conduitDef;
         Set(conduit, "positionInt", cell); Set(conduit, "mapIndexOrState", (sbyte)0);
-        map.thingGrid.Register(conduit);
+        RegisterFixtureBuilding(map, conduit);
         Check(SpaceStructureRules.ClassifyCell(map, cell, out var solid) == SpaceCellKind.Substructure
             && solid == null, "hidden conduit is not a collision surface protecting its foundation");
         var impact = new SpaceCollision.ImpactEvent
@@ -312,7 +338,7 @@ internal static partial class Program
             && map.roofGrid.RoofAt(cell) == null, "fragment effect invokes shared destruction");
         conduitDef.building.canBeDamagedByAttacks = true;
         Set(conduit, "mapIndexOrState", (sbyte)0);
-        map.thingGrid.Register(conduit);
+        RegisterFixtureBuilding(map, conduit);
         Layers(space, true, true);
         Check(SpaceStructureRules.ClassifyCell(map, cell, out _) == SpaceCellKind.Substructure,
             "ordinary power conduits follow the same non-structural collision rule");
@@ -322,7 +348,7 @@ internal static partial class Program
         def.size = new IntVec2(2, 2); def.building = new BuildingProperties(); def.fillPercent = 0.1f;
         var building = (Building)Raw(typeof(Building)); building.def = def;
         Set(building, "positionInt", cell); Set(building, "mapIndexOrState", (sbyte)0);
-        map.thingGrid.Register(building);
+        RegisterFixtureBuilding(map, building);
         foreach (var occupied in building.OccupiedRect())
         {
             grid.foundationGrid[map.cellIndices.CellToIndex(occupied)] = deck;
@@ -363,12 +389,12 @@ internal static partial class Program
 
         var overlapping = (Building)Raw(typeof(Building)); overlapping.def = def;
         Set(overlapping, "positionInt", cell); Set(overlapping, "mapIndexOrState", (sbyte)0);
-        map.thingGrid.Register(overlapping);
-        map.thingGrid.Deregister(building); Set(building, "mapIndexOrState", (sbyte)-2);
+        RegisterFixtureBuilding(map, overlapping);
+        RemoveFixtureBuilding(map, building);
         SubstructureDamageUtility.TryDestroy(map, cell);
         Check(grid.FoundationAt(cell) == deck && grid.TempTerrainAt(cell) == temporary,
             "surviving overlapping building still protects foundation after first building loss");
-        map.thingGrid.Deregister(overlapping); Set(overlapping, "mapIndexOrState", (sbyte)-2);
+        RemoveFixtureBuilding(map, overlapping);
         Check(SubstructureDamageUtility.CanDamage(map, cell),
             "building loss exposes foundation immediately");
         SubstructureDamageUtility.TryDestroy(map, cell);
@@ -378,14 +404,14 @@ internal static partial class Program
         Layers(space, true, true);
         var mounted = (TestBuilding)Raw(typeof(TestBuilding)); mounted.def = def;
         Set(mounted, "positionInt", cell); Set(mounted, "mapIndexOrState", (sbyte)0);
-        map.thingGrid.Register(mounted);
+        RegisterFixtureBuilding(map, mounted);
         Check((bool)Call(typeof(SubstructureDamageUtility), "TryDestroyHitFoundation", map, cell, false, null, null)
             && mounted.killCalls == 1 && grid.FoundationAt(cell) == null,
             "direct foundation destruction kills the surviving multi-cell building exactly once");
 
         Layers(space, true, true);
         map.roofGrid.SetRoof(cell, roof);
-        Set(conduit, "mapIndexOrState", (sbyte)0); map.thingGrid.Register(conduit);
+        Set(conduit, "mapIndexOrState", (sbyte)0); RegisterFixtureBuilding(map, conduit);
         grid.Notify_FoundationDestroyed(cell);
         Check(grid.FoundationAt(cell) == null && grid.TerrainAt(cell) == space
             && grid.TempTerrainAt(cell) == null && grid.UnderTerrainAt(cell) == null,
@@ -400,7 +426,7 @@ internal static partial class Program
         foreach (var thing in new[] { host, addon })
         {
             Set(thing, "positionInt", cell); Set(thing, "mapIndexOrState", (sbyte)0);
-            map.thingGrid.Register(thing);
+            RegisterFixtureBuilding(map, thing);
         }
         host.linked = addon;
         grid.RemoveFoundation(cell, false);
@@ -425,7 +451,7 @@ internal static partial class Program
         // Transfer strips terrain only; captured buildings and roofs belong to the transfer chain.
         Layers(space, true, false);
         map.roofGrid.SetRoof(cell, roof);
-        Set(host, "mapIndexOrState", (sbyte)0); map.thingGrid.Register(host);
+        Set(host, "mapIndexOrState", (sbyte)0); RegisterFixtureBuilding(map, host);
         int beforeTransfer = breachEvents;
         grid.RemoveGravshipTerrainUnsafe(cell, index);
         Check(host.Spawned && map.roofGrid.RoofAt(cell) == roof,
@@ -475,11 +501,74 @@ internal static partial class Program
         return false;
     }
 
+    static bool FixtureQuietPrefs(ref bool __result)
+    {
+        __result = false;
+        return false;
+    }
+
+    static void RegisterFixtureModAssembly(ref IEnumerable<Assembly> __result)
+    {
+        __result = __result.Append(typeof(CompSpaceRailgun).Assembly);
+    }
+
+    static bool PrintFixtureCompError(string text)
+    {
+        Console.Error.WriteLine(text);
+        return false;
+    }
+
+    static bool FixtureBasicHealth(Thing __instance, ref int __result)
+    {
+        if (__instance.def?.defName == "DeltaV_Weapon_RailgunAccelerator") return true;
+        __result = 100;
+        return false;
+    }
+
+    static bool FixtureRailgunHealth(Thing __instance, ref int __result)
+    {
+        if (__instance.def?.defName != "DeltaV_Weapon_RailgunAccelerator") return true;
+        __result = (int)__instance.def.statBases.Single(stat => stat.stat == StatDefOf.MaxHitPoints).value;
+        return false;
+    }
+
+    static ThingDef ReadRailgunFixtureDef()
+    {
+        var xml = new XmlDocument();
+        xml.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml");
+        XmlNode node = xml.SelectSingleNode("/Defs/ThingDef[defName='DeltaV_Weapon_RailgunAccelerator']");
+        // The ThingDef constructor initializes native graphics. The fixture loads the production gameplay fields and all comps.
+        var def = (ThingDef)Raw(typeof(ThingDef));
+        def.defName = node["defName"].InnerText;
+        def.category = ThingCategory.Building;
+        def.thingClass = typeof(Building);
+        def.size = IntVec2.FromString(node["size"].InnerText);
+        def.building = new BuildingProperties();
+        def.fillPercent = ParseHelper.FromString<float>(node["fillPercent"].InnerText);
+        def.statBases = new List<StatModifier>
+        {
+            new StatModifier { stat = StatDefOf.MaxHitPoints, value = ParseHelper.FromString<float>(node["statBases"]["MaxHitPoints"].InnerText) }
+        };
+        var references = node.SelectNodes("comps/li/allowedAttachmentDefs/li").Cast<XmlNode>()
+            .Select(reference => reference.InnerText).ToArray();
+        foreach (string name in references)
+        {
+            var referencedDef = (ThingDef)Raw(typeof(ThingDef));
+            referencedDef.defName = name;
+            DefDatabase<ThingDef>.Add(referencedDef);
+        }
+        def.comps = node.SelectNodes("comps/li").Cast<XmlNode>()
+            .Select(comp => DirectXmlToObject.ObjectFromXml<CompProperties>(comp, doPostLoad: false)).ToList();
+        DirectXmlCrossRefLoader.ResolveAllWantedCrossReferences(FailMode.LogErrors);
+        return def;
+    }
+
     static void CheckCrossBlockFoundationLoss(UniverseManager universe, TerrainDef space, TerrainDef deck)
     {
         var harmony = new Harmony("DeltaV.Regression.CrossBlockFoundation");
         var game = Current.Game;
         var previousTickManager = game.tickManager;
+        StatDef priorMaxHealth = StatDefOf.MaxHitPoints;
         try
         {
             game.tickManager = (TickManager)Raw(typeof(TickManager));
@@ -516,13 +605,26 @@ internal static partial class Program
             var unaffected = new IntVec3(20, 0, 4);
             foreach (var cell in new[] { hole, unaffected })
                 map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = deck;
-            var def = (ThingDef)Raw(typeof(ThingDef));
-            def.defName = "FixtureCrossBlockSupport";
-            def.category = ThingCategory.Building;
-            def.size = new IntVec2(3, 1);
-            def.building = new BuildingProperties();
-            def.fillPercent = 1;
-            var building = new TestBuilding { def = def, notifyDespawn = true };
+            StatDefOf.MaxHitPoints ??= new StatDef { defName = "MaxHitPoints" };
+            harmony.Patch(AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.MaxHitPoints)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(FixtureRailgunHealth)));
+            harmony.Patch(AccessTools.Method(typeof(Log), nameof(Log.Error), new[] { typeof(string) }),
+                prefix: new HarmonyMethod(typeof(Program), nameof(PrintFixtureCompError)));
+            harmony.Patch(AccessTools.PropertyGetter(typeof(GenTypes), "AllActiveAssemblies"),
+                postfix: new HarmonyMethod(typeof(Program), nameof(RegisterFixtureModAssembly)));
+            harmony.Patch(AccessTools.PropertyGetter(typeof(Prefs), nameof(Prefs.LogVerbose)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(FixtureQuietPrefs)));
+            ThingDef def = ReadRailgunFixtureDef();
+            var building = new TestBuilding { def = def, notifyDespawn = true, thingIDNumber = 512 };
+            building.InitializeComps();
+            building.HitPoints = building.MaxHitPoints;
+            Check(def.comps.Count == building.AllComps.Count
+                && building.TryGetComp<CompSpaceRailgun>() is { RailProps.role: RailgunPartRole.Accelerator }
+                && building.TryGetComp<CompPowerTrader>() != null
+                && building.TryGetComp<CompRailgunShell>() != null,
+                "cross-block fixture loads every component from the production accelerator Def. Declared: "
+                + string.Join(", ", def.comps.Select(comp => $"{comp?.GetType().Name}/{comp?.compClass?.Name}"))
+                + "; initialized: " + string.Join(", ", building.AllComps.Select(comp => comp.GetType().Name)));
             Set(building, "positionInt", hole);
             Set(building, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
             map.thingGrid.Register(building);
@@ -571,6 +673,7 @@ internal static partial class Program
         {
             harmony.UnpatchAll(harmony.Id);
             game.tickManager = previousTickManager;
+            StatDefOf.MaxHitPoints = priorMaxHealth;
         }
     }
 }

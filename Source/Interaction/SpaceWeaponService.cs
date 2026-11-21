@@ -29,8 +29,8 @@ namespace DeltaV
         // 读档与 dev 场景重置时从现有图重建一次，不让索引成为事实源。
         private readonly Dictionary<Map, HashSet<CompSpaceWeapon>> weaponsByMap =
             new Dictionary<Map, HashSet<CompSpaceWeapon>>();
-        private readonly HashSet<CompMissileAutoloader> pendingMissileReloads =
-            new HashSet<CompMissileAutoloader>();
+        private readonly HashSet<CompSpaceWeaponMagazine> pendingMissileReloads =
+            new HashSet<CompSpaceWeaponMagazine>();
         private readonly HashSet<CompSpaceWeapon> pendingPower = new HashSet<CompSpaceWeapon>();
 
         public SpaceWeaponService(UniverseManager universe)
@@ -127,22 +127,15 @@ namespace DeltaV
             universe.Controls.ForgetMap(map);
         }
 
-        internal void QueueMissileReload(CompMissileAutoloader loader)
+        internal void QueueMissileReload(CompSpaceWeaponMagazine loader)
         {
             if (loader == null) return;
             pendingMissileReloads.Add(loader);
         }
 
-        internal void CancelMissileReload(CompMissileAutoloader loader)
+        internal void CancelMissileReload(CompSpaceWeaponMagazine loader)
         {
             pendingMissileReloads.Remove(loader);
-        }
-
-        internal void NotifyMissileOwnershipChanged(Map map)
-        {
-            if (map == null || map.Disposed) return;
-            foreach (Thing thing in map.listerThings.ThingsOfDef(DeltaVDefOf.DeltaV_Weapon_MissileLauncher))
-                thing.TryGetComp<CompMissileAutoloader>()?.QueueReload();
         }
 
         /// <summary>事件请求在下一游戏 tick 顺序执行；共享弹仓由实际取弹原子消费。</summary>
@@ -155,10 +148,10 @@ namespace DeltaV
                 foreach (var weapon in power) SyncPowerRequest(weapon);
             }
             if (pendingMissileReloads.Count == 0) return;
-            List<CompMissileAutoloader> due = pendingMissileReloads
+            List<CompSpaceWeaponMagazine> due = pendingMissileReloads
                 .OrderBy(loader => loader.parent.thingIDNumber).ToList();
             pendingMissileReloads.Clear();
-            foreach (CompMissileAutoloader loader in due)
+            foreach (CompSpaceWeaponMagazine loader in due)
                 loader.TryReload();
         }
 
@@ -178,7 +171,7 @@ namespace DeltaV
         {
             if (map == null || map.Disposed) return;
             // 只在地图注册、读档和场景重建时补齐索引；日常结构变化不走全图发现。
-            foreach (var weapon in InstalledWeaponsOn(map, discover: true))
+            foreach (var weapon in universe.ShipStructure.For(map).Weapons)
             { RegisterWeapon(weapon); QueuePower(weapon); }
         }
 
@@ -279,21 +272,11 @@ namespace DeltaV
             return props?.speed ?? 0f;
         }
 
-        /// <summary>纳管图读取登记索引；显式初始化发现与非纳管图共用唯一发现实现。</summary>
-        internal static List<CompSpaceWeapon> InstalledWeaponsOn(Map map, bool discover = false)
+        internal static IEnumerable<CompSpaceWeapon> WeaponsRegisteredOrMapped(Map map)
         {
-            var result = new List<CompSpaceWeapon>();
-            if (map == null) return result;
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (!discover && universe?.FrameOf(map) != null) return universe.Weapons.RegisteredWeapons(map).ToList();
-            foreach (Thing thing in map.listerThings.AllThings)
-            {
-                if (thing is Building building && !building.Destroyed)
-                {
-                    result.AddRange(CompSpaceWeapon.On(building));
-                }
-            }
-            return result;
+            var universe = Current.Game?.GetComponent<UniverseManager>();
+            return universe?.FrameOf(map) != null ? universe.Weapons.RegisteredWeapons(map)
+                : universe?.ShipStructure.For(map)?.Weapons ?? Enumerable.Empty<CompSpaceWeapon>();
         }
 
         /// <summary>地图中的船体武器集合；武器来源由各船实现提供。</summary>

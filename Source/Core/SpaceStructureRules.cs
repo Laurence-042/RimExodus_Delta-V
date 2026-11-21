@@ -78,29 +78,42 @@ namespace DeltaV
             ClassifyCell(map, cell, out solidThing, null);
 
         internal static SpaceCellKind ClassifyCell(Map map, IntVec3 cell, out Thing solidThing,
-            HashSet<Thing> destroyed)
+            HashSet<Thing> destroyed, ShipStructureIndex.MapView view = null)
         {
             solidThing = null;
             if (map == null || !cell.InBounds(map)) return SpaceCellKind.Empty;
-            List<Thing> things = map.thingGrid.ThingsListAtFast(cell);
-            float bestChance = -1f;
-            for (int i = 0; i < things.Count; i++)
+            if (view == null)
             {
-                Thing thing = things[i];
-                if (thing is not Building building || building.Destroyed || !building.Spawned
-                    || destroyed?.Contains(building) == true || !building.OccupiedRect().Contains(cell)) continue;
-                // 电缆铺在结构内，不作为独立碰撞面；隐藏电缆免疫攻击，不能因此让基架无敌。
-                if (building.def.building.isPowerConduit || building is Building_VacuumBarrier) continue;
-                float chance = BuildingHitChance(thing);
-                if (solidThing != null && (chance < bestChance
-                    || (chance == bestChance && (!IsImpassableBuilding(thing) || IsImpassableBuilding(solidThing))))) continue;
-                solidThing = thing;
+                var index = Current.Game?.GetComponent<UniverseManager>()?.ShipStructure;
+                if (index?.Tracks(map) == true) view = index.For(map);
+            }
+
+            Building best = null;
+            float bestChance = -1f;
+            void Check(Building building)
+            {
+                if (building.Destroyed || !building.Spawned || destroyed?.Contains(building) == true) return;
+                // A cable inside the structure cannot hide the foundation from damage.
+                if (building.def.building.isPowerConduit || building is Building_VacuumBarrier) return;
+                float chance = BuildingHitChance(building);
+                if (best != null && (chance < bestChance
+                    || (chance == bestChance && (!IsImpassableBuilding(building) || IsImpassableBuilding(best))))) return;
+                best = building;
                 bestChance = chance;
             }
-            if (solidThing != null)
-                return solidThing.def.building.isNaturalRock ? SpaceCellKind.NaturalRock : SpaceCellKind.Building;
-            if (SubstructureOwnership.HasFoundation(map, cell)) return SpaceCellKind.Substructure;
-            return SpaceCellKind.Empty;
+
+            if (view != null)
+            {
+                foreach (var record in view.RecordsAt(cell)) Check(record.Building);
+            }
+            else
+            {
+                foreach (Thing thing in map.thingGrid.ThingsListAtFast(cell))
+                    if (thing is Building building && building.OccupiedRect().Contains(cell)) Check(building);
+            }
+            solidThing = best;
+            if (best != null) return best.def.building.isNaturalRock ? SpaceCellKind.NaturalRock : SpaceCellKind.Building;
+            return SubstructureOwnership.HasFoundation(map, cell) ? SpaceCellKind.Substructure : SpaceCellKind.Empty;
         }
     }
 }

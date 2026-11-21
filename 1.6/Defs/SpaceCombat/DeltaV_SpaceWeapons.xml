@@ -731,7 +731,9 @@
     </statBases>
     <comps>
       <li Class="CompProperties_ChangeableProjectile" />
-      <li Class="DeltaV.CompProperties_SpaceWeaponMagazine" />
+      <li Class="DeltaV.CompProperties_SpaceWeaponMagazine">
+        <externalMissileSupply>true</externalMissileSupply>
+      </li>
       <li Class="DeltaV.CompProperties_SpaceWeapon">
         <projectileDef>DeltaV_Projectile_Missile</projectileDef>
         <topTurret>false</topTurret>
@@ -740,26 +742,17 @@
         <lockArcDeg>360</lockArcDeg>
         <defaultFireDeviationDeg>180</defaultFireDeviationDeg>
         <ignitionDelayTicks>30</ignitionDelayTicks>
+        <allowedAttachmentDefs><li>DeltaV_Building_MissileMagazine</li></allowedAttachmentDefs>
+        <attachmentSlots>
+          <li><cell>(-1,0,-1)</cell><external>true</external></li>
+          <li><cell>(1,0,-1)</cell><external>true</external></li>
+        </attachmentSlots>
         <baseSpreadDeg>0.4</baseSpreadDeg>
         <cooldownTicks>300</cooldownTicks>
         <minRange>12</minRange>
         <range>220</range>
         <muzzleOffset>(0,1.6)</muzzleOffset>
         <intrinsicAimSkill>20</intrinsicAimSkill>
-      </li>
-      <li Class="DeltaV.CompProperties_MissileAutoloader">
-        <magazineDefs>
-          <li>DeltaV_Building_MissileMagazine</li>
-        </magazineDefs>
-        <magazineRootOffsets>
-          <li>(-1,0,-1)</li>
-          <li>(1,0,-1)</li>
-        </magazineRootOffsets>
-      </li>
-      <li Class="CompProperties_AffectedByFacilities">
-        <linkableFacilities>
-          <li>DeltaV_Building_MissileMagazine</li>
-        </linkableFacilities>
       </li>
       <li Class="DeltaV.CompProperties_LoadedProjectileGraphic">
         <drawSize>(1.3,1.3)</drawSize>
@@ -821,10 +814,8 @@
     <comps>
       <li Class="DeltaV.CompProperties_MissileMagazineFacility">
         <totalCapacity>20</totalCapacity>
-        <mustBePlacedAdjacent>true</mustBePlacedAdjacent>
-        <requiresLOS>false</requiresLOS>
-        <maxSimultaneous>2</maxSimultaneous>
-        <showMaxSimultaneous>false</showMaxSimultaneous>
+        <external>true</external>
+        <allowedHostDefs><li>DeltaV_Weapon_MissileLauncher</li></allowedHostDefs>
       </li>
     </comps>
   </ThingDef>

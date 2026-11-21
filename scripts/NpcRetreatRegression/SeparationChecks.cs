@@ -19,12 +19,8 @@ internal static partial class Program
         separationTransfers++;
         if (separationTransfers == separationFailOn) { __result = null; return false; }
         // Only replace Unity map generation/transfer; production grouping, gate and retries run.
-        foreach (IntVec3 cell in cells)
-        {
-            sourceMap.terrainGrid.foundationGrid[sourceMap.cellIndices.CellToIndex(cell)] = null;
-            Current.Game.GetComponent<UniverseManager>().NotifyFoundationChanged(sourceMap, cell);
-        }
-        SubstructureOwnership.BumpStructureVersion();
+        using (FixtureUniverse.ShipStructure.BeginChanges())
+            foreach (IntVec3 cell in cells) SetFixtureFoundation(sourceMap, cell, null, 0);
         __result = sourceFrame;
         return false;
     }
@@ -62,6 +58,8 @@ internal static partial class Program
         var space = (TerrainDef)Raw(typeof(TerrainDef)); space.defName = "scaleSpace";
         var deck = (TerrainDef)Raw(typeof(TerrainDef)); deck.defName = "scaleDeck"; deck.isFoundation = true;
         TerrainDef oldSpace = TerrainDefOf.Space;
+        ThingDef oldLauncher = DeltaVDefOf.DeltaV_Weapon_MissileLauncher;
+        DeltaVDefOf.DeltaV_Weapon_MissileLauncher ??= TestBuildingDef("scaleLauncher");
         TerrainDefOf.Space = space;
         Map map = TestMap(49930, 250), neighbor = TestMap(49931);
         InitializeScalePocketTile(map);
@@ -87,14 +85,17 @@ internal static partial class Program
                 Array.Fill(target.terrainGrid.topGrid, space);
                 var owners = new int[target.cellIndices.NumGridCells];
                 Set(SubstructureOwnership.For(target), "ownerGrid", owners);
+                using var changes = universe.ShipStructure.BeginChanges();
                 for (int z = 0; z < height; z++)
                     for (int x = 0; x < width; x++)
                     {
-                        int index = target.cellIndices.CellToIndex(new IntVec3(x, 0, z));
+                        var cell = new IntVec3(x, 0, z);
+                        int index = target.cellIndices.CellToIndex(cell);
                         target.terrainGrid.foundationGrid[index] = deck;
                         owners[index] = owner;
+                        universe.NotifyFoundationChanged(target, cell);
                     }
-                SubstructureOwnership.BumpStructureVersion(target);
+                Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(target);
             }
             Prepare(map, main.shipId, 100, 100);
             Prepare(neighbor, neighborMain.shipId, 4, 4);
@@ -102,9 +103,11 @@ internal static partial class Program
             var buildingDef = TestBuildingDef("scaleBuilding");
             var itemDef = TestBuildingDef("scaleItem"); itemDef.category = ThingCategory.Item;
             var pawnDef = TestBuildingDef("scalePawn"); pawnDef.category = ThingCategory.Pawn;
+            int nextThingId = 60000;
             Thing Add(Thing thing, ThingDef def, IntVec3 cell)
             {
                 thing.def = def;
+                thing.thingIDNumber = nextThingId++;
                 Set(typeof(Thing), thing, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
                 Set(typeof(Thing), thing, "positionInt", cell);
                 fixture.Add(thing);
@@ -121,7 +124,7 @@ internal static partial class Program
             }
             var thrusterDef = TestBuildingDef("scaleThruster");
             thrusterDef.comps.Add(new CompProperties_GravshipThruster());
-            var thruster = AddTestBuilding(map, faction, 49934, thrusterDef, new EmptyComp());
+            var thruster = AddTestBuilding(map, faction, 49934, thrusterDef, new CompThrusterPowerLimit());
             var cabinet = AddTestBuilding(map, faction, 49935, TestBuildingDef("scaleCabinet"), new CompSpaceCargo(),
                 new Building_SealedSpaceCargoContainer());
             var oldPower = ThrusterPower.Model;
@@ -151,7 +154,8 @@ internal static partial class Program
                 Patch(AccessTools.Method(typeof(ListerThings), nameof(ListerThings.ThingsInGroup)), nameof(CountDriveEntityLookup));
                 Patch(AccessTools.Method(typeof(ListerThings), nameof(ListerThings.ThingsOfDef)), nameof(CountDriveEntityLookup));
                 Patch(AccessTools.PropertyGetter(typeof(SubstructureOwnership), "SpawnedBuildings"), nameof(CountDriveEntityLookup));
-                Patch(AccessTools.Method(typeof(CompSpaceCargo), "MeasureStoredMass"), nameof(CountDriveCargoSample));
+                Patch(AccessTools.Method(typeof(CompStructureMass), "Initialize"), nameof(CountDriveCargoSample));
+                Patch(AccessTools.Method(typeof(ShipPhysics), nameof(ShipPhysics.BuildInstalledThruster)), nameof(CountInstalledThrusterBuild));
                 var drive = DriveControl.FromInput(new ShipPhysics.Command { fz = 1f }, false, false, false);
                 var subject = main.Vessel.Identity.InContainer(frame.objectId);
                 ShipPhysics.MassReport report = ShipPhysics.GetReport(frame);
@@ -169,6 +173,8 @@ internal static partial class Program
                     && driveAllocations == 1 && driveEntityLookups == 0 && driveCargoSamples == 0
                     && separationEntityReads == 0 && separationTerrainReads == 0 && separationFootprintReads == 0,
                     "1,000 actual drive ticks integrate thrust with one allocation and zero entity scans, footprint walks or inventory samples");
+                CheckInstalledLayoutChange(frame, report, thruster);
+                separationEntityReads = separationTerrainReads = separationFootprintReads = 0;
             }
             finally
             {
@@ -209,9 +215,11 @@ internal static partial class Program
             ShipStructureChanges.Notify(map, building: spanning);
             Check(!ShipRegistry.RequiresOwnPocket(main.Ship) && ShipRegistry.HasResidualBlocks(main.Ship),
                 "a building over one domain and a separate foreign domain can use ordinary fragment separation");
+            (Rot4 rotation, CellRect? footprint) previous = (spanning.Rotation, spanning.OccupiedRect());
             map.thingGrid.Deregister(spanning);
             Set(typeof(Thing), spanning, "rotationInt", Rot4.East);
             map.thingGrid.Register(spanning);
+            Patch_ShipStructure_Rotation.Postfix(spanning, previous);
             Check(ShipRegistry.RequiresOwnPocket(main.Ship) && universe.FoundationTopology.BuildingDomain(map, spanning) == null,
                 "rotating a spawned building across two domains refreshes ownership and preserves the host");
             map.thingGrid.Deregister(spanning);
@@ -241,8 +249,7 @@ internal static partial class Program
 
             var split = new IntVec3(0, 0, 0);
             map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(split)] = null;
-            AccessTools.Method(typeof(Patch_ShipStructure_Terrain), "Postfix").Invoke(null,
-                new object[] { map.terrainGrid, split, space, deck });
+            Patch_TerrainGrid_RemoveGravshipTerrainUnsafe_Ownership.Postfix(map.terrainGrid, split, (deck, main.shipId));
             Check(ShipRegistry.RequiresOwnPocket(main.Ship) && ReadGate(neighborMain)
                 && separationEntityReads == 0 && separationTerrainReads == 0,
                 "losing support under a building refreshes its host decision without scanning all map entities or terrain");
@@ -251,6 +258,7 @@ internal static partial class Program
         {
             harmony.UnpatchAll(harmony.Id);
             TerrainDefOf.Space = oldSpace;
+            DeltaVDefOf.DeltaV_Weapon_MissileLauncher = oldLauncher;
             universe.Scatter.Forget(map);
             universe.ForgetFoundationTopology(map);
             universe.ForgetFoundationTopology(neighbor);
@@ -292,15 +300,19 @@ internal static partial class Program
         pawn.def = TestBuildingDef("unsupportedPawn");
         pawn.def.category = ThingCategory.Pawn;
         pawn.stackCount = 1;
+        pawn.thingIDNumber = 49921;
         var item = (ReceivingItem)Raw(typeof(ReceivingItem));
         item.def = TestBuildingDef("unsupportedItem");
         item.def.category = ThingCategory.Item;
         item.stackCount = 1;
+        item.thingIDNumber = 49922;
         var cargoCell = new IntVec3(3, 0, 1);
         SpacePose expected = SpaceTransform.RigidPointPose(frame.pose,
             SpaceTransform.MapToShipLocal(map, new Vector2(3.5f, 1.5f)), 0f);
         try
         {
+            harmony.Patch(AccessTools.Method(typeof(ThingGrid), "RegisterInCell"),
+                postfix: new HarmonyMethod(typeof(Patch_SpaceScatterCargo_Register), "Postfix"));
             ProbeSpawnCargo(pawn, cargoCell, map);
             ProbeSpawnCargo(item, cargoCell, map);
             harmony.Patch(AccessTools.Method(typeof(ThingGrid), "DeregisterInCell"),
@@ -363,15 +375,7 @@ internal static partial class Program
         var soil = (TerrainDef)Raw(typeof(TerrainDef)); soil.natural = true;
         var floor = (TerrainDef)Raw(typeof(TerrainDef)); floor.natural = false;
         for (int i = 0; i < map.terrainGrid.topGrid.Length; i++) map.terrainGrid.topGrid[i] = space;
-        int[] owners = new int[map.cellIndices.NumGridCells];
-        Set(SubstructureOwnership.For(map), "ownerGrid", owners);
-        void Foundation(IntVec3 c, int owner)
-        {
-            int i = map.cellIndices.CellToIndex(c);
-            map.terrainGrid.foundationGrid[i] = deck; owners[i] = owner;
-            universe.NotifyFoundationChanged(map, c);
-            SubstructureOwnership.BumpStructureVersion();
-        }
+        void Foundation(IntVec3 cell, int owner) => SetFixtureFoundation(map, cell, deck, owner);
         try
         {
             harmony.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
@@ -379,15 +383,29 @@ internal static partial class Program
             Check(harmony.Patch(AccessTools.Method(typeof(TerrainGrid), "DoTerrainChangedEffects"),
                     postfix: new HarmonyMethod(typeof(Patch_ShipStructure_Terrain), "Postfix")) != null
                 && harmony.Patch(AccessTools.Method(typeof(TerrainGrid), nameof(TerrainGrid.SetUnderTerrain)),
+                    prefix: new HarmonyMethod(typeof(Patch_ShipStructure_UnderTerrain), "Prefix"),
                     postfix: new HarmonyMethod(typeof(Patch_ShipStructure_UnderTerrain), "Postfix")) != null
                 && harmony.Patch(AccessTools.Method(typeof(TerrainGrid), "RemoveGravshipTerrainUnsafe"),
+                    prefix: new HarmonyMethod(typeof(Patch_TerrainGrid_RemoveGravshipTerrainUnsafe_Ownership), "Prefix"),
                     postfix: new HarmonyMethod(typeof(Patch_TerrainGrid_RemoveGravshipTerrainUnsafe_Ownership), "Postfix")) != null,
                 "foundation and support event postfixes bind to installed RimWorld signatures");
             Foundation(main.parent.Position, main.shipId);
             Check(!ShipRegistry.RequiresOwnPocket(main.Ship), "single clean ship stays in its current container");
             Check(!ShipRegistry.HasResidualBlocks(main.Ship), "initial topology matches the clean main-console domain");
+            var scoped = new ShipFlightTransitionService.TransitionRevision(universe, main.Vessel);
+            var residual = new ShipFlightTransitionService.TransitionRevision(universe, main.Vessel, movesResidual: true);
+            var foreignCell = new IntVec3(4, 0, 4);
+            SetFixtureFoundation(map, foreignCell, deck, 0);
+            Check(scoped.Matches(universe, main.Vessel) && !residual.Matches(universe, main.Vessel),
+                "another domain does not revoke ship extraction but revokes a plan that moves residual domains");
+            SetFixtureFoundation(map, foreignCell, null, 0);
+            var unrelated = new ShipFlightTransitionService.TransitionRevision(universe, main.Vessel);
+            universe.ShipStructure.NotifyCell(map, main.parent.Position, ShipStructureAspect.Terrain, space, floor);
+            Check(unrelated.Matches(universe, main.Vessel), "display-only terrain does not revoke a validated transfer");
+
             IntVec3 adjacent = main.parent.Position + new IntVec3(1, 0, 0);
             Foundation(adjacent, main.shipId);
+            Check(!unrelated.Matches(universe, main.Vessel), "the same domain object gets a new revision when a cell joins");
             Check(!ShipRegistry.HasResidualBlocks(main.Ship), "connected same-owner addition remains clean");
             SubstructureOwnership.For(map).Assign(adjacent, 999);
             Check(ShipRegistry.HasResidualBlocks(main.Ship)
@@ -404,40 +422,42 @@ internal static partial class Program
                 "foundation removal synchronizes topology and persistent owner without splitting");
             // Exercise actual postfix bodies after the fixture writes the same final state as TerrainGrid.
             map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(adjacent)] = deck;
-            AccessTools.Method(typeof(Patch_ShipStructure_Terrain), "Postfix").Invoke(null,
+            AccessTools.Method(typeof(Patch_TerrainGrid_SetFoundation_Ownership), "Postfix").Invoke(null,
                 new object[] { map.terrainGrid, adjacent, deck, null });
-            Check(ShipRegistry.HasResidualBlocks(main.Ship),
-                "terrain callback catches new unassigned foundation without an owner write");
+            Check(ShipRegistry.ControlDomain(main.Ship).Contains(adjacent),
+                "foundation callback registers the new foundation and resolves its neighboring owner");
             map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(adjacent)] = null;
-            Patch_TerrainGrid_RemoveGravshipTerrainUnsafe_Ownership.Postfix(map.terrainGrid, adjacent);
+            Patch_TerrainGrid_RemoveGravshipTerrainUnsafe_Ownership.Postfix(map.terrainGrid, adjacent, (deck, main.shipId));
             Check(!ShipRegistry.HasResidualBlocks(main.Ship),
                 "unsafe transfer removal callback clears unassigned foundation from topology");
             Foundation(IntVec3.Zero, 0);
             Check(!ShipRegistry.RequiresOwnPocket(main.Ship), "unassigned detached foundation does not force ship extraction");
-            owners[0] = 999;
-            universe.NotifyFoundationChanged(map, IntVec3.Zero);
-            SubstructureOwnership.BumpStructureVersion();
+            SubstructureOwnership.For(map).Assign(IntVec3.Zero, 999);
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
             Check(!ShipRegistry.RequiresOwnPocket(main.Ship), "foreign wreck ownership does not force extraction either");
             metadata.worksite = true;
             Check(ShipRegistry.RequiresOwnPocket(main.Ship), "worksite always extracts the ship to a compact map");
             metadata.worksite = false;
             int far = map.cellIndices.CellToIndex(new IntVec3(4, 0, 4));
             map.terrainGrid.topGrid[far] = soil;
-            ShipStructureChanges.Notify(map, terrainCell: map.cellIndices.IndexToCell(far));
+            AccessTools.Method(typeof(Patch_ShipStructure_Terrain), "Postfix").Invoke(null,
+                new object[] { map.terrainGrid, map.cellIndices.IndexToCell(far), soil, space, null });
             Check(ShipRegistry.RequiresOwnPocket(main.Ship), "natural ground beside the ship preserves the host");
             map.terrainGrid.topGrid[far] = space;
             Check(ShipRegistry.RequiresOwnPocket(main.Ship), "natural-ground reads reuse the indexed cell count");
-            ShipStructureChanges.Notify(map, terrainCell: map.cellIndices.IndexToCell(far));
+            AccessTools.Method(typeof(Patch_ShipStructure_Terrain), "Postfix").Invoke(null,
+                new object[] { map.terrainGrid, map.cellIndices.IndexToCell(far), space, soil, null });
             Check(!ShipRegistry.RequiresOwnPocket(main.Ship), "terrain structure invalidation refreshes the host decision");
             map.terrainGrid.topGrid[far] = floor;
-            ShipStructureChanges.Notify(map, terrainCell: map.cellIndices.IndexToCell(far));
+            AccessTools.Method(typeof(Patch_ShipStructure_Terrain), "Postfix").Invoke(null,
+                new object[] { map.terrainGrid, map.cellIndices.IndexToCell(far), floor, space, null });
             Check(!ShipRegistry.RequiresOwnPocket(main.Ship), "artificial flooring is not asteroid ground");
             map.terrainGrid.topGrid[far] = space;
             var other = AddTestConsole(map, faction, 49902);
             ShipStructureChanges.Notify(map, building: (Building)other.parent);
             Check(ShipRegistry.RequiresOwnPocket(main.Ship), "other valid ship requires extraction even without thrusters");
             other.isMain = false;
-            SubstructureOwnership.BumpStructureVersion();
+            universe.ShipStructure.NotifyConsole(other);
             var shuttle = AddTestHull(map, faction, 49903);
             ShipStructureChanges.Notify(map, building: (Building)shuttle.parent);
             Check(!shuttle.Vessel.CanDriveIn(frame) && !ShipRegistry.RequiresOwnPocket(main.Ship),

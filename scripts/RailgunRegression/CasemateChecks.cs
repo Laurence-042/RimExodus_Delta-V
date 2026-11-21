@@ -124,7 +124,7 @@ internal static partial class Program
             {
                 Set(weapon, "cachedOwner", ship); Set(weapon, "ownerMap", map);
                 Set(weapon, "ownerPosition", gun.Position); Set(weapon, "ownerRotation", gun.Rotation);
-                Set(weapon, "ownerVersion", SubstructureOwnership.StructureVersion(map));
+                Set(weapon, "ownerVersion", CompSpaceWeapon.OwnerBinding(weapon.parent));
                 Set(weapon, "ownerCacheValid", true); Set(weapon, "ownerWasValid", true);
             }
             BindOwner();

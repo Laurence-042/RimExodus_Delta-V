@@ -10,7 +10,12 @@ namespace DeltaV
     [HarmonyPatch(typeof(RoofGrid), nameof(RoofGrid.SetRoof))]
     public static class Patch_MoonPool_SetRoof
     {
-        public static void Postfix(Map ___map, IntVec3 c) => MoonPoolUtility.SyncRoofAt(___map, c);
+        private static void Prefix(RoofGrid __instance, IntVec3 c, out RoofDef __state) => __state = __instance.RoofAt(c);
+        public static void Postfix(Map ___map, IntVec3 c, RoofDef __state)
+        {
+            MoonPoolUtility.SyncRoofAt(___map, c);
+            Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.NotifyRoof(___map, c, __state, ___map.roofGrid.RoofAt(c));
+        }
     }
 
     [HarmonyPatch(typeof(Map), nameof(Map.ExposeData))]

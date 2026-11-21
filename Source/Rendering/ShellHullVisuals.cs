@@ -204,6 +204,13 @@ namespace DeltaV
                 || (building.def.building?.canPlaceOverWall == true && building.def.Fillage == FillCategory.Full));
         }
 
+        internal static bool SharesDomain(Map map, IntVec3 cell, IntVec3 neighbor)
+        {
+            var topology = Current.Game?.GetComponent<UniverseManager>()?.FoundationTopology;
+            var domain = topology?.DomainAt(map, cell);
+            return domain != null && domain == topology.DomainAt(map, neighbor);
+        }
+
         internal static Dictionary<IntVec3, Adjacency> AnalyzeWalls(Map map, CellRect neighborhood,
             Dictionary<IntVec3, int> angles)
         {
@@ -227,6 +234,7 @@ namespace DeltaV
             for (int side = 0; side < 4; side++)
             {
                 IntVec3 neighbor = cell + GenAdj.CardinalDirections[side];
+                if (!SharesDomain(map, cell, neighbor)) continue;
                 Building other = neighbor.GetEdificeSafe(map);
                 bool insert = HullWallInsert.LinksFrom(other, cell);
                 bool roof = HasShellRoof(map, neighbor);
@@ -245,6 +253,7 @@ namespace DeltaV
                 {
                     IntVec3 diagonal = cell + GenAdj.DiagonalDirectionsAround[corner];
                     if ((atlasLinks & CornerCardinalMasks[corner]) == CornerCardinalMasks[corner]
+                        && SharesDomain(map, cell, diagonal)
                         && (HullWallAt(map, diagonal) != null || HasShellRoof(map, diagonal)))
                         cornerFill |= 1 << corner;
                 }
@@ -255,7 +264,8 @@ namespace DeltaV
             {
                 IntVec3 inside = cell + GenAdj.CardinalDirections[CornerSideX(innerCorner)]
                     + GenAdj.CardinalDirections[CornerSideZ(innerCorner)];
-                if (!IsWallSegment(inside.GetEdificeSafe(map)) && HasShellRoof(map, inside)
+                if (SharesDomain(map, cell, inside)
+                    && !IsWallSegment(inside.GetEdificeSafe(map)) && HasShellRoof(map, inside)
                     && wall.Graphic is Graphic_Linked)
                     outerCorner = (innerCorner + 2) & 3;
             }
@@ -286,7 +296,7 @@ namespace DeltaV
             return foundation?.dontRender == false ? foundation : TerrainDefOf.Substructure;
         }
 
-        internal static void PrintCornerFill(SectionLayer_ThingsGeneral layer, Thing wall,
+        internal static void PrintCornerFill(SectionLayer layer, Thing wall,
             Adjacency adjacency, Material material)
         {
             for (int corner = 0; corner < 4; corner++)
@@ -310,7 +320,7 @@ namespace DeltaV
             }
         }
 
-        internal static void PrintWall(SectionLayer_ThingsGeneral layer, Thing wall,
+        internal static void PrintWall(SectionLayer layer, Thing wall,
             Adjacency adjacency, Material material)
         {
             if (adjacency.outerCorner < 0)
@@ -369,27 +379,166 @@ namespace DeltaV
             return a.z < b.z;
         }
 
+        internal static bool TryAngle(Map map, IntVec3 cell, out int corner, out bool full, out Color color)
+        {
+            corner = -1;
+            full = false;
+            color = Color.white;
+            if (!cell.InBounds(map) || cell.GetEdificeSafe(map) != null
+                || SubstructureOwnership.HasFoundation(map, cell)) return false;
+
+            int sides = 0;
+            for (int side = 0; side < 4; side++)
+                if (HullWallAt(map, cell + GenAdj.CardinalDirections[side]) != null) sides |= 1 << side;
+            corner = CornerOf(sides);
+            if (corner < 0) return false;
+            IntVec3 x = GenAdj.CardinalDirections[CornerSideX(corner)];
+            IntVec3 z = GenAdj.CardinalDirections[CornerSideZ(corner)];
+            if (!SharesDomain(map, cell + x, cell + z)) return false;
+            full = HullWallAt(map, cell + x + z) != null && SharesDomain(map, cell + x, cell + x + z);
+            color = HullWallAt(map, cell + z).DrawColor;
+            return true;
+        }
+
         internal static Dictionary<IntVec3, int> FindAngledCorners(Map map, CellRect rect)
         {
             var corners = new Dictionary<IntVec3, int>();
             foreach (IntVec3 cell in rect)
-            {
-                if (!SectionLayer_GravshipHull.ShouldDrawCornerPiece(cell, map, map.terrainGrid,
-                        out var type, out _)) continue;
-                // Full and partial tiles share the exposed diagonal across the anchor cell.
-                int corner = type switch
-                {
-                    SectionLayer_GravshipHull.CornerType.Corner_NE
-                        or SectionLayer_GravshipHull.CornerType.Diagonal_NE => 0,
-                    SectionLayer_GravshipHull.CornerType.Corner_SE
-                        or SectionLayer_GravshipHull.CornerType.Diagonal_SE => 1,
-                    SectionLayer_GravshipHull.CornerType.Corner_SW
-                        or SectionLayer_GravshipHull.CornerType.Diagonal_SW => 2,
-                    _ => 3
-                };
-                corners.Add(cell, corner);
-            }
+                if (TryAngle(map, cell, out int corner, out _, out _)) corners.Add(cell, corner);
             return corners;
+        }
+
+        private static class Materials
+        {
+            private const string HullArt = "Things/Building/Linked/GravshipHull/";
+            private const string FoundationArt = "Terrain/Surfaces/Substructure/";
+            private static readonly string[] AngleDirections = { "northeast", "southeast", "southwest", "northwest" };
+            internal static readonly CachedMaterial[] FullAngles = AngleMaterials("AngledGravshipHull_");
+            internal static readonly CachedMaterial[] PartialAngles = AngleMaterials("AngledGravshipHull_Partial_");
+            internal static readonly CachedMaterial EastCorner = new CachedMaterial(HullArt + "SubstructureCorner_Full_east", ShaderDatabase.Transparent);
+            internal static readonly CachedMaterial WestCorner = new CachedMaterial(HullArt + "SubstructureCorner_Full_west", ShaderDatabase.Transparent);
+            internal static readonly CachedMaterial EastTip = new CachedMaterial(HullArt + "SubstructureCorner_Tip_east", ShaderDatabase.Transparent);
+            internal static readonly CachedMaterial WestTip = new CachedMaterial(HullArt + "SubstructureCorner_Tip_west", ShaderDatabase.Transparent);
+            internal static readonly CachedMaterial FlatEdge = new CachedMaterial(FoundationArt + "SubstructureBorder_Flat", ShaderDatabase.Transparent);
+            internal static readonly CachedMaterial OuterEdge = new CachedMaterial(FoundationArt + "SubstructureBorder_CornerOuter", ShaderDatabase.Transparent);
+            internal static readonly CachedMaterial InnerEdge = new CachedMaterial(FoundationArt + "SubstructureBorder_CornerInner", ShaderDatabase.Transparent);
+            internal static readonly CachedMaterial ThreeEdges = new CachedMaterial(FoundationArt + "SubstructureBorder_UShape", ShaderDatabase.Transparent);
+            internal static readonly CachedMaterial FourEdges = new CachedMaterial(FoundationArt + "SubstructureBorder_OShape", ShaderDatabase.Transparent);
+            internal static readonly CachedMaterial Bottom = new CachedMaterial(FoundationArt + "SubstructureProps_Bottom", ShaderDatabase.Transparent);
+
+            private static CachedMaterial[] AngleMaterials(string prefix)
+            {
+                var materials = new CachedMaterial[4];
+                for (int i = 0; i < materials.Length; i++)
+                    materials[i] = new CachedMaterial(HullArt + prefix + AngleDirections[i], ShaderDatabase.CutoutOverlay);
+                return materials;
+            }
+        }
+
+        internal static void PrintAngles(Map map, CellRect rect, SectionLayer layer)
+        {
+            foreach (IntVec3 cell in rect)
+            {
+                if (!TryAngle(map, cell, out int corner, out bool full, out Color color)) continue;
+                IntVec3 offset = new IntVec3(corner >= 2 ? -1 : 0, 0, corner is 1 or 2 ? -1 : 0);
+                Material material = (full ? Materials.FullAngles : Materials.PartialAngles)[corner].Material;
+                float height = AltitudeLayer.BuildingOnTop.AltitudeFor();
+                PrintTile(layer, material, cell + offset, height, size: 2, color: color);
+                bool indoor = (cell + GenAdj.CardinalDirections[CornerSideX(corner)]).Roofed(map)
+                    || (cell + GenAdj.CardinalDirections[CornerSideZ(corner)]).Roofed(map);
+                if (indoor)
+                    PrintTile(layer, IndoorMaterial(material), cell + offset, height, size: 2, color: color);
+                if (corner is not (0 or 3)) continue;
+                float borderHeight = AltitudeLayer.TerrainEdges.AltitudeFor();
+                bool east = corner == 0;
+                Material border = (east ? Materials.EastCorner : Materials.WestCorner).Material;
+                PrintTile(layer, border, cell, borderHeight);
+                if (indoor) PrintTile(layer, IndoorMaterial(border), cell, borderHeight);
+                IntVec3 south = cell + IntVec3.South;
+                if (SubstructureOwnership.HasFoundation(map, south)) continue;
+                Material tip = (east ? Materials.EastTip : Materials.WestTip).Material;
+                PrintTile(layer, tip, south, borderHeight);
+                if (indoor) PrintTile(layer, IndoorMaterial(tip), south, borderHeight);
+            }
+        }
+
+        private static Material IndoorMaterial(Material material) =>
+            MaterialPool.MatFrom(material.mainTexture as Texture2D, ShaderDatabase.IndoorMaskMasked, material.color);
+
+        internal static int FoundationEdges(Map map, IntVec3 cell)
+        {
+            if (!SubstructureOwnership.HasFoundation(map, cell)) return 0;
+            int edges = 0;
+            for (int side = 0; side < 4; side++)
+                if (!SharesDomain(map, cell, cell + GenAdj.CardinalDirections[side]))
+                    edges |= 1 << side;
+            return edges;
+        }
+
+        internal static CellRect BoundarySections(Map map, CellRect cells, int radius)
+        {
+            const int sectionSize = 17;
+            CellRect expanded = cells.ExpandedBy(radius).ClipInsideMap(map);
+            return CellRect.FromLimits(expanded.minX / sectionSize, expanded.minZ / sectionSize,
+                expanded.maxX / sectionSize, expanded.maxZ / sectionSize);
+        }
+
+        internal static void PrintFoundationEdges(Map map, CellRect rect, SectionLayer layer)
+        {
+            float height = AltitudeLayer.TerrainScatter.AltitudeFor();
+            foreach (IntVec3 cell in rect)
+            {
+                if (!SubstructureOwnership.HasFoundation(map, cell)) continue;
+                int edges = FoundationEdges(map, cell);
+                switch (edges)
+                {
+                    case 15: PrintTile(layer, Materials.FourEdges.Material, cell, height); break;
+                    case 7: PrintTile(layer, Materials.ThreeEdges.Material, cell, height, 3); break;
+                    case 14: PrintTile(layer, Materials.ThreeEdges.Material, cell, height, 0); break;
+                    case 13: PrintTile(layer, Materials.ThreeEdges.Material, cell, height, 1); break;
+                    case 11: PrintTile(layer, Materials.ThreeEdges.Material, cell, height, 2); break;
+                    case 3: PrintTile(layer, Materials.OuterEdge.Material, cell, height, 3); break;
+                    case 6: PrintTile(layer, Materials.OuterEdge.Material, cell, height, 0); break;
+                    case 12: PrintTile(layer, Materials.OuterEdge.Material, cell, height, 1); break;
+                    case 9: PrintTile(layer, Materials.OuterEdge.Material, cell, height, 2); break;
+                    default:
+                        for (int side = 0; side < 4; side++)
+                            if ((edges & (1 << side)) != 0)
+                                PrintTile(layer, Materials.FlatEdge.Material, cell, height, (2 + side) & 3);
+                        break;
+                }
+                for (int corner = 0; corner < 4; corner++)
+                {
+                    IntVec3 x = GenAdj.CardinalDirections[CornerSideX(corner)];
+                    IntVec3 z = GenAdj.CardinalDirections[CornerSideZ(corner)];
+                    if ((edges & CornerCardinalMasks[(corner + 2) & 3]) == 0 && !SharesDomain(map, cell, cell + x + z))
+                        PrintTile(layer, Materials.InnerEdge.Material, cell, height, (3 + corner) & 3);
+                }
+                IntVec3 south = cell + IntVec3.South;
+                if ((edges & 4) != 0 && !SubstructureOwnership.HasFoundation(map, south)
+                    && (!TryAngle(map, south, out int angle, out _, out _) || angle is not (0 or 3)))
+                    PrintTile(layer, Materials.Bottom.Material, south, height);
+            }
+        }
+
+        private static void PrintTile(SectionLayer layer, Material material, IntVec3 cell,
+            float height, int rotation = 0, float size = 1, Color? color = null)
+        {
+            LayerSubMesh mesh = layer.GetSubMesh(material);
+            int start = mesh.verts.Count;
+            for (int i = 0; i < 4; i++)
+            {
+                Vector2 uv = PlaneUVs[i];
+                mesh.verts.Add(new Vector3(cell.x + uv.x * size, height, cell.z + uv.y * size));
+                mesh.uvs.Add(PlaneUVs[(i + 4 - rotation) & 3]);
+                mesh.colors.Add(color ?? Color.white);
+            }
+            mesh.tris.Add(start);
+            mesh.tris.Add(start + 1);
+            mesh.tris.Add(start + 2);
+            mesh.tris.Add(start);
+            mesh.tris.Add(start + 2);
+            mesh.tris.Add(start + 3);
         }
 
         internal static int AngledSidesAt(IntVec3 wall, Dictionary<IntVec3, int> corners)

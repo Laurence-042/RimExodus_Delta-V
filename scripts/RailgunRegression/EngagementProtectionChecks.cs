@@ -80,7 +80,7 @@ internal static partial class Program
                 Add(30, 8, 500, interceptor, power, shield);
             }
             else if (protection == "Guard") guard = Shield(750);
-            SubstructureOwnership.BumpStructureVersion();
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
             bool laser = weapon == "Laser";
             ThingDef projectile = projectiles[laser ? "DeltaV_Projectile_Laser" : chemical.defName];
             float speed = laser ? 60f : SpaceKinetics.LaunchSpeed(32, 1);

@@ -46,12 +46,8 @@ namespace DeltaV
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"docking finish: '{label}' {GetType().Name}, source={UniverseManager.MapTag(sourceMap)}, currentMap={UniverseManager.MapTag(Find.CurrentMap)}");
             if (sourceMap == null) return;
-            // 统一失效宿主放置后的结构查询；与建筑/归属事件共享同一版本。
-            SubstructureOwnership.BumpStructureVersion(sourceMap);
-            SubstructureOwnership.BumpStructureVersion(targetMap);
             if (targetMap != null && !targetMap.Disposed)
             {
-                PlanetGlobeRenderer.InvalidateSilhouette(targetMap);
             }
             if (sourceMap.Disposed || !Find.Maps.Contains(sourceMap))
             {
@@ -64,7 +60,6 @@ namespace DeltaV
                 transitions.FinishDockingCleanup(sourceMap);
                 transitions.HandleDepartedSourceMap(universe, sourceMap);
                 ShipPhysics.Forget(sourceMap);
-                ShipPhysics.Forget(targetMap);
             }
             HostColonistBarVisibility.NotifyDockingStateChanged();
             Building_DockingPort.NotifyLandingSettled(targetMap);

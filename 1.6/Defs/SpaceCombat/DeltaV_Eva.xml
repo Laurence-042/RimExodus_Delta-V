@@ -27,8 +27,8 @@
     <comps>
       <li Class="DeltaV.CompProperties_LocalShuttle" />
       <li Class="DeltaV.CompProperties_LocalLaunchable"><minFuelCost>0</minFuelCost><fuelPerTile>0</fuelPerTile><cooldownTicks>0</cooldownTicks></li>
-      <li Class="CompProperties_Transporter"><massCapacity>60</massCapacity><max1PerGroup>true</max1PerGroup><canChangeAssignedThingsAfterStarting>true</canChangeAssignedThingsAfterStarting><showMassInInspectString>false</showMassInInspectString></li>
-      <li Class="DeltaV.CompProperties_VehicleCargo"><cargoCapacity>60</cargoCapacity><crewCount>1</crewCount></li>
+      <li Class="DeltaV.CompProperties_VehicleCargo"><massCapacity>60</massCapacity><crewCount>1</crewCount><max1PerGroup>true</max1PerGroup><canChangeAssignedThingsAfterStarting>true</canChangeAssignedThingsAfterStarting><showMassInInspectString>false</showMassInInspectString></li>
+      <li Class="DeltaV.CompProperties_StructureMass" />
       <li Class="DeltaV.CompProperties_EvaSuit">
         <virtualThrusters>
           <!-- Diagonal exhaust points outward; each axial pair supplies 300 total thrust. -->

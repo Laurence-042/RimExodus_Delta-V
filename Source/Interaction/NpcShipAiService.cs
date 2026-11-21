@@ -92,12 +92,9 @@ namespace DeltaV
             own.npcHadShip = true;
             float thrust = ShipThrust(ship);
             float firepower = universe.Weapons.EstimateFirepower(ship, 50f, 20f);
-            List<CompShipCombatAI> consoles = ship.Map.listerThings.AllThings
-                .Where(t => ship.Contains(t) && (t == ship.Anchor
-                    || t.TryGetComp<CompDeltaVPilotConsole>() != null))
-                .OfType<ThingWithComps>()
-                .Select(t => t.TryGetComp<CompShipCombatAI>())
-                .Where(c => c != null).ToList();
+            long consoleStart = universe.Performance.Start();
+            List<CompShipCombatAI> consoles = ship.StructuralState.CombatConsoles.ToList();
+            universe.Performance.Record(PerformanceStage.NpcRetreatConsoles, consoleStart);
             foreach (CompShipCombatAI comp in consoles) comp.EnsureBaselineFor(ship);
             CompShipCombatAI established = consoles.FirstOrDefault(c => c.initialMainConsoleId > 0);
             foreach (CompShipCombatAI comp in consoles)
@@ -111,7 +108,8 @@ namespace DeltaV
 
         internal bool EvaluateRetreat(ShipBase ship, SpaceObject own, out string reason)
         {
-            RecordBaseline(ship, own);
+            using (universe.Performance.Measure(PerformanceStage.NpcRetreatBaseline))
+                RecordBaseline(ship, own);
             CompShipCombatAI comp = ship.CombatAI;
             if (comp == null) { reason = null; return false; }
             bool result = EvaluateRetreat(comp.initialThrust, comp.initialFirepower,
@@ -263,12 +261,15 @@ namespace DeltaV
             if (lastDecisionTick < 0 || now - lastDecisionTick >= interval)
             {
                 lastDecisionTick = now;
+                long start = universe.Performance.BeginNpcRound();
                 TickDecisions();
+                universe.Performance.FinishNpcRound(start, now, interval);
             }
         }
 
         private void TickDecisions()
         {
+            var performance = universe.Performance;
             objectBuffer.Clear();
             objectBuffer.AddRange(universe.objects);
             foreach (SpaceObject obj in objectBuffer)
@@ -276,7 +277,11 @@ namespace DeltaV
                 if (obj == null) continue;
                 if (obj.map == null)
                 {
-                    if (obj is ArchivedSpaceObject archive) DecideArchivedRoute(archive);
+                    if (obj is ArchivedSpaceObject archive)
+                    {
+                        using var measure = performance.Measure(PerformanceStage.NpcArchive);
+                        DecideArchivedRoute(archive);
+                    }
                     continue;
                 }
                 if (obj.map.Disposed) continue;
@@ -291,22 +296,25 @@ namespace DeltaV
                 {
                     Faction faction = ship.Faction;
                     if (faction == null || faction == Faction.OfPlayer) continue;
+                    long shipStart = performance.Start();
                     NpcShipController controller = universe.Controls.NpcFor(ship);
                     NpcShipAiGate gate = GateFor(obj, ship, controller);
                     LogGateEdge(ship, obj, gate);
-                    if (gate != NpcShipAiGate.Ready)
+                    performance.Record(PerformanceStage.NpcGate, shipStart);
+                    if (gate == NpcShipAiGate.Ready)
                     {
-                        controller?.SetCombatReady(false);
-                        continue;
+                        if (!controller.Active || controller.target.Identity != ship.Identity)
+                            controller.Enter(PilotTarget.Of(ship));
+                        controller.Ai.Tick(controller);
                     }
-                    if (!controller.Active || controller.target.Identity != ship.Identity)
-                        controller.Enter(PilotTarget.Of(ship));
-                    controller.Ai.Tick(controller);
+                    else controller?.SetCombatReady(false);
+                    performance.RecordNpcShip(performance.Elapsed(shipStart), ship, gate);
                 }
             }
             int now = Find.TickManager.TicksGame;
             if (lastCleanupTick < 0 || now - lastCleanupTick >= 600)
             {
+                using var measure = performance.Measure(PerformanceStage.NpcCleanup);
                 lastCleanupTick = now;
                 foreach (DriveSubject id in lastGateByShip.Keys.ToList())
                     if (!ShipRegistry.ShipByIdentity(id).IsValid)
@@ -424,10 +432,16 @@ namespace DeltaV
             SpaceObject own = universe.FrameOf(ship.Map);
             if (own == null) return;
             int now = Find.TickManager.TicksGame;
-            controller.FireControl.Decide(ship, own);
+            var performance = universe.Performance;
+            using (performance.Measure(PerformanceStage.NpcTarget))
+                controller.FireControl.Decide(ship, own);
             CombatTarget target = controller.FireControl.Target;
             bool wasRetreating = ship.CombatAI?.retreating == true;
-            if (universe.NpcShips.EvaluateRetreat(ship, own, out string retreatReason))
+            bool retreat;
+            string retreatReason;
+            using (performance.Measure(PerformanceStage.NpcRetreat))
+                retreat = universe.NpcShips.EvaluateRetreat(ship, own, out retreatReason);
+            if (retreat)
             {
                 RecordDecision(ship, CombatDecisionText.Retreat(retreatReason));
                 if (!wasRetreating)
@@ -441,7 +455,8 @@ namespace DeltaV
                             + $"; {UniverseManager.MapTag(ship.Map)}");
                 }
                 LogThrustEdge(ship);
-                TickRetreat(controller, ship, own, target.TryResolve(universe, out var threat) ? threat.Pose : (SpacePose?)null);
+                using (performance.Measure(PerformanceStage.NpcTactics))
+                    TickRetreat(controller, ship, own, target.TryResolve(universe, out var threat) ? threat.Pose : (SpacePose?)null);
                 return;
             }
             if (wasRetreating)
@@ -460,6 +475,7 @@ namespace DeltaV
             }
             controller.SetCombatReady(true);
             RecordDecision(ship, "DeltaV_CombatDecisionEngage".Translate());
+            using var measure = performance.Measure(PerformanceStage.NpcTactics);
             controller.AutoManeuver.Decide(ship, own, target,
                 allowBoarding: true, playerInitiated: false);
             if (controller.AutoManeuver.Boarding && now >= nextBoardTick)
@@ -496,6 +512,7 @@ namespace DeltaV
         private void LogThrustEdge(ShipBase ship)
         {
             if (!DeltaVLog.Enabled(DeltaVLogModule.AI)) return;
+            using var measure = universe.Performance.Measure(PerformanceStage.NpcThrustLog);
             bool noThrust = Thrust(ship) <= 0f;
             if (noThrustObserved && noThrust == lastNoThrust) return;
             bool wasObserved = noThrustObserved;

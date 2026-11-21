@@ -143,39 +143,5 @@ namespace DeltaV
             texture.Apply(false, true);
             return texture;
         }
-
-        /// <summary>
-        /// 全图基架格扫描（ownerId ≤ 0 的旧整图口径，仅调试/兜底用；原版站点地图没有
-        /// Substructure → 空列表 → 调用方退回图标）。
-        /// </summary>
-        public static List<IntVec3> ScanSubstructure(Map map)
-        {
-            var cells = new List<IntVec3>();
-            if (map == null || map.Disposed)
-            {
-                return cells;
-            }
-            cells.AddRange(SubstructureOwnership.CellsOnMap(map));
-            return cells;
-        }
-
-        /// <summary>
-        /// 按归属过滤的基架格扫描（2026-09-18 基架归属设计后的正口径）：停靠在 wreck 图
-        /// 上的飞船只扫自己 ID 的格子，与 wreck 剪影互不污染。归属数据缺失（组件不存在
-        /// 或该对象 ID 无格）时回退整图口径。
-        /// </summary>
-        public static List<IntVec3> ScanSubstructure(Map map, int ownerId)
-        {
-            if (map == null || map.Disposed)
-            {
-                return new List<IntVec3>();
-            }
-            SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
-            if (ownership == null)
-            {
-                return ScanSubstructure(map);
-            }
-            return ownership.CellsOwnedBy(ownerId);
-        }
     }
 }

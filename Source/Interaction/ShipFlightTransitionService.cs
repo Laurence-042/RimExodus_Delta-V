@@ -20,6 +20,48 @@ namespace DeltaV
             this.universe = universe;
         }
 
+        internal readonly struct TransitionRevision
+        {
+            private readonly SpaceObject frame;
+            private readonly Map map;
+            private readonly Thing anchor;
+            private readonly IntVec3 position;
+            private readonly Rot4 facing;
+            private readonly HashSet<IntVec3> domain;
+            private readonly int representation, domainRevision, membershipRevision, transferRevision;
+            private readonly int? residualRevision;
+
+            internal TransitionRevision(UniverseManager universe, ShipBase ship, bool movesResidual = false)
+            {
+                map = ship.Map;
+                frame = universe.FrameOf(map);
+                representation = frame?.RepresentationVersion ?? -1;
+                anchor = ship.Anchor;
+                position = anchor?.Position ?? IntVec3.Invalid;
+                facing = anchor?.Rotation ?? Rot4.Invalid;
+                ShipStructure structure = ship.StructuralState;
+                domain = structure?.Foundation;
+                domainRevision = universe.FoundationTopology.DomainRevision(map, domain);
+                membershipRevision = universe.FoundationTopology.MembershipRevision(map, domain);
+                transferRevision = domain == null ? structure?.TransferRevision ?? -1 : -1;
+                residualRevision = movesResidual ? universe.ShipStructure.TransferRevision(map) : null;
+            }
+
+            internal bool Matches(UniverseManager universe, ShipBase ship)
+            {
+                if (ship?.IsValid != true || ship.Map != map || ship.Anchor != anchor
+                    || anchor.Position != position || anchor.Rotation != facing
+                    || frame == null || universe.FrameOf(map) != frame || frame.RepresentationVersion != representation)
+                    return false;
+                ShipStructure structure = ship.StructuralState;
+                return structure?.Foundation == domain
+                    && universe.FoundationTopology.DomainRevision(map, domain) == domainRevision
+                    && universe.FoundationTopology.MembershipRevision(map, domain) == membershipRevision
+                    && (domain != null || structure?.TransferRevision == transferRevision)
+                    && (!residualRevision.HasValue || residualRevision == universe.ShipStructure.TransferRevision(map));
+            }
+        }
+
         // ---- 战术对接（移动 → 固定，合图）----
 
         internal bool HasLandedTargetAwaitingCleanup => dockingCleanupMaps.Count > 0;

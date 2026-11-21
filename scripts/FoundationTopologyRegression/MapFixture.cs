@@ -13,6 +13,13 @@ namespace Verse
     {
         public bool InBounds(Map map) => x >= 0 && z >= 0 && x < map.Size.x && z < map.Size.z;
     }
+    public readonly record struct CellRect(int minX, int minZ, int maxX, int maxZ)
+    {
+        public static CellRect Empty => new(0, 0, -1, -1);
+        public static CellRect FromLimits(int minX, int minZ, int maxX, int maxZ) => new(minX, minZ, maxX, maxZ);
+        public static CellRect FromCellList(List<IntVec3> cells) => cells.Count == 0 ? Empty
+            : new(cells.Min(cell => cell.x), cells.Min(cell => cell.z), cells.Max(cell => cell.x), cells.Max(cell => cell.z));
+    }
     public sealed class CellIndices
     {
         private readonly int width;
@@ -58,8 +65,8 @@ namespace DeltaV
     internal static class SpaceTransform
     {
         internal static UnityEngine.Vector2 BoundsCenterOfCells(IEnumerable<Verse.IntVec3> cells) =>
-            new((cells.Min(c => c.x) + cells.Max(c => c.x)) / 2f,
-                (cells.Min(c => c.z) + cells.Max(c => c.z)) / 2f);
+            new((cells.Min(c => c.x) + cells.Max(c => c.x) + 1) / 2f,
+                (cells.Min(c => c.z) + cells.Max(c => c.z) + 1) / 2f);
     }
     public sealed class SubstructureOwnership
     {
@@ -68,7 +75,7 @@ namespace DeltaV
         public static SubstructureOwnership TryGet(Verse.Map map) => map.Ownership;
         public static bool HasFoundation(Verse.Map map, Verse.IntVec3 cell)
         { map.FoundationReads++; return cell.InBounds(map) && map.Foundations[map.cellIndices.CellToIndex(cell)]; }
-        public static int StructureVersion(Verse.Map map) => map.StructureVersion;
+        public IEnumerable<Verse.Building> SpawnedBuildings => map.thingGrid.Buildings.Where(b => b.Spawned && b.Map == map);
         public int OwnerAt(Verse.IntVec3 cell) => Math.Max(0, map.Read(map.cellIndices.CellToIndex(cell)));
     }
     public sealed class ConsoleBody { public Verse.IntVec3 Position; }

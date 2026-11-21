@@ -48,26 +48,21 @@ internal static partial class Program
         var customDef = TestBuildingDef("lifecycleCustomConsole");
         customDef.thingClass = typeof(Building);
         var primary = new CompDeltaVPilotConsole { isMain = true, shipId = 1602 };
-        AddTestBuilding(sourceMap, player, 1602, customDef, primary);
+        AddTestBuilding(sourceMap, player, 1699, customDef, primary);
         var hostConsole = AddTestConsole(sourceMap, enemy, 1603);
         ShipStructureChanges.Notify(sourceMap, (Building)primary.parent);
         ShipStructureChanges.Notify(sourceMap, (Building)hostConsole.parent);
         var carried = AddTestHull(sourceMap, enemy, primary.shipId);
         var weapon = new CompSpaceWeapon { parent = carried.parent, props = new CompProperties_SpaceWeapon() };
-        carried.parent.AllComps.Add(weapon);
-        var deck = (TerrainDef)Raw(typeof(TerrainDef));
-        deck.isFoundation = true;
-        void SetCarryingFoundation(Map map, bool occupied)
-        {
-            IntVec3 cell = primary.parent.Position;
-            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = occupied ? deck : null;
-            if (occupied) SubstructureOwnership.For(map).Assign(cell, primary.shipId);
-            else SubstructureOwnership.For(map).Assign(cell, SubstructureOwnership.Unassigned);
-            universe.NotifyFoundationChanged(map, cell);
-        }
+        AddFixtureComponents(carried.parent, weapon);
+        var deck = FixtureFoundation("carryingFoundation");
+        void SetCarryingFoundation(Map map, bool occupied) =>
+            SetFixtureFoundation(map, primary.parent.Position, occupied ? deck : null, primary.shipId);
         SetCarryingFoundation(sourceMap, true);
         ShipStructureChanges.Notify(sourceMap);
         ShipBase original = primary.Vessel;
+        Ship sourceSnapshot = primary.Ship;
+        ShipStructure originalStructure = original.StructuralState;
         DriveSubject identity = original.Identity, hullIdentity = carried.Vessel.Identity;
         var controller = universe.Controls.For(original);
         var hullController = universe.Controls.For(carried.Vessel);
@@ -96,12 +91,13 @@ internal static partial class Program
         UnspawnFixture(carried, sourceMap);
         SpawnFixture(carried, destinationMap);
         ShipBase relocated = ShipRegistry.ShipByIdentity(identity);
-        Check(!original.IsValid && relocated.IsValid && relocated.Map == destinationMap
-            && !ReferenceEquals(original, relocated),
-            "foundation transfer invalidates the old Map snapshot and rebuilds the same identity");
+        Check(!sourceSnapshot.IsValid && relocated.IsValid && relocated.Map == destinationMap
+            && ReferenceEquals(original, relocated) && ReferenceEquals(originalStructure, relocated.StructuralState)
+            && originalStructure.Map == destinationMap,
+            "foundation transfer expires the source query while retaining the ship and structure");
         Check(controller.Active && controller.target.Vessel == relocated
             && ReferenceEquals(Controllers(universe)[identity], controller),
-            "active foundation pilot follows the replacement snapshot through the shared binding entry");
+            "active foundation pilot keeps the same ship through the shared binding entry");
         Call(universe, "RunFrameActions");
         Check(!universe.ShipTransitions.pendingSeparationOwnerIds.Contains(identity.key)
             && primary.parent.Map == destinationMap && universe.objects.Count == 2,
@@ -126,7 +122,8 @@ internal static partial class Program
         SpawnFixture(carried, sourceMap);
         Call(universe, "RunFrameActions");
         universe.Controls.ForgetMap(destinationMap);
-        Check(controller.Active && controller.target.Map == sourceMap
+        Check(controller.Active && controller.target.Map == sourceMap && controller.target.Vessel == original
+            && ReferenceEquals(originalStructure, original.StructuralState) && originalStructure.Map == sourceMap
             && primary.combat.weaponsArmed
             && primary.combat.fireControlMode == ShipFireControlMode.Manual
             && primary.combat.weaponGroupsMain == 16 && source.Weapons.Single() == weapon
@@ -149,7 +146,8 @@ internal static partial class Program
         _ = backup.Vessel; // Warm an invalid adapter before succession.
         RemoveConsoleFixture(primary, sourceMap);
         primary.PostDestroy(DestroyMode.Vanish, sourceMap);
-        Check(backup.isMain && ShipRegistry.ShipByIdentity(identity).Anchor == backup.parent
+        Check(backup.isMain && ShipRegistry.ShipByIdentity(identity) == original
+            && ReferenceEquals(originalStructure, original.StructuralState) && originalStructure.Anchor == backup.parent
             && controller.Active && controller.target.Vessel.Anchor == backup.parent
             && ReferenceEquals(Controllers(universe)[identity], controller),
             "real main-console destruction and succession retain the controller and refresh its pilot snapshot");

@@ -50,7 +50,7 @@ internal static partial class Program
         MoveCombatFixture(engine, new IntVec3(2, 0, 2));
         var detachedEngine = AddTestBuilding(map, enemy, 1913, engineDef, new EmptyComp());
         MoveCombatFixture(detachedEngine, new IntVec3(4, 0, 2));
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         ShipRegistry.ShipByIdentity(attacker.Identity);
         foreach (ShipBase member in victim.Ships) universe.Controls.For(member);
         ShipBase selected = ShipFireControl.Candidates(attacker, own, victim).FirstOrDefault();
@@ -64,7 +64,7 @@ internal static partial class Program
 
         // Break the connecting foundation while leaving the wreck on the same Map.
         hull.cells.RemoveWhere(cell => cell.x >= 3);
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         ShipRegistry.ShipByIdentity(attacker.Identity);
         foreach (ShipBase member in victim.Ships) universe.Controls.For(member);
         Check(fire.TryGetIntent(attacker, own, false, out var splitIntent)
@@ -83,15 +83,13 @@ internal static partial class Program
             "off-center rotating hull contributes rigid point velocity to shared intercept prediction");
 
         // Put the remaining usable engine in a different, friendly ship on this same Map.
-        Set(typeof(Thing), engine, "mapIndexOrState", (sbyte)-1);
-        map.listerThings.AllThings.Remove(engine);
-        map.thingGrid.Deregister(engine);
+        RemoveFixtureBuilding(engine, map);
         var friendlyConsole = AddTestConsole(map, player, 1914);
         MoveCombatFixture(friendlyConsole.parent, new IntVec3(4, 0, 2));
         var friendlyHull = new CombatHull(friendlyConsole.Ship);
         friendlyHull.cells.Add(new IntVec3(4, 0, 2));
         victim.members.Add(friendlyHull);
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         ShipRegistry.ShipByIdentity(attacker.Identity);
         foreach (ShipBase member in victim.Ships) universe.Controls.For(member);
         Check(victim.MotionInfo.AvailableThrust > 0f
@@ -103,21 +101,21 @@ internal static partial class Program
             "NPC selection and diagnostics retain stationary targets through the shared gate");
 
         // A same-facing replacement still defines a ship; no primary defines only wreckage.
-        Set(typeof(Thing), friendlyConsole.parent, "factionInt", enemy);
-        SubstructureOwnership.BumpStructureVersion();
+        SetFixtureFaction(friendlyConsole.parent, enemy);
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         ShipRegistry.ShipByIdentity(attacker.Identity);
         foreach (ShipBase member in victim.Ships) universe.Controls.For(member);
         Check(ShipFireControl.Candidates(attacker, own, victim).Count() == 2,
             "mixed-map selection includes both hostile members regardless of propulsion");
         console.isMain = friendlyConsole.isMain = false;
         victim.faction = enemy;
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         ShipRegistry.ShipByIdentity(attacker.Identity);
         foreach (ShipBase member in victim.Ships) universe.Controls.For(member);
         Check(!ShipFireControl.Candidates(attacker, own, victim).Any(),
             "hostile environment affiliation and remaining engines cannot turn console-free debris into a target");
         friendlyConsole.isMain = true;
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         ShipRegistry.ShipByIdentity(attacker.Identity);
         foreach (ShipBase member in victim.Ships) universe.Controls.For(member);
         Check(ShipFireControl.Candidates(attacker, own, victim).Any(),
@@ -184,11 +182,9 @@ internal static partial class Program
             salvoSet = SpaceWeaponSalvoSet.Secondary, groupNumber = 6 };
         var tractor = new CompSpaceWeapon { parent = targetConsole.parent,
             props = new CompProperties_SpaceWeapon { tractor = true, manualOnly = true } };
-        sourceConsole.parent.AllComps.Add(gun);
         // Observe a real fire request without leaving a spawned round in the next fixture.
-        sourceConsole.parent.AllComps.Add(new CompMannable { parent = sourceConsole.parent });
-        targetConsole.parent.AllComps.Add(tractor);
-        SubstructureOwnership.BumpStructureVersion();
+        AddFixtureComponents(sourceConsole.parent, gun, new CompMannable());
+        AddFixtureComponents(targetConsole.parent, tractor);
         BindWeaponOwnerFixture(gun, attacker);
         BindWeaponOwnerFixture(tractor, target);
         MapPrefab.InitializeNpcCombat(sourceMap, new Thing[] { sourceConsole.parent, backup.parent });
@@ -226,27 +222,19 @@ internal static partial class Program
             "default NPC auto volley assigns its gun to the hostile tractor-only ship");
 
         var lockOnTarget = fire.Target;
-        Set(typeof(Thing), targetConsole.parent, "factionInt", enemy);
+        SetFixtureFaction(targetConsole.parent, enemy);
         fire.Decide(attacker, own);
         Check(!fire.Target.HasLock && !fire.TryResolveAutomatic(attacker, own, lockOnTarget, out _),
             "a non-hostile current main console invalidates NPC selection and the existing weapon lock");
 
-        Set(typeof(Thing), targetConsole.parent, "factionInt", player);
+        SetFixtureFaction(targetConsole.parent, player);
         fire.Decide(attacker, own);
         Check(fire.Target == lockOnTarget, "NPC reacquires the ship when its current main console is hostile again");
         targetConsole.isMain = false;
-        SubstructureOwnership.BumpStructureVersion(targetMap);
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(targetMap);
         fire.Decide(attacker, own);
         Check(!fire.Target.HasLock && !fire.TryResolveAutomatic(attacker, own, lockOnTarget, out _)
             && victim.HostileTo(enemy), "losing the only main console stops NPC targeting despite hostile container faction");
         npc.SetCombatReady(false);
-    }
-
-    static void MoveCombatFixture(Thing thing, IntVec3 position)
-    {
-        Map map = thing.Map;
-        map.thingGrid.Deregister(thing);
-        Set(typeof(Thing), thing, "positionInt", position);
-        map.thingGrid.Register(thing);
     }
 }

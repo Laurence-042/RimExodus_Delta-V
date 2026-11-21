@@ -14,7 +14,7 @@ namespace DeltaV
             internal HullSource next;
             internal Map map;
             internal int representation, version = -1;
-            internal readonly HashSet<IntVec3> cells = new HashSet<IntVec3>();
+            internal HashSet<IntVec3> cells = new HashSet<IntVec3>();
         }
         private readonly Dictionary<DriveSubject, HullSource> hullSources = new Dictionary<DriveSubject, HullSource>();
         private readonly Dictionary<SpaceObject, HullSource> hullSourcesByOwner = new Dictionary<SpaceObject, HullSource>();
@@ -47,7 +47,9 @@ namespace DeltaV
 
         internal void NotifyHullCellsChanged(Map map, CellRect? range)
         {
-            if (hullSources.Count != 0) hullSourcesDirty = true;
+            if (hullSourcesDirty) return;
+            foreach (var source in hullSources.Values)
+                if (map == null || source.map == map) { hullSourcesDirty = true; return; }
         }
 
         private void RefreshHullSources()
@@ -72,19 +74,24 @@ namespace DeltaV
                 {
                     source.owner = null;
                     source.map = null;
-                    source.cells.Clear();
+                    source.cells = new HashSet<IntVec3>();
                     source.version = -1;
                     continue;
                 }
-                int version = SubstructureOwnership.StructureVersion(ship.Map);
+                int version = ship.StructuralState?.TransferRevision ?? -1;
+                if (ship.GetType() != typeof(FoundationShip) && ship.GetType() != typeof(ShuttleShip))
+                    version = ShipStructureIndex.ReadRevision(ship.Map, ShipStructureAspect.Footprint | ShipStructureAspect.Foundation
+                        | ShipStructureAspect.Ownership | ShipStructureAspect.Membership | ShipStructureAspect.Representation);
+                var domain = ship.GetType() == typeof(FoundationShip) ? ship.StructuralState?.Foundation : null;
+                if (domain != null) source.cells = domain;
                 if (source.owner != owner || source.map != ship.Map || source.representation != owner.RepresentationVersion
                     || source.version != version)
                 {
                     source.owner = owner;
                     source.map = ship.Map;
                     source.representation = owner.RepresentationVersion;
-                    source.cells.Clear();
-                    source.cells.UnionWith(ship.HullCells);
+                    IEnumerable<IntVec3> hull = ship.HullCells;
+                    source.cells = hull as HashSet<IntVec3> ?? new HashSet<IntVec3>(hull);
                     source.version = version;
                 }
                 if (source.cells.Count == 0) continue;

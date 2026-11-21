@@ -15,6 +15,22 @@ using Verse;
 
 internal static partial class Program
 {
+    private static object CallInstance(object instance, string name, params object[] args)
+    {
+        MethodInfo method = instance.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .Single(candidate => candidate.Name == name && candidate.GetParameters().Length == args.Length
+                && candidate.GetParameters().Zip(args).All(pair => pair.Second == null
+                    || pair.First.ParameterType.IsInstanceOfType(pair.Second)));
+        return method.Invoke(instance, args);
+    }
+
+    private static void SetRoofFixtureFoundation(Map map, IntVec3 cell, TerrainDef foundation)
+    {
+        map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = foundation;
+        var universe = Current.Game.GetComponent<UniverseManager>();
+        CallInstance(universe, "NotifyFoundationChanged", map, cell);
+    }
+
     static bool CaptureRoof(Map map, IntVec3 cell)
     {
         if (map.roofGrid.RoofAt(cell) != null || map.terrainGrid.FoundationAt(cell) == null)
@@ -32,7 +48,7 @@ internal static partial class Program
         map.info = new MapInfo { Size = new IntVec3(40, 1, 40) };
         map.uniqueID = 502;
         map.cellIndices = new CellIndices(map);
-        map.components = new List<MapComponent>();
+        map.components = new List<MapComponent> { new SubstructureOwnership(map) };
         map.terrainGrid = new TerrainGrid(map);
         map.thingGrid = new ThingGrid(map);
         map.edificeGrid = new EdificeGrid(map);
@@ -71,7 +87,7 @@ internal static partial class Program
                 foreach (IntVec3 c in CellRect.CenteredOn(origin, 2)) map.roofGrid.SetRoof(c, roof);
                 map.roofGrid.SetRoof(origin + IntVec3.West, natural);
                 map.roofGrid.SetRoof(origin + IntVec3.South, field);
-                map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(origin)] = deck;
+                SetRoofFixtureFoundation(map, origin, deck);
                 SubstructureDamageUtility.TryDestroy(map, origin);
                 if (map.roofGrid.RoofAt(furniture.Position) == null) removed++; else retained++;
                 if (map.roofGrid.RoofAt(origin + IntVec3.North) != roof
@@ -90,7 +106,7 @@ internal static partial class Program
         Check(true, "roof shock respects walls, closed corners, rock, force fields and one-cell radius");
 
         foreach (IntVec3 c in CellRect.CenteredOn(origin, 2)) map.roofGrid.SetRoof(c, roof);
-        map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(origin)] = deck;
+        SetRoofFixtureFoundation(map, origin, deck);
         Call(typeof(SpaceImpactEffects), "ClearCuttingRoofs", map, origin);
         Check(map.roofGrid.RoofAt(origin) == null
             && map.roofGrid.RoofAt(origin + IntVec3.West) == null
@@ -109,7 +125,7 @@ internal static partial class Program
         var edgeCell = origin + IntVec3.West;
         map.roofGrid.SetRoof(edgeCell, roof);
         Check((bool)Call(edges, "IsOpenEdge", map, edgeCell, 1), "unsupported roof edge opens toward destroyed foundation");
-        map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(origin)] = deck;
+        SetRoofFixtureFoundation(map, origin, deck);
         map.roofGrid.SetRoof(origin, roof);
         Check(!(bool)Call(edges, "IsOpenEdge", map, edgeCell, 1), "roof repair removes broken-edge geometry");
         map.roofGrid.SetRoof(origin, field);
@@ -196,6 +212,7 @@ internal static partial class Program
         CheckAngledHullSlopes(map, hull, deck, dirty);
         Building_Door door = CheckWallSegmentLighting(map, hull, deck, roof, dirty);
         CheckBuildingDamage(map, deck, roof, dirty);
+        CheckOwnedDomainBoundaries(universe, deck, space, hull);
         ExportRoofEdgePreview(edges);
         MapOverlayRenderer.Release(map);
         dirty.Clear();
@@ -204,6 +221,101 @@ internal static partial class Program
         Check(!ReferenceEquals(cache, Call(typeof(MapOverlayRenderer), "CacheFor", map)),
             "reopened map starts with a fresh render cache");
         MapOverlayRenderer.Release(map);
+    }
+
+    private static void CheckOwnedDomainBoundaries(UniverseManager universe, TerrainDef deck,
+        TerrainDef space, Type hull)
+    {
+        var map = (Map)Raw(typeof(Map));
+        map.info = new MapInfo { Size = new IntVec3(68, 1, 34) };
+        map.uniqueID = 820;
+        map.cellIndices = new CellIndices(map);
+        map.components = new List<MapComponent> { new SubstructureOwnership(map) };
+        map.terrainGrid = new TerrainGrid(map);
+        map.thingGrid = new ThingGrid(map);
+        map.edificeGrid = new EdificeGrid(map);
+        map.roofGrid = new RoofGrid(map);
+        map.events = new MapEvents(map);
+        map.listerThings = new ListerThings(ListerThingsUse.Global);
+        map.mapDrawer = new MapDrawer(map);
+        Find.Maps.Add(map);
+        var frame = new MapSpaceObject(820, map, new SpacePose(Vector3.forward, 0));
+        universe.objects.Add(frame);
+        Array.Fill(map.terrainGrid.topGrid, space);
+        MapMeshFlagDefOf.Buildings ??= new MapMeshFlagDef();
+        MapMeshFlagDefOf.Things ??= new MapMeshFlagDef();
+        var a = new IntVec3(16, 0, 8);
+        var b = a + IntVec3.East;
+        SetRoofFixtureFoundation(map, a, deck);
+        SetRoofFixtureFoundation(map, b, deck);
+        var owner = SubstructureOwnership.For(map);
+        Type patch = typeof(MapOverlayRenderer).Assembly.GetType("DeltaV.Patch_ShipHullRendering");
+        var harmony = new Harmony("DeltaV.RoofRegression.OwnedBoundaries");
+        foreach (Type nested in patch.GetNestedTypes(BindingFlags.NonPublic).Where(t => t.IsDefined(typeof(HarmonyPatch), false)))
+        {
+            // Capture uses Unity native rendering calls and cannot be JIT-patched by the .NET fixture.
+            if (nested.Name == "CaptureWalls")
+            {
+                Check(AccessTools.Method(typeof(GravshipCapturer), nameof(GravshipCapturer.BeginGravshipRender),
+                    new[] { typeof(Building_GravEngine), typeof(Action<Capture>) }) != null,
+                    "native capture entry accepts the original engine and completion callback");
+                continue;
+            }
+            Check(harmony.CreateClassProcessor(nested).Patch().Count == 1, $"owned shell Harmony target resolves ({nested.Name})");
+        }
+        var index = AccessTools.Property(typeof(UniverseManager), "ShipStructure").GetValue(universe);
+        CallInstance(index, "For", map);
+        object cache = Call(typeof(MapOverlayRenderer), "CacheFor", map);
+        object snapshots = AccessTools.Field(cache.GetType(), "snapshots")?.GetValue(cache) ?? cache;
+        var dirty = (HashSet<int>)AccessTools.Field(snapshots.GetType(), "dirty").GetValue(snapshots);
+        bool Joined(IntVec3 first, IntVec3 second) => (bool)Call(hull, "SharesDomain", map, first, second);
+        int Edge(IntVec3 cell) => (int)Call(hull, "FoundationEdges", map, cell);
+        try
+        {
+            Check(Joined(a, b) && (Edge(a) & 2) == 0 && (Edge(b) & 8) == 0,
+                "unassigned continuous foundation shares one domain and no internal edge");
+            Check(!Joined(a, a + IntVec3.North), "empty space is distinct from unassigned foundation");
+            dirty.Clear();
+            CallInstance(owner, "Assign", b, 811);
+            Check(!Joined(a, b) && (Edge(a) & 2) != 0 && (Edge(b) & 8) != 0
+                && dirty.SetEquals(new[] { 0, 1 }),
+                "pure reassignment introduces a shared-domain seam and only dirties the two affected sections");
+            dirty.Clear();
+            CallInstance(owner, "Assign", b, 811);
+            Check(dirty.Count == 0, "stable ownership produces no render invalidation");
+
+            var angle = new IntVec3(53, 0, 8);
+            HullTestWall Wall(IntVec3 cell)
+            {
+                SetRoofFixtureFoundation(map, cell, deck);
+                var wall = new HullTestWall { def = ThingDefOf.GravshipHull, graphic = new HullTestGraphic() };
+                Set(wall, "positionInt", cell);
+                map.edificeGrid.Register(wall);
+                return wall;
+            }
+            IntVec3 north = angle + IntVec3.North, east = angle + IntVec3.East;
+            Wall(north); Wall(east);
+            IntVec3 bridge = north + IntVec3.East;
+            SetRoofFixtureFoundation(map, bridge, deck);
+            object[] inputs = { map, angle, -1, false, null };
+            Check((bool)Call(hull, "TryAngle", inputs) && (int)inputs[2] == 0 && !(bool)inputs[3],
+                "both draw paths admit a partial diagonal across same-domain walls");
+            SetRoofFixtureFoundation(map, bridge, null);
+            dirty.Clear();
+            CallInstance(index, "NotifyCell", map, bridge, Enum.Parse(
+                typeof(MapOverlayRenderer).Assembly.GetType("DeltaV.ShipStructureAspect"), "Foundation"),
+                deck, null, 0, 0);
+            Check(!(bool)Call(hull, "TryAngle", inputs) && dirty.SetEquals(new[] { 3 }),
+                "foundation break removes the diagonal between same-owner fragments and refreshes only that section");
+        }
+        finally
+        {
+            harmony.UnpatchAll(harmony.Id);
+            MapOverlayRenderer.Release(map);
+            CallInstance(universe, "ForgetFoundationTopology", map);
+            universe.objects.Remove(frame);
+            Find.Maps.Remove(map);
+        }
     }
 
     private static void CheckTerrainSurfaces(Map map, IntVec3 cell, TerrainDef deck, TerrainDef cover, bool pool)
@@ -556,7 +668,10 @@ internal static partial class Program
             var floor = new IntVec3(32, 0, 5 + 7 * corner);
             var x = corner < 2 ? IntVec3.East : IntVec3.West;
             var z = corner == 0 || corner == 3 ? IntVec3.North : IntVec3.South;
-            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(floor)] = deck;
+            SetRoofFixtureFoundation(map, floor, deck);
+            SetRoofFixtureFoundation(map, floor + x, deck);
+            SetRoofFixtureFoundation(map, floor + z, deck);
+            SetRoofFixtureFoundation(map, floor + x + z, deck);
             map.roofGrid.SetRoof(floor, roof);
             HullTestWall xWall = Place(floor + x, steel);
             HullTestWall zWall = Place(floor + z, uranium);
@@ -641,6 +756,9 @@ internal static partial class Program
             var cell = new IntVec3(7 + 7 * corner, 0, 6);
             IntVec3 x = corner < 2 ? IntVec3.East : IntVec3.West;
             IntVec3 z = corner == 0 || corner == 3 ? IntVec3.North : IntVec3.South;
+            SetRoofFixtureFoundation(map, cell + x, deck);
+            SetRoofFixtureFoundation(map, cell + z, deck);
+            SetRoofFixtureFoundation(map, cell + x + z, deck);
             Building alongX = Place(cell + x);
             Building alongZ = Place(cell + z);
             CellRect bounds = CellRect.CenteredOn(cell, 1);
@@ -649,7 +767,7 @@ internal static partial class Program
             var full = Angles(bounds);
             Check(partial.TryGetValue(cell, out int a) && a == corner
                 && full.TryGetValue(cell, out int b) && b == corner,
-                $"vanilla partial and full corners select the same outward edge ({corner})");
+                $"owned-domain partial and full corners select the same outward edge ({corner})");
 
             List<Vector3> diagonal = Strip("AddAngledSlope", cell, corner, full, 0f);
             List<Vector3> partialSlope = Strip("AddAngledSlope", cell, corner, partial, 0f);
@@ -686,12 +804,17 @@ internal static partial class Program
             map.edificeGrid.DeRegister(alongX);
             Check(!Angles(bounds).ContainsKey(cell), $"removing a wall removes the original corner and its slope ({corner})");
             map.edificeGrid.Register(alongX);
-            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = deck;
+            SetRoofFixtureFoundation(map, cell, deck);
             Check(!Angles(bounds).ContainsKey(cell), $"foundation in the anchor suppresses the corner ({corner})");
         }
 
         var left = new IntVec3(16, 0, 29);
         var right = left + IntVec3.East + IntVec3.South;
+        SetRoofFixtureFoundation(map, left + IntVec3.North, deck);
+        SetRoofFixtureFoundation(map, left + IntVec3.East, deck);
+        SetRoofFixtureFoundation(map, left + IntVec3.North + IntVec3.East, deck);
+        SetRoofFixtureFoundation(map, right + IntVec3.East, deck);
+        SetRoofFixtureFoundation(map, right + IntVec3.East + IntVec3.North, deck);
         Place(left + IntVec3.North);
         Place(left + IntVec3.East);
         Building farWall = Place(right + IntVec3.East);
@@ -760,7 +883,8 @@ internal static partial class Program
         foreach (IntVec3 cell in row)
         {
             IntVec3 inside = cell + IntVec3.North;
-            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(inside)] = deck;
+            SetRoofFixtureFoundation(map, cell, deck);
+            SetRoofFixtureFoundation(map, inside, deck);
             map.roofGrid.SetRoof(inside, roof);
         }
 
@@ -799,6 +923,7 @@ internal static partial class Program
         var multi = (Building_Door)Place(new Building_Door(), new IntVec3(17, 0, 36),
             new BuildingProperties(), size: new IntVec2(5, 1));
         CellRect footprint = multi.OccupiedRect();
+        foreach (IntVec3 cell in footprint) SetRoofFixtureFoundation(map, cell, deck);
         var closed = Analyze(footprint);
         Check(closed.Count == 5 && Mask(closed, multi.Position, "connected") == 0b1010,
             "multi-cell door contributes all occupied cells without internal boundary strips");

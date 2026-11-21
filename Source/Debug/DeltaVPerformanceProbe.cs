@@ -25,7 +25,12 @@ namespace DeltaV
         EngagementObservation, EngagementScore, EngagementDamage,
         CombatPartSelection, EngagementCoverBuild,
         EngagementWeaponTable, EngagementProtectionScan, EngagementProtectionUpdate, EngagementTableQuery,
-        ShellTerrainBuild, ShellOverlaySort, ShellOverlaySubmit, HullPrepare, HullBroad, HullNarrow, HullOutcome, HullSweep, Count
+        ShellTerrainBuild, ShellOverlaySort, ShellOverlaySubmit, HullPrepare, HullBroad, HullNarrow, HullOutcome, HullSweep,
+        NpcRound, NpcGate, NpcTarget, FireControlCandidates, NpcRetreat, NpcRetreatBaseline, NpcRetreatConsoles,
+        NpcTactics, NpcThrustLog, NpcArchive, NpcCleanup,
+        CombatFacts, CombatFactsHull, CombatFactsHullBaseline, CombatFactsThrust, CombatFactsShield, CombatFactsWeapons,
+        StructureBootstrap, StructureCommit, StructureTopologyUpdate, StructureTopologySplit, StructureTopologyReclaim,
+        Count
     }
 
     [System.Flags]
@@ -74,6 +79,25 @@ namespace DeltaV
             PerformanceStage.ShellTerrainBuild, PerformanceStage.ShellOverlaySort, PerformanceStage.ShellOverlaySubmit,
             PerformanceStage.ArchiveCapture, PerformanceStage.ArchiveRestore, PerformanceStage.SyncMapGeneration
         };
+        private static readonly PerformanceStage[] NpcStages =
+        {
+            PerformanceStage.NpcGate, PerformanceStage.NpcTarget, PerformanceStage.NpcRetreat,
+            PerformanceStage.NpcTactics, PerformanceStage.NpcThrustLog, PerformanceStage.NpcArchive, PerformanceStage.NpcCleanup
+        };
+        private static readonly PerformanceStage[] NpcDetail =
+        {
+            PerformanceStage.FireControlCandidates, PerformanceStage.NpcRetreatBaseline, PerformanceStage.NpcRetreatConsoles,
+            PerformanceStage.CombatFacts, PerformanceStage.CombatFactsHull, PerformanceStage.CombatFactsHullBaseline,
+            PerformanceStage.CombatFactsThrust, PerformanceStage.CombatFactsShield, PerformanceStage.CombatFactsWeapons
+        };
+
+        private struct NpcShipSample
+        {
+            internal long elapsed;
+            internal DriveSubject ship;
+            internal Map map;
+            internal NpcShipAiGate gate;
+        }
 
         private sealed class SlowestSample
         {
@@ -123,6 +147,9 @@ namespace DeltaV
 
         private readonly SlowestSample slowestTick = new SlowestSample();
         private readonly SlowestSample slowestUpdate = new SlowestSample();
+        private readonly SlowestSample slowestNpcRound = new SlowestSample();
+        private NpcShipSample roundSlowestNpcShip, sampledNpcShip;
+        private int sampledNpcInterval;
         private long tickStartSearches, tickStartCandidates, slowestTickSearches, slowestTickCandidates;
         private int slowestUpdateTicks;
         private readonly long[] totals = new long[(int)PerformanceStage.Count];
@@ -168,6 +195,64 @@ namespace DeltaV
         private int hullBudgetStops;
         private float hullBudgetLostFraction;
 
+        private int structureBootstraps, structureBatches, structureSplits, structureReclaimPeak;
+        private long structureBootstrapCells, structureBootstrapThings, structureEvents, structureSplitCells;
+        private long structureTopologyCells, structureReclaimWork, structureReclaimed;
+
+        internal void RecordStructureBootstrap(long start, int cells, int things)
+        {
+            if (start == 0) return;
+            Record(PerformanceStage.StructureBootstrap, start);
+            structureBootstraps++;
+            structureBootstrapCells += cells;
+            structureBootstrapThings += things;
+        }
+
+        internal void RecordStructureCommit(long start, int changes)
+        {
+            if (start == 0 || changes == 0) return;
+            Record(PerformanceStage.StructureCommit, start);
+            structureBatches++;
+            structureEvents += changes;
+        }
+
+        internal void RecordStructureTopologyUpdate(long start, int cells)
+        {
+            if (start == 0) return;
+            Record(PerformanceStage.StructureTopologyUpdate, start);
+            structureTopologyCells += cells;
+        }
+
+        internal void RecordStructureSplit(long start, int cells)
+        {
+            if (start == 0) return;
+            Record(PerformanceStage.StructureTopologySplit, start);
+            structureSplits++;
+            structureSplitCells += cells;
+        }
+
+        internal void RecordStructureReclaim(long start, int work, int reclaimed)
+        {
+            if (start == 0 || work == 0) return;
+            Record(PerformanceStage.StructureTopologyReclaim, start);
+            structureReclaimWork += work;
+            structureReclaimed += reclaimed;
+            structureReclaimPeak = System.Math.Max(structureReclaimPeak, work);
+        }
+
+        private void AppendStructureStats(StringBuilder sb) => sb
+            .Append(" structureBootstrapCount=").Append(structureBootstraps)
+            .Append(" structureBootstrapCells=").Append(structureBootstrapCells)
+            .Append(" structureBootstrapThings=").Append(structureBootstrapThings)
+            .Append(" structureBatches=").Append(structureBatches)
+            .Append(" structureEvents=").Append(structureEvents)
+            .Append(" structureTopologyCells=").Append(structureTopologyCells)
+            .Append(" structureSplits=").Append(structureSplits)
+            .Append(" structureSplitCells=").Append(structureSplitCells)
+            .Append(" structureReclaimWork=").Append(structureReclaimWork)
+            .Append(" structureReclaimPeak=").Append(structureReclaimPeak)
+            .Append(" structureReclaimed=").Append(structureReclaimed);
+
         internal void RecordHullPair() { if (Enabled) hullPairs++; }
         internal void RecordHullRequest() { if (Enabled) hullRequests++; }
         internal void RecordHullImpulse() { if (Enabled) hullImpulses++; }
@@ -204,6 +289,34 @@ namespace DeltaV
             long start = Start();
             if (start != 0L) slowestUpdate.Begin(totals, calls);
             return start;
+        }
+
+        internal long BeginNpcRound()
+        {
+            long start = Start();
+            if (start == 0L) return 0L;
+            slowestNpcRound.Begin(totals, calls);
+            roundSlowestNpcShip = default;
+            return start;
+        }
+
+        internal void RecordNpcShip(long elapsed, ShipBase ship, NpcShipAiGate gate)
+        {
+            if (elapsed <= roundSlowestNpcShip.elapsed) return;
+            roundSlowestNpcShip = new NpcShipSample { elapsed = elapsed, ship = ship.Identity, map = ship.Map, gate = gate };
+        }
+
+        internal void FinishNpcRound(long start, int tick, int interval)
+        {
+            if (start != 0L) CaptureNpcRound(tick, interval, Elapsed(start));
+        }
+
+        private void CaptureNpcRound(int tick, int interval, long elapsed)
+        {
+            RecordElapsed(PerformanceStage.NpcRound, elapsed);
+            if (!slowestNpcRound.Capture(tick, elapsed, totals, calls)) return;
+            sampledNpcInterval = interval;
+            sampledNpcShip = roundSlowestNpcShip;
         }
 
         internal Measurement Measure(PerformanceStage stage) => new Measurement(this, stage, Start());
@@ -322,6 +435,23 @@ namespace DeltaV
                 slowestTick.AppendStages(sb, TickDetail);
                 sb.Append('}');
             }
+            if (slowestNpcRound.elapsed > 0)
+            {
+                sb.Append(" npcWorst={tick=").Append(slowestNpcRound.number).Append(" interval=").Append(sampledNpcInterval);
+                AppendMs(sb.Append(" ms="), slowestNpcRound.elapsed);
+                if (sampledNpcShip.elapsed > 0)
+                {
+                    sb.Append(" ship=").Append(sampledNpcShip.ship).Append(' ').Append(UniverseManager.MapTag(sampledNpcShip.map))
+                        .Append(" gate=").Append(sampledNpcShip.gate);
+                    AppendMs(sb.Append(" shipMs="), sampledNpcShip.elapsed);
+                }
+                slowestNpcRound.AppendRemainder(sb, NpcStages);
+                sb.Append(" stages[ms/calls]");
+                slowestNpcRound.AppendStages(sb, NpcStages);
+                sb.Append(" nested[ms/calls]");
+                slowestNpcRound.AppendStages(sb, NpcDetail);
+                sb.Append('}');
+            }
             if (slowestUpdate.elapsed > 0)
             {
                 sb.Append(" updateWorst={frame=").Append(slowestUpdate.number);
@@ -366,7 +496,7 @@ namespace DeltaV
         {
             if (start == 0L)
             {
-                if (windowStart >= 0f || slowestTick.elapsed > 0) Reset();
+                if (windowStart >= 0f || slowestTick.elapsed > 0 || slowestNpcRound.elapsed > 0) Reset();
                 return;
             }
             RecordFrame(Elapsed(start));
@@ -476,6 +606,7 @@ namespace DeltaV
                 .Append(" hullImpulses=").Append(hullImpulses).Append(" hullCrushBatches=").Append(hullCrushBatches)
                 .Append(" hullBudgetStops=").Append(hullBudgetStops)
                 .Append(" hullBudgetLostTicks=").Append(hullBudgetLostFraction.ToString("F3"));
+            AppendStructureStats(sb);
             AppendCombatStats(sb);
             AppendSlowestSamples(sb);
             DeltaVLog.Message(DeltaVLogModule.Performance, sb.ToString());
@@ -494,6 +625,9 @@ namespace DeltaV
 
         private void Reset()
         {
+            structureBootstraps = structureBatches = structureSplits = structureReclaimPeak = 0;
+            structureBootstrapCells = structureBootstrapThings = structureEvents = structureSplitCells = 0;
+            structureTopologyCells = structureReclaimWork = structureReclaimed = 0;
             hullPairs = hullRequests = 0;
             hullImpulses = hullCrushBatches = 0;
             hullBudgetStops = 0;
@@ -518,6 +652,9 @@ namespace DeltaV
             firstStructureVersion = -1;
             lastStructureVersion = 0;
             slowestTick.elapsed = slowestUpdate.elapsed = 0L;
+            slowestNpcRound.elapsed = 0L;
+            roundSlowestNpcShip = sampledNpcShip = default;
+            sampledNpcInterval = 0;
             hasSpeed = mixedSpeed = false;
             frameSeconds = worstFrameSeconds = 0f;
             windowStart = -1f;

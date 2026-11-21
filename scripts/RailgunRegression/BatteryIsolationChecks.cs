@@ -207,7 +207,7 @@ internal static partial class Program
         var ship = new FoundationShip(new Ship(console.shipId, map, console)); hull.members.Add(ship);
         Set(weapon, "cachedOwner", ship); Set(weapon, "ownerMap", map);
         Set(weapon, "ownerPosition", loader.Position); Set(weapon, "ownerRotation", loader.Rotation);
-        Set(weapon, "ownerVersion", SubstructureOwnership.StructureVersion(map));
+        Set(weapon, "ownerVersion", CompSpaceWeapon.OwnerBinding(weapon.parent));
         Set(weapon, "ownerCacheValid", true); Set(weapon, "ownerWasValid", true);
         universe.Weapons.RegisterWeapon(weapon);
         var capacitor = new CompSpaceWeaponCapacitor { props = new CompProperties_SpaceWeaponCapacitor { requiresArmedHost = true } };

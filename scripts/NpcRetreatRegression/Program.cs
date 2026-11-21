@@ -32,6 +32,12 @@ internal static partial class Program
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
     }
 
+    static bool FixtureBuildingMaxHitPoints(ref int __result)
+    {
+        __result = 100;
+        return false;
+    }
+
     static bool ReadSceneLanguage(ref LanguageWorker __result) { __result = new LanguageWorker_English(); return false; }
     static bool ReadSceneColonists(ref ColonistBar __result) { __result = aimColonists; return false; }
     static object Raw(Type type) => RuntimeHelpers.GetUninitializedObject(type);
@@ -66,6 +72,9 @@ internal static partial class Program
         var world = (World)Raw(typeof(World));
         Set(game, "worldInt", world);
         Current.Game = game;
+        new HarmonyLib.Harmony("DeltaV.Regression.FixtureBuildingStats").Patch(
+            HarmonyLib.AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.MaxHitPoints)),
+            prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(FixtureBuildingMaxHitPoints)));
         DefDatabase<DesignationDef>.Add(new DesignationDef { defName = "OfflineDesignation" });
         var layer = (PlanetLayer)Raw(typeof(PlanetLayer));
         FieldInfo tiles = typeof(PlanetLayer).GetField("tileIDToNeighbors_offsets", Private | BindingFlags.Public);
@@ -195,6 +204,7 @@ internal static partial class Program
         CheckObjectReferences(universe, faction, other);
         CheckShipCapabilities(universe, faction);
         CheckStructureVersions(universe, faction);
+        CheckShipStructureChanges(universe, faction);
         CheckShuttleLifecycle(universe, faction);
         var foundationLifecycle = new HarmonyLib.Harmony("DeltaV.Regression.FoundationLifecycle");
         foundationLifecycle.Patch(HarmonyLib.AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
@@ -202,11 +212,8 @@ internal static partial class Program
         try { CheckFoundationLifecycle(universe, faction, other); }
         finally { foundationLifecycle.UnpatchAll(foundationLifecycle.Id); }
         CheckSeparationRules(universe, faction);
-        var combatStats = new HarmonyLib.Harmony("DeltaV.Regression.ExpansionStats");
-        combatStats.Patch(HarmonyLib.AccessTools.PropertyGetter(typeof(Thing), "MaxHitPoints"),
-            prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(TestHullMaxHitPoints)));
-        try { CheckCombatTargets(universe, faction, other); CheckPerShipFireControl(universe, faction, other); }
-        finally { combatStats.UnpatchAll(combatStats.Id); }
+        CheckCombatTargets(universe, faction, other);
+        CheckPerShipFireControl(universe, faction, other);
         CheckSharedPdCandidates(universe, faction, other);
         CheckDriveExecutionReuse(faction);
         CheckNonCombatCruise(universe);

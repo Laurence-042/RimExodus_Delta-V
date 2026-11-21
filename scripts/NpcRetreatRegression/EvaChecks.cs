@@ -78,11 +78,11 @@ internal static partial class Program
             properties.mounts.Add(new VirtualWeaponSlot { weapon = def });
         }
         var embedded = new CompVirtualWeapons { parent = eva.parent, props = properties };
-        eva.parent.AllComps.Add(embedded);
+        AddFixtureComponents(eva.parent, embedded);
         embedded.PostSpawnSetup(true);
         CompSpaceWeapon[] weapons = embedded.Weapons.ToArray();
         var physical = new CompSpaceWeapon { parent = eva.parent, props = new CompProperties_SpaceWeapon() };
-        eva.parent.AllComps.Add(physical);
+        AddFixtureComponents(eva.parent, physical);
         Check(CompSpaceWeapon.On(eva.parent).Count() == 4 && weapons.Select(w => w.Identity).Append(physical.Identity).Distinct().Count() == 4,
             "physical core and three stacked mounts expose distinct stable weapon identities");
         Check(weapons[0].salvoSet == SpaceWeaponSalvoSet.Main && weapons[0].groupNumber == 1
@@ -260,6 +260,8 @@ internal static partial class Program
         Current.Game.storyteller.difficulty = new Difficulty();
         try
         {
+            patch.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(RegressionSubstructure)));
             patch.Patch(AccessTools.PropertyGetter(typeof(Thing), "MaxHitPoints"), prefix: new HarmonyMethod(typeof(Program), nameof(TestHullMaxHitPoints)));
             patch.Patch(Patch_SalvageOutput_Placement.TargetMethod(), prefix: new HarmonyMethod(typeof(Program), nameof(PlaceSalvage)));
             patch.CreateClassProcessor(typeof(Patch_CombatLeavings)).Patch();
@@ -328,21 +330,21 @@ internal static partial class Program
         solar.def = def;
         solar.HitPoints = 300;
         ProbeSpawnCargo(solar, new IntVec3(4, 0, 4), map);
+        SubstructureOwnership.For(map).UpdateSpawnedBuilding(solar);
         var cell = new IntVec3(solar.OccupiedRect().minX, 0, 4);
-        var deck = (TerrainDef)Raw(typeof(TerrainDef));
-        deck.defName = "evaSolarDeck";
-        deck.isFoundation = true;
-        deck.tags = new List<string> { "Substructure" };
+        var deck = FixtureFoundation("evaSolarDeck");
         deck.resourcesFractionWhenDeconstructed = .5f;
         deck.costList = new List<ThingDefCountClass> { new ThingDefCountClass(steel, 8) };
         int cellIndex = map.cellIndices.CellToIndex(cell);
-        map.terrainGrid.foundationGrid[cellIndex] = deck;
         map.terrainGrid.topGrid[cellIndex] = (TerrainDef)Raw(typeof(TerrainDef));
         var oldStack = (Thing)Raw(typeof(ReceivingItem));
         oldStack.def = steel;
         oldStack.stackCount = 11;
         ProbeSpawnCargo(oldStack, cell, map);
-        SubstructureOwnership.BumpStructureVersion(map);
+        using (universe.ShipStructure.BeginChanges())
+        {
+            SetFixtureFoundation(map, cell, deck, 0);
+        }
         var projectile = TestBuildingDef("evaSolarCutBeam");
         projectile.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, laserRange = 6, collisionRadius = 0 });
         var outcome = new ImpactOutcomePart { kind = ImpactEffectKind.CutStructure };
@@ -486,12 +488,10 @@ internal static partial class Program
     static void CheckEvaCargo(UniverseManager universe, CompEvaSuit eva, CompSpaceWeapon weapon)
     {
         var patch = new Harmony("DeltaV.Regression.EvaCargo");
-        var transporter = (CompTransporter)Raw(typeof(CompTransporter));
-        transporter.parent = eva.parent; transporter.props = new CompProperties_Transporter();
-        transporter.innerContainer = new ThingOwner<Thing>(transporter);
-        eva.parent.AllComps.Add(transporter);
-        var cargo = new CompVehicleCargo { parent = eva.parent, props = new CompProperties_VehicleCargo() };
-        eva.parent.AllComps.Add(cargo);
+        var cargo = new CompVehicleCargo { parent = eva.parent, props = new CompProperties_VehicleCargo { massCapacity = 20f } };
+        CompTransporter transporter = cargo;
+        transporter.Initialize(cargo.props);
+        AddFixtureComponents(eva.parent, cargo, new CompStructureMass());
         var item = (EvaCargoItem)Raw(typeof(EvaCargoItem)); item.def = TestBuildingDef("evaCargo");
         item.def.category = ThingCategory.Item; item.def.stackLimit = 75; item.stackCount = 15;
         Set(typeof(Thing), item, "mapIndexOrState", (sbyte)-1);
@@ -508,12 +508,26 @@ internal static partial class Program
             patch.Patch(AccessTools.Method(typeof(Thing), nameof(Thing.CanStackWith)), prefix: new HarmonyMethod(typeof(Program), nameof(EvaStack)));
             patch.Patch(AccessTools.Method(typeof(GenSpawn), nameof(GenSpawn.Spawn), new[] { typeof(Thing), typeof(IntVec3), typeof(Map), typeof(Rot4), typeof(WipeMode), typeof(bool), typeof(bool) }),
                 prefix: new HarmonyMethod(typeof(Program), nameof(EvaCargoSpawn)));
+            patch.CreateClassProcessor(typeof(Patch_ShipStructureInventory_Added)).Patch();
+            patch.CreateClassProcessor(typeof(Patch_ShipStructureInventory_Removed)).Patch();
+            patch.CreateClassProcessor(typeof(Patch_ShipStructureInventory_TransporterRemoved)).Patch();
+            patch.CreateClassProcessor(typeof(Patch_VehicleCargoMass)).Patch();
+            Check(ReferenceEquals(transporter, eva.parent.GetComp<CompTransporter>()), "EVA uses the native transporter entry");
+            float dryMass = ShipPhysics.GetReport(receiver).mass;
+            var passenger = new Pawn { def = TestBuildingDef("evaCargoCrew") };
+            passenger.def.category = ThingCategory.Pawn;
+            Check(transporter.innerContainer.TryAdd(passenger) && cargo.CargoMass == 0
+                && transporter.MassUsage == 0 && ShipPhysics.GetReport(receiver).mass == dryMass,
+                "EVA passenger does not count against inventory or flight mass");
+            transporter.innerContainer.Remove(passenger);
             Check(tractor.HasReachedReceiver(context) && SpaceTractor.CanOperate(weapon), "cargo receiver operates without a moonpool or power component");
             Check(tractor.TryReceive(context) == TractorReceiveResult.Partial && target.Payload.Entity == item && item.stackCount == 5
                 && transporter.innerContainer.Sum(t => t.stackCount) == 10 && cargo.Remaining == 0, "partial receipt splits only the 20 kg that fit; remainder stays on the source");
+            Check(transporter.MassUsage == 20f && ShipPhysics.GetReport(receiver).mass == dryMass + 20f,
+                "EVA collected goods count toward the flight mass immediately");
             Check(tractor.TryReceive(context) == TractorReceiveResult.Rejected && item.stackCount == 5, "full cargo rejects without consuming or duplicating the remainder");
             transporter.innerContainer.Clear();
-            ((CompProperties_VehicleCargo)cargo.props).cargoCapacity = 6;
+            ((CompProperties_VehicleCargo)cargo.props).massCapacity = 6;
             transporter.innerContainer = new ThingOwner<Thing>(transporter, oneStackOnly: true);
             var blocker = (EvaCargoItem)Raw(typeof(EvaCargoItem)); blocker.def = item.def; blocker.stackCount = 1;
             Set(typeof(Thing), blocker, "mapIndexOrState", (sbyte)-1); transporter.innerContainer.TryAdd(blocker);
@@ -522,7 +536,7 @@ internal static partial class Program
                 "receiver refusal after splitting restores every leftover item to the source");
             transporter.innerContainer.Clear();
             transporter.innerContainer = new ThingOwner<Thing>(transporter);
-            ((CompProperties_VehicleCargo)cargo.props).cargoCapacity = 20;
+            ((CompProperties_VehicleCargo)cargo.props).massCapacity = 20;
             Check(universe.Scatter.Pull(target, weapon), "manual cargo enters the common paid pull path");
             universe.Scatter.Tick();
             eva.combat.fireControlMode = ShipFireControlMode.Disabled;
@@ -559,6 +573,7 @@ internal static partial class Program
         Check(universe.Scatter.Candidates.All(existing.Contains) && item.stackCount == 5
             && transporter.innerContainer.Contains(item), "a stale ejection request leaves the original stack in the cargo hold");
 
+        float dryMass = ShipPhysics.GetReport(receiver).mass - transporter.MassUsage;
         SpacePose previousPose = receiver.pose;
         receiver.pose.velocity = new Vector2(2f, 3f);
         Check(universe.Scatter.TryQueueTransporterEjection(transporter, item, 2, offset), "EVA accepts partial cargo jettison");
@@ -572,13 +587,14 @@ internal static partial class Program
         Check((part.pose.position - expected.position).sqrMagnitude < 1e-8f
             && (part.pose.velocity - expected.velocity).sqrMagnitude < 1e-8f,
             "ejected cargo inherits the position and velocity at the hatch outside the map");
+        Check(transporter.MassUsage == 6f && ShipPhysics.GetReport(receiver).mass == dryMass + 6f,
+            "partial jettison updates the remaining stack and the flight mass");
 
-        Set(transporter, "massUsageDirty", false);
         Check(universe.Scatter.TryQueueTransporterEjection(transporter, item, 3, offset), "EVA accepts whole-stack jettison");
         Call(universe, "RunFrameActions");
         Check(!transporter.innerContainer.Any && universe.Scatter.Candidates.Any(obj => obj.Payload?.Entity == item)
-            && (bool)AccessTools.Field(typeof(CompTransporter), "massUsageDirty").GetValue(transporter),
-            "whole stack keeps its identity as recoverable cargo and invalidates the transporter's mass usage");
+            && transporter.MassUsage == 0 && ShipPhysics.GetReport(receiver).mass == dryMass,
+            "whole stack keeps its identity and removes its weight from the shared mass contribution");
         receiver.pose = previousPose;
     }
 

@@ -32,6 +32,14 @@ namespace DeltaV
                 __result = false;
         }
 
+        [HarmonyPatch(typeof(CompRefuelable), nameof(CompRefuelable.ConsumeFuel), new[] { typeof(float) })]
+        [HarmonyPostfix]
+        public static void ConsumeFuel(CompRefuelable __instance)
+        {
+            if (__instance.parent?.TryGetComp<CompSpaceShield>() is { } shield)
+                Current.Game?.GetComponent<UniverseManager>()?.NotifyShield(shield);
+        }
+
         // Native hitPoints=0 leaves geometry, hostility, EMP and impact effects intact,
         // but skips native HP subtraction. Both projectile paths debit the same balances.
         [HarmonyPatch(typeof(CompProjectileInterceptor), nameof(CompProjectileInterceptor.CheckIntercept))]

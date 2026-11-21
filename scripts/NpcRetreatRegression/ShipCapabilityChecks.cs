@@ -162,14 +162,14 @@ internal static partial class Program
             && numeric.forces.SequenceEqual(layout.Select(t => t.thrust)),
             "archive captures the same provider layout used by live object physics");
         hull.ShuttleProps.virtualThrusters[0].force = new Vector2(0, 31);
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         Check(Math.Abs(obj.MotionInfo.thrusters.First().thrust - 31) < 0.001f,
             "structure invalidation rebuilds provider propulsion instead of retaining a stale virtual array");
 
         var gun = new CompSpaceWeapon { parent = hull.parent, props = new CompProperties_SpaceWeapon() };
-        hull.parent.AllComps.Add(gun);
+        AddFixtureComponents(hull.parent, gun);
         _ = obj.Weapons.Count();
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         Check(obj.Weapons.Single() == gun && SpaceWeaponService.WeaponsOn(ship).Single() == gun,
             "mod-added hull weapon reaches both object aggregation and the shared ship fire-control entry");
         var other = new Building { def = TestBuildingDef("debris"), thingIDNumber = 1102 };
@@ -194,17 +194,13 @@ internal static partial class Program
         engineDef.comps.Add(new CompProperties_GravshipThruster());
         var engine = AddTestBuilding(foundationMap, player, 1202, engineDef,
             new CompThrusterPowerLimit { powerPercent = 25 });
-        foundationMap.thingGrid.Deregister(engine);
-        Set(typeof(Thing), engine, "positionInt", new IntVec3(2, 0, 2));
-        foundationMap.thingGrid.Register(engine);
+        MoveCombatFixture(engine, new IntVec3(2, 0, 2));
         var orphan = AddTestBuilding(foundationMap, player, 1203, engineDef, new EmptyComp());
-        foundationMap.thingGrid.Deregister(orphan);
-        Set(typeof(Thing), orphan, "positionInt", new IntVec3(4, 0, 0));
-        foundationMap.thingGrid.Register(orphan);
+        MoveCombatFixture(orphan, new IntVec3(4, 0, 0));
         var foundation = new ScopedFoundation(console.Ship) { member = engine };
         var foundationObject = new ProviderObject(1200, foundationMap, obj.pose, foundation);
         universe.objects.Add(foundationObject);
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         Check(!foundationObject.InterceptionEligible && foundationObject.HasTag(SpaceObjectTag.Ship)
             && !foundationObject.HasTag(SpaceObjectTag.Shuttle),
             "foundation ships retain Ship role and are excluded from point-defense targets");
@@ -220,11 +216,15 @@ internal static partial class Program
             && Math.Abs(installed[0].thrust - ShipPhysics.ThrusterThrust * 0.25f) < 0.01f,
             "foundation provider exposes only its installed thruster and preserves the real power limit");
         var replacementMap = TestMap(1300);
-        Set(typeof(Thing), console.parent, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(replacementMap));
+        Ship sourceSnapshot = console.Ship;
+        DriveSubject identity = cachedFoundation.Identity;
+        ShipStructure structure = cachedFoundation.StructuralState;
+        TransferFixtureBuilding((Building)console.parent, replacementMap);
         ShipBase relocated = console.Vessel;
-        Check(!cachedFoundation.IsValid && relocated.IsValid && relocated.Map == replacementMap
-            && !ReferenceEquals(relocated, cachedFoundation),
-            "cross-map transfer replaces the stale foundation snapshot while preserving its identity");
+        Check(!sourceSnapshot.IsValid && relocated.IsValid && relocated.Map == replacementMap
+            && relocated.Identity.Equals(identity) && ReferenceEquals(relocated, cachedFoundation)
+            && ReferenceEquals(relocated.StructuralState, structure) && structure.Map == replacementMap,
+            "cross-map transfer invalidates the source snapshot and retains the vessel, identity and structure");
         universe.objects.Clear();
         Find.Maps.Clear();
         ShipRegistry.ClearCaches();

@@ -65,39 +65,26 @@ namespace DeltaV
             : Ship.Invalid;
 
         private FoundationShip vessel;
-        private Map shieldMap;
-        private int shieldVersion = -1, shieldOwnerId;
-        private readonly List<CompSpaceShield> shields = new List<CompSpaceShield>();
-        public IReadOnlyList<CompSpaceShield> Shields
-        {
-            get
-            {
-                if (!Ship.IsValid) { shields.Clear(); shieldVersion = -1; return shields; }
-                if (shieldMap != parent.Map || shieldOwnerId != shipId
-                    || SubstructureOwnership.CacheNeedsRefresh(shieldVersion, parent.Map))
-                {
-                    shields.Clear();
-                    foreach (Thing thing in parent.Map.listerThings.ThingsInGroup(ThingRequestGroup.ProjectileInterceptor))
-                    {
-                        var shield = thing.TryGetComp<CompSpaceShield>();
-                        if (shield != null && ShipRegistry.ShipOf(thing, requireWholeFootprint: true).Identity == Vessel.Identity)
-                            shields.Add(shield);
-                    }
-                    shieldMap = parent.Map;
-                    shieldOwnerId = shipId;
-                    shieldVersion = SubstructureOwnership.StructureVersion(parent.Map);
-                }
-                return shields;
-            }
-        }
+        public IReadOnlyList<CompSpaceShield> Shields => Ship.IsValid && Vessel.StructuralState is { } structure
+            ? structure.WholeFootprintShields : Array.Empty<CompSpaceShield>();
         public virtual ShipBase Vessel
         {
             get
             {
-                if (vessel == null || vessel.Map != parent.Map || vessel.Identity.key != shipId)
-                    vessel = new FoundationShip(Ship);
+                Ship ship = Ship;
+                if (!ship.IsValid) return ShipBase.Invalid;
+                if (vessel == null || vessel.Identity.key != shipId)
+                    vessel = new FoundationShip(ship);
                 return vessel;
             }
+        }
+
+        private void TakeVesselFrom(CompDeltaVPilotConsole former)
+        {
+            if (former.vessel == null) return;
+            vessel = former.vessel;
+            former.vessel = null;
+            vessel.Reanchor(this);
         }
 
         public override void PostSpawnSetup(bool respawningAfterLoad)
@@ -109,11 +96,8 @@ namespace DeltaV
             ClaimOnSpawn();
             if (isMain) RestampShipDomain();
             else SyncBackupIdentity();
-            if (isMain)
-            {
-                ShipStructureChanges.Notify(parent.Map);
-                Universe?.Controls.For(Vessel);
-            }
+            Universe?.ShipStructure.NotifyConsole(this);
+            if (isMain) Universe?.Controls.For(Vessel);
         }
 
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
@@ -121,9 +105,6 @@ namespace DeltaV
             base.PostDeSpawn(map, mode);
             if (parent is Building building)
                 SubstructureOwnership.TryGet(map)?.UpdateSpawnedBuilding(building);
-            shields.Clear();
-            shieldMap = null;
-            shieldVersion = -1;
             int ownerId = shipId;
             UniverseManager universe = Universe;
             if (isMain && ownerId > 0 && universe != null)
@@ -171,6 +152,7 @@ namespace DeltaV
             UniverseManager universe = Universe;
             if (universe != null && isMain && shipId > 0)
             {
+                using var changes = universe.ShipStructure.BeginChanges();
                 isMain = false;
                 CompDeltaVPilotConsole successor = previousMap != null
                     ? FindSuccessor(previousMap, shipId, parent.Rotation)
@@ -178,12 +160,16 @@ namespace DeltaV
                 if (successor != null)
                 {
                     successor.isMain = true;
+                    successor.TakeVesselFrom(this);
                     successor.isPublicFacility = isPublicFacility;
+                    universe.ShipStructure.NotifyConsole(successor);
                     DeltaVLog.Message(DeltaVLogModule.Core,
                         $"structure #{shipId}: main console destroyed; succeeded by same-facing console {successor.parent.thingIDNumber}");
                 }
                 else
                 {
+                    vessel?.StructureInstance.Release();
+                    vessel = null;
                     DeltaVLog.Message(DeltaVLogModule.Core,
                         $"structure #{shipId}: main console destroyed with no same-facing backup; structure is now a wreck (claim a console to restore)");
                 }
@@ -261,14 +247,18 @@ namespace DeltaV
             {
                 shipId = target;
             }
-            foreach (CompDeltaVPilotConsole console in ShipRegistry.ConsolesOnMap(map))
+            using (universe.ShipStructure.BeginChanges())
             {
-                if (console != null && console != this && console.shipId == target && console.isMain)
+                foreach (CompDeltaVPilotConsole console in ShipRegistry.ConsolesOnMap(map))
                 {
+                    if (console == null || console == this || console.shipId != target || !console.isMain) continue;
+                    TakeVesselFrom(console);
                     console.isMain = false;
+                    universe.ShipStructure.NotifyConsole(console);
                 }
+                isMain = true;
+                universe.ShipStructure.NotifyConsole(this);
             }
-            isMain = true;
             universe.Controls.ReconcileOwner(shipId, parent.Map);
             Messages.Message("DeltaV_ConsolePrimarySet".Translate(parent.LabelCap),
                 MessageTypeDefOf.NeutralEvent, false);
@@ -283,6 +273,7 @@ namespace DeltaV
             int previousOwner = shipId;
             isMain = false;
             SyncBackupIdentity();
+            Universe?.ShipStructure.NotifyConsole(this);
             Universe?.Controls.ReconcileOwner(previousOwner, parent.Map);
             DeltaVLog.Message(DeltaVLogModule.Core,
                 $"structure #{shipId}: main console demoted to backup by player");

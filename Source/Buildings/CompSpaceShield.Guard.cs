@@ -40,7 +40,7 @@ namespace DeltaV
         private void NotifyProtectionGuard()
         {
             if (parent.Spawned && ReferenceEquals(parent.TryGetComp<CompSpaceShield>(), this))
-                Current.Game?.GetComponent<UniverseManager>()?.NotifyProtectionGuard(parent.Map);
+                Current.Game?.GetComponent<UniverseManager>()?.NotifyShield(this);
         }
         public int AutoRejoinPercent
         {
@@ -50,6 +50,7 @@ namespace DeltaV
         public bool UsesRegular => mode == SpaceShieldMode.Guard && ShieldProps.regularCapacity > 0
             && emergencyReason == GuardEmergencyReason.None && regularCapacity > 0;
         private bool ContributesRegular => parent.Spawned && !parent.Destroyed && FlickedOn && UsesRegular;
+        internal double RegularBankContribution => ContributesRegular ? regularCapacity : 0;
         public bool HasGuardCapacity => mode == SpaceShieldMode.Guard && (UsesRegular || EmergencyCapacity > 0);
         private bool WantsRegularRecovery => ShieldProps.regularCapacity > 0
             && regularCapacity < ShieldProps.regularCapacity && recoveryWaitTicks == 0 && FlickedOn;
@@ -106,19 +107,27 @@ namespace DeltaV
             NotifyProtectionGuard();
         }
 
-        internal IReadOnlyList<CompSpaceShield> OwnedShields =>
-            (ShipRegistry.ShipOf(parent, requireWholeFootprint: true) as FoundationShip)?.Structure.console?.Shields;
+        private ShipStructure GuardBank =>
+            parent is Building building && ShipStructureIndex.Read(building.Map)?.Record(building) is
+                { WholeDomain: true, Structure: { Vessel: FoundationShip } structure } ? structure : null;
+
+        internal IReadOnlyList<CompSpaceShield> OwnedShields => GuardBank?.WholeFootprintShields;
+        internal (IReadOnlyList<CompSpaceShield> Members, int Revision) GuardOutline
+        {
+            get
+            {
+                ShipStructure bank = GuardBank;
+                return (bank?.WholeFootprintShields, bank?.GuardOutlineRevision ?? 0);
+            }
+        }
 
         public double SharedRegularCapacity
         {
             get
             {
                 if (!UsesRegular) return 0;
-                var shields = OwnedShields;
-                if (shields == null || shields.Count == 0) return regularCapacity;
-                double total = 0;
-                foreach (var shield in shields) if (shield.ContributesRegular) total += shield.regularCapacity;
-                return total;
+                ShipStructure bank = GuardBank;
+                return bank?.WholeFootprintShields.Count > 0 ? Math.Max(0, bank.SharedGuardCapacity) : regularCapacity;
             }
         }
 
@@ -139,6 +148,7 @@ namespace DeltaV
         internal double ConsumeGuard(double damage, IReadOnlyList<CompSpaceShield> ownedShields)
         {
             if (damage <= 0 || mode != SpaceShieldMode.Guard) return 0;
+            using var changes = Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.BeginChanges();
             double remaining = damage;
             if (UsesRegular)
             {

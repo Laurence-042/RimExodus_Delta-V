@@ -141,7 +141,7 @@ namespace DeltaV
             foreach (IntVec3 cell in CellRect.WholeMap(map))
                 if (map.terrainGrid.FoundationAt(cell) != null || map.roofGrid.RoofAt(cell) != null
                     || map.terrainGrid.TerrainAt(cell) != TerrainDefOf.Space) cells.Add(cell);
-            foreach (Thing thing in map.listerThings.AllThings)
+            foreach (Thing thing in ShipStructureIndex.Read(map).Things)
             {
                 if (thing is Mote || thing is Gas || thing is Filth) continue;
                 if (thing is Skyfaller || !thing.def.bringAlongOnGravship)
@@ -193,6 +193,7 @@ namespace DeltaV
             var work = new MapSpaceObject(universe.AllocateOwnerId(), workmap, pose) { faction = own.faction };
             universe.RegisterObject(work);
             var handoff = universe.ShipTransitions.CaptureDockingFocusHandoff(universe, Find.CurrentMap, workmap);
+            using var structureChanges = universe.ShipStructure.BeginChanges();
             StopControls(moves.SelectMany(m => m.ships));
             universe.ShipTransitions.RegisterDockingCleanup(workmap);
             foreach (ContentMove move in moves) universe.ShipTransitions.RegisterDockingCleanup(move.source.map);
@@ -242,8 +243,6 @@ namespace DeltaV
                 universe.ShipTransitions.HandleDepartedSourceMap(universe, move.source.map);
             Building_DockingPort.NotifyLandingSettled(workmap);
             dockCommitted?.Invoke();
-            ShipPhysics.Forget(workmap);
-            foreach (ContentMove move in moves) ShipPhysics.Forget(move.source.map);
             HostColonistBarVisibility.NotifyDockingStateChanged();
             Messages.Message("DeltaV_EVAStarted".Translate(), MessageTypeDefOf.PositiveEvent, false);
         }

@@ -59,13 +59,12 @@ namespace DeltaV
         private IEnumerable<ISpaceCargoContainer> ValidContainers(bool unlocked)
         {
             if (!Spawned) yield break;
-            var connected = new HashSet<IntVec3>();
-            SubstructureOwnership.CollectConnected(Map, Position, connected, null);
+            var connected = ShipStructureIndex.Read(Map)?.PhysicalDomainAt(Position);
             IEnumerable<ISpaceCargoContainer> candidates = unlocked
                 ? new[] { deliveryCargo } : supplyCargo.Distinct().Where(c => c != deliveryCargo);
             foreach (ISpaceCargoContainer cargo in candidates)
                 if (cargo?.Spawned == true && cargo.Map == Map && cargo.IsUnlocked == unlocked
-                    && connected.Contains(cargo.Position))
+                    && connected?.Contains(cargo.Position) == true)
                     yield return cargo;
         }
 
@@ -105,7 +104,6 @@ namespace DeltaV
             foreach (ISpaceCargoContainer cargo in cabinets)
             {
                 foreach (Thing thing in cargo.Contents.ToArray()) thing.Destroy();
-                cargo.Thing.GetComp<CompSpaceCargo>().NotifyInventoryChanged(null);
             }
             foreach (Thing thing in generated)
             {

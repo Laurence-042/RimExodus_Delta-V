@@ -16,12 +16,14 @@ namespace DeltaV
         internal int ComponentCount => topology.ComponentCount;
         internal IEnumerable<int> Occupied => occupied;
 
-        internal FoundationConnectivity(int width, int height, Func<int, int> readOwner)
+        internal FoundationConnectivity(int width, int height, Func<int, int> readOwner,
+            Func<long> startReclaim = null, Action<long, int, int> recordReclaim = null)
         {
             this.width = width;
             this.height = height;
             owners = new int[width * height];
-            topology = new GridTopology(width * 2 - 1, height * 2 - 1, Conn.Fg4Bg8);
+            topology = new GridTopology(width * 2 - 1, height * 2 - 1, Conn.Fg4Bg8)
+            { StartReclaim = startReclaim, RecordReclaim = recordReclaim };
             var initial = new List<int>();
             for (int index = 0; index < owners.Length; index++)
             {
@@ -60,6 +62,16 @@ namespace DeltaV
                 topology.Remove(x * 2, z * 2);
             }
             return true;
+        }
+
+        internal void GetNeighbors(int index, List<int> neighbors)
+        {
+            neighbors.Clear();
+            int x = index % width, z = index / width;
+            if (x > 0) neighbors.Add(index - 1);
+            if (x + 1 < width) neighbors.Add(index + 1);
+            if (z > 0) neighbors.Add(index - width);
+            if (z + 1 < height) neighbors.Add(index + width);
         }
 
         private void SetEdge(int neighbor, int x, int z, int owner)

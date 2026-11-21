@@ -70,28 +70,27 @@ namespace DeltaV
         public override ShipAimHandler CreateAimHandler(UniverseManager universe) => new ArcadeShipAimHandler(universe, this);
     }
 
-    public class CompProperties_VehicleCargo : CompProperties
+    public class CompProperties_VehicleCargo : CompProperties_Transporter
     {
-        public float cargoCapacity = 20f;
         public int crewCount = 1;
         public CompProperties_VehicleCargo() { compClass = typeof(CompVehicleCargo); }
     }
-    public class CompVehicleCargo : ThingComp
+    public class CompVehicleCargo : CompTransporter
     {
         public CompProperties_VehicleCargo CargoProps => (CompProperties_VehicleCargo)props;
-        public CompTransporter Transporter => parent.TryGetComp<CompTransporter>();
-        public float CargoMass => Transporter.innerContainer.Where(t => t is not Pawn).Sum(ItemMass);
-        public float Remaining => Mathf.Max(0f, CargoProps.cargoCapacity - CargoMass);
-        internal static float ItemMass(Thing item) => item.GetStatValue(StatDefOf.Mass) * item.stackCount;
+        public float CargoMass => parent.GetComp<CompStructureMass>().CurrentMass;
+        public float Remaining => Mathf.Max(0f, MassCapacity - CargoMass);
+        internal double MassOf(Thing item) => item is Pawn ? 0d : CompStructureMass.StackMass(item);
+
         public AcceptanceReport CanDepart()
         {
-            var crew = Transporter.innerContainer.OfType<Pawn>().ToList();
+            var crew = innerContainer.OfType<Pawn>().ToList();
             if (crew.Count != CargoProps.crewCount || crew.Any(p => p.Dead || p.Downed))
                 return "DeltaV_EvaCrewRequired".Translate(CargoProps.crewCount);
-            if (CargoMass > CargoProps.cargoCapacity + .0001f) return "CommandLaunchGroupFailOverMassCapacity".Translate();
+            if (CargoMass > MassCapacity + .0001f) return "CommandLaunchGroupFailOverMassCapacity".Translate();
             return true;
         }
-        public override string CompInspectStringExtra() => "DeltaV_EvaCargo".Translate(CargoMass.ToString("0.#"), CargoProps.cargoCapacity.ToString("0.#"));
+        public override string CompInspectStringExtra() => "DeltaV_EvaCargo".Translate(CargoMass.ToString("0.#"), MassCapacity.ToString("0.#"));
     }
 
     public class CompProperties_LocalLaunchable : CompProperties_Launchable
@@ -108,7 +107,7 @@ namespace DeltaV
         {
             AcceptanceReport report = base.CanLaunch(overrideFuelLevel);
             if (!report) return report;
-            return parent.TryGetComp<CompVehicleCargo>()?.CanDepart() ?? AcceptanceReport.WasAccepted;
+            return (parent.TryGetComp<CompTransporter>() as CompVehicleCargo)?.CanDepart() ?? AcceptanceReport.WasAccepted;
         }
     }
 
@@ -117,32 +116,25 @@ namespace DeltaV
     {
         private static bool Prefix(CompLaunchable __instance) => __instance is not CompLocalLaunchable;
     }
-    [HarmonyPatch(typeof(CompTransporter), nameof(CompTransporter.MassCapacity), MethodType.Getter)]
-    internal static class Patch_VehicleCargoCapacity
+    [HarmonyPatch(typeof(CompTransporter), nameof(CompTransporter.MassUsage), MethodType.Getter)]
+    internal static class Patch_VehicleCargoMass
     {
-        private static void Postfix(CompTransporter __instance, ref float __result)
+        private static bool Prefix(CompTransporter __instance, ref float __result)
         {
-            CompVehicleCargo cargo = __instance.parent.TryGetComp<CompVehicleCargo>();
-            if (cargo != null) __result = cargo.CargoProps.cargoCapacity + Mathf.Max(0f, __instance.MassUsage - cargo.CargoMass);
+            if (__instance is not CompVehicleCargo eva) return true;
+            __result = eva.CargoMass;
+            return false;
         }
     }
+
     [HarmonyPatch(typeof(Dialog_LoadTransporters), "get_MassUsage")]
     internal static class Patch_VehicleLoadingMass
     {
         private static void Postfix(List<CompTransporter> ___transporters, List<TransferableOneWay> ___transferables, ref float __result)
         {
-            if (___transporters.Count != 1 || ___transporters[0].parent.TryGetComp<CompVehicleCargo>() == null) return;
+            if (___transporters.Count != 1 || ___transporters[0] is not CompVehicleCargo) return;
             __result = ___transferables.Where(t => t.AnyThing is not Pawn)
                 .Sum(t => t.CountToTransfer * t.AnyThing.GetStatValue(StatDefOf.Mass));
-        }
-    }
-    [HarmonyPatch(typeof(Dialog_LoadTransporters), "get_MassCapacity")]
-    internal static class Patch_VehicleLoadingCapacity
-    {
-        private static void Postfix(List<CompTransporter> ___transporters, ref float __result)
-        {
-            if (___transporters.Count == 1 && ___transporters[0].parent.TryGetComp<CompVehicleCargo>() is CompVehicleCargo cargo)
-                __result = cargo.CargoProps.cargoCapacity;
         }
     }
     [HarmonyPatch(typeof(Dialog_LoadTransporters), "CheckForErrors")]
@@ -150,7 +142,7 @@ namespace DeltaV
     {
         private static bool Prefix(List<CompTransporter> ___transporters, List<Pawn> pawns, ref bool __result)
         {
-            if (___transporters.Count != 1 || ___transporters[0].parent.TryGetComp<CompVehicleCargo>() is not CompVehicleCargo cargo
+            if (___transporters.Count != 1 || ___transporters[0] is not CompVehicleCargo cargo
                 || pawns.Count == cargo.CargoProps.crewCount) return true;
             Messages.Message("DeltaV_EvaCrewRequired".Translate(cargo.CargoProps.crewCount), MessageTypeDefOf.RejectInput, false);
             __result = false;

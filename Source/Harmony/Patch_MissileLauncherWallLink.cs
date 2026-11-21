@@ -11,7 +11,7 @@ namespace DeltaV
         {
             if (__result || __instance.graphicData == null
                 || __instance.graphicData.linkFlags == LinkFlags.None) return;
-            if (__instance.GetCompProperties<CompProperties_MissileAutoloader>() != null
+            if (__instance == DeltaVDefOf.DeltaV_Weapon_MissileLauncher
                 || __instance.thingClass == typeof(Building_Casemate))
                 __result = true;
         }

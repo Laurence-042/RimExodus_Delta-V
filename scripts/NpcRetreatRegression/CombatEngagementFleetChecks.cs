@@ -24,20 +24,10 @@ internal static partial class Program
     static void CountFleetFullBuild() => fleetFullBuilds++;
     static void CountFleetBlockUpdate() => fleetBlockUpdates++;
 
-    static Action<Map, CellRect> FleetCollisionPublisher()
-    {
-        var method = typeof(SubstructureOwnership).GetMethod(nameof(SubstructureOwnership.BumpStructureVersion),
-            BindingFlags.Static | BindingFlags.NonPublic, null, new[] { typeof(Map), typeof(CellRect) }, null);
-        // The same harness also loads the pre-change production DLL for the baseline.
-        return method == null ? (map, _) => SubstructureOwnership.BumpStructureVersion(map)
-            : (Action<Map, CellRect>)method.CreateDelegate(typeof(Action<Map, CellRect>));
-    }
-
     static void RunFleetCollisionEdit(ManeuverMotionObject ship, int pattern, ThingDef projectile,
-        Action<Map, CellRect> changed, bool verify)
+        bool verify)
     {
         var map = ship.map;
-        var hull = (CombatHull)ship.member;
         int center = map.Size.x / 2;
         int origin = pattern % 2 == 0 ? 2 : map.Size.x - 3;
         int sign = origin == 2 ? 1 : -1;
@@ -57,16 +47,18 @@ internal static partial class Program
             if (map.Size.x > 16)
                 edits.Add(new IntVec3(center, 0, 9));
         }
-        foreach (var cell in edits)
-        {
-            int index = map.cellIndices.CellToIndex(cell);
-            map.terrainGrid.foundationGrid[index] = null;
-            hull.cells.Remove(cell);
-            changed(map, CellRect.SingleCell(cell));
-        }
+        using (Current.Game.GetComponent<UniverseManager>().ShipStructure.BeginChanges())
+            foreach (IntVec3 cell in edits)
+                if (SubstructureOwnership.HasFoundation(map, cell))
+                    map.terrainGrid.RemoveFoundation(cell, doLeavings: false);
         var query = RunFleetCollisionRays(ship, projectile, origin, sign, verify);
         if (verify)
-            Check(edits.All(cell => !query.foundationCells.Contains(cell)), "first query batch sees every removed foundation");
+        {
+            var hull = ship.member.HullCells;
+            Check(edits.All(cell => !query.foundationCells.Contains(cell) && !hull.Contains(cell)
+                && SubstructureOwnership.For(map).OwnerAt(cell) == SubstructureOwnership.Unassigned),
+                "the first query sees each removal in collision, hull membership and ownership");
+        }
     }
 
     static SpaceCollision.RayQuery RunFleetCollisionRays(ManeuverMotionObject ship, ThingDef projectile,
@@ -136,7 +128,7 @@ internal static partial class Program
     {
         thing.def.useHitPoints = true;
         thing.def.fillPercent = 1f;
-        Set(typeof(Thing), thing, "hitPointsInt", hp);
+        SetFixtureHitPoints(thing, hp);
     }
 
     static void AddStaticFleetShield(Map map, Faction faction, int id, int width)
@@ -150,12 +142,14 @@ internal static partial class Program
         Set(power, "powerOnInt", true);
         var interceptor = (CompProjectileInterceptor)Raw(typeof(CompProjectileInterceptor));
         interceptor.parent = building;
-        interceptor.props = new CompProperties_ProjectileInterceptor { radius = 10f, hitPoints = 0 };
+        interceptor.Initialize(new CompProperties_ProjectileInterceptor { radius = 10f, hitPoints = 0 });
+        interceptor.PostPostMake();
         interceptor.currentHitPoints = -1;
         Set(interceptor, "lastInterceptTicks", -999999);
         Set(interceptor, "startedChargingTick", -1);
         building.AllComps.AddRange(new ThingComp[] { power, interceptor });
         shield.InitializeGuard();
+        ShipStructureChanges.Notify(map, building, null, building.OccupiedRect());
     }
 
     static void RunStaticFleet(UniverseManager universe, List<Action> plans, List<ManeuverMotionObject> ships,
@@ -236,7 +230,22 @@ internal static partial class Program
         {
             Check(observedFire > 0 && observedHull > 0, "counting reaches production forecasts and hull queries");
             if (shields.Length > 0)
-                Check(observedGuardContacts > 0 && observedPenetration > 0, "dense counts include guard contacts and layered penetration");
+            {
+                foreach (var ship in ships)
+                {
+                    var query = new SpaceCollision.RayQuery(ship, ship.member);
+                    foreach (var shield in shields.Where(shield => shield.parent.Map == ship.map))
+                    {
+                        var arcs = new List<SpaceCollision.ShieldArc>();
+                        var center = shield.parent.Position.ToVector3Shifted();
+                        query.ScanGuardSurfaces(new Vector2(center.x, center.z), Vector2.right, arcs);
+                        Check(arcs.Any(arc => arc.building == shield.parent && arc.interceptor.Active)
+                            && shield.RegularCapacity > 0, "dense protection queries see the active mounted guard shield");
+                    }
+                }
+                Check(observedPenetration > 0, "dense forecasts exercise layered penetration");
+                Console.WriteLine($"STATIC_DENSE guardContacts={observedGuardContacts} penetrationWalks={observedPenetration}");
+            }
         }
         if (time) Check(warm.Count > 0 && idle.Count > 0, "static timing samples both replans and quiet ticks");
         if (!count && !time) return;
@@ -268,7 +277,7 @@ internal static partial class Program
         else staticCounts.pointSegments++;
     }
 
-    static bool CountStaticGridVisit(IntVec3 cell, Map map)
+    static void RecordStaticGridVisit(IntVec3 cell, bool inBounds)
     {
         if (staticVisited.Count == 0) staticCounts.nonEmptyHullSegments++;
         bool repeated = !staticVisited.Add(cell);
@@ -282,15 +291,20 @@ internal static partial class Program
             staticCounts.pointVisits++;
             if (repeated) staticCounts.pointDuplicates++;
         }
-        bool inBounds = cell.InBounds(map);
         if (inBounds) staticCounts.inBoundsVisits++;
+    }
+
+    static bool CountStaticPointGridVisit(IntVec3 cell, Map map)
+    {
+        bool inBounds = cell.InBounds(map);
+        RecordStaticGridVisit(cell, inBounds);
         return inBounds;
     }
 
     static IEnumerable<CodeInstruction> TraceStaticGridVisits(IEnumerable<CodeInstruction> instructions)
     {
         var inBounds = AccessTools.Method(typeof(GenGrid), nameof(GenGrid.InBounds), new[] { typeof(IntVec3), typeof(Map) });
-        var counter = AccessTools.Method(typeof(Program), nameof(CountStaticGridVisit));
+        var counter = AccessTools.Method(typeof(Program), nameof(CountStaticPointGridVisit));
         int sites = 0;
         foreach (var instruction in instructions)
         {
@@ -303,6 +317,8 @@ internal static partial class Program
     static void CountStaticSample() => staticCounts.sweepSamples++;
     static void CountStaticClassification(IntVec3 cell)
     {
+        // The swept path clamps its loop bounds before entering classification.
+        if (staticWide) RecordStaticGridVisit(cell, inBounds: true);
         bool repeated = !staticClassified.Add(cell);
         if (staticWide)
         {
@@ -348,13 +364,17 @@ internal static partial class Program
         patch.Patch(AccessTools.Constructor(typeof(CombatDamageForecast.CoverMask)),
             postfix: new HarmonyMethod(typeof(Program), nameof(CountStaticCoverBuild)));
         Hook(typeof(SpaceCollision.RayQuery), "Next", nameof(CountStaticNext), nameof(CountStaticContact));
-        Hook(collision, "TryFindHullContact", nameof(CountStaticHull), transpiler: nameof(TraceStaticGridVisits));
-        Hook(collision, "FindBestCell", nameof(CountStaticSample), transpiler: nameof(TraceStaticGridVisits));
+        Hook(collision, "TryFindHullContact", nameof(CountStaticHull));
+        patch.Patch(AccessTools.Method(collision, "TryFindGridContact"),
+            transpiler: new HarmonyMethod(typeof(Program), nameof(TraceStaticGridVisits)));
+        Hook(collision, "FindBestCell", nameof(CountStaticSample));
         Hook(collision, "TryGetHullCell", nameof(CountStaticClassification));
         Hook(collision, "TryFindArcHit", nameof(CountStaticArc));
         Hook(collision, "TryFindLineHit", nameof(CountStaticLine));
         Hook(typeof(SpaceImpactEffects), "WalkPenetration", nameof(CountStaticPenetration), nameof(EndStaticPenetration));
-        Hook(typeof(SpaceStructureRules), nameof(SpaceStructureRules.ClassifyCell), nameof(CountStaticPenetrationCell));
+        patch.Patch(AccessTools.Method(typeof(SpaceStructureRules), nameof(SpaceStructureRules.ClassifyCell),
+            new[] { typeof(Map), typeof(IntVec3), typeof(Thing).MakeByRefType(), typeof(HashSet<Thing>), typeof(ShipStructureIndex.MapView) }),
+            prefix: new HarmonyMethod(typeof(Program), nameof(CountStaticPenetrationCell)));
     }
 
     static float CountFleetArcCells(Vector3 source, Vector3 target)
@@ -404,7 +424,7 @@ internal static partial class Program
 
     static void CheckEngagementFleetBaseline(UniverseManager universe, Faction player, Faction enemy)
     {
-        using var patch = new EngagementFixturePatch();
+        using var patch = new EngagementFixturePatch(editTerrain: true);
         Set(enemy, "relations", new List<FactionRelation> { new FactionRelation { other = player, kind = FactionRelationKind.Hostile } });
         Set(player, "relations", new List<FactionRelation> { new FactionRelation { other = enemy, kind = FactionRelationKind.Hostile } });
         var factions = (FactionManager)Raw(typeof(FactionManager));
@@ -417,7 +437,6 @@ internal static partial class Program
         bool staticDense = staticBattle && args[staticArg + 1].Equals("Dense", StringComparison.OrdinalIgnoreCase);
         bool collisionEdits = args.Contains("--engagement-collision-edits");
         bool pointCollision = args.Contains("--engagement-collision-point");
-        var collisionPublisher = collisionEdits ? FleetCollisionPublisher() : null;
         bool parity = args.Contains("--engagement-cover-parity");
         bool rangeParity = args.Contains("--engagement-range-parity") || staticMode == "parity";
         bool mixed = args.Contains("--engagement-range-mixed") || staticDense
@@ -439,8 +458,12 @@ internal static partial class Program
         var parityPatch = new Harmony("DeltaV.Regression.FleetParity");
         bool withShield = staticDense || (collisionEdits && dense);
         if (withShield)
+        {
             parityPatch.Patch(typeof(CompProjectileInterceptor).TypeInitializer,
                 prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
+            parityPatch.Patch(AccessTools.PropertyGetter(typeof(StunHandler), nameof(StunHandler.Hypnotized)),
+                transpiler: new HarmonyMethod(typeof(Program), nameof(TractorDlcFixture)));
+        }
         var refreshBlocks = AccessTools.Method(AccessTools.Inner(typeof(SpaceCollision), "Surface"), "RefreshBlocks");
         if (collisionEdits && parity)
         {
@@ -458,7 +481,8 @@ internal static partial class Program
             fleetRangeTrace = gateWriter;
             fleetRangeCalls = fleetInstantGates = fleetOtherGates = fleetRejectedGates = 0;
             var transpiler = new HarmonyMethod(typeof(Program), nameof(TraceFleetRange));
-            parityPatch.Patch(AccessTools.Method(typeof(CombatEngagementEvaluation), "Evaluate"), transpiler: transpiler);
+            parityPatch.Patch(AccessTools.Method(typeof(CombatEngagementEvaluation), "Evaluate",
+                new[] { typeof(SpacePose) }), transpiler: transpiler);
             parityPatch.Patch(AccessTools.Method(typeof(CombatEngagementEvaluation), "TryEstimate"),
                 prefix: new HarmonyMethod(typeof(Program), nameof(StartFleetRangeGate)),
                 postfix: new HarmonyMethod(typeof(Program), nameof(RecordFleetRangeGate)), transpiler: transpiler);
@@ -519,17 +543,13 @@ internal static partial class Program
                 var console = AddTestConsole(map, faction, id + 1);
                 MoveCombatFixture(console.parent, new IntVec3(width / 2, 0, width / 2));
                 Set(typeof(Thing), console.parent, "hitPointsInt", 300);
-                var hull = new CombatHull(console.Ship);
+                if (collisionEdits) SetEngagementVacuum(map);
+                SetEngagementFoundation(map, new CellRect(2, 2, width - 4, width - 4), EngagementFoundation(), console.shipId);
+                ShipBase hull = console.Vessel;
                 hull.Combat.weaponsArmed = true;
-                var foundation = (TerrainDef)Raw(typeof(TerrainDef));
-                foundation.tags = new List<string> { "Substructure" }; foundation.isFoundation = true;
-                var owners = new int[map.cellIndices.NumGridCells]; Set(SubstructureOwnership.TryGet(map), "ownerGrid", owners);
-                for (int x = 2; x < width - 2; x++) for (int z = 2; z < width - 2; z++)
-                {
-                    var cell = new IntVec3(x, 0, z); hull.cells.Add(cell);
-                    int index = map.cellIndices.CellToIndex(cell); map.terrainGrid.foundationGrid[index] = foundation; owners[index] = console.shipId;
-                }
-                body.member = hull; universe.objects.Add(body); ships.Add(body);
+                body.member = hull;
+                universe.RegisterObject(body);
+                ships.Add(body);
                 for (int gunIndex = 0; gunIndex < gunCount; gunIndex++)
                 {
                     var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon {
@@ -545,7 +565,6 @@ internal static partial class Program
                 }
                 if (withShield) AddStaticFleetShield(map, faction, id + 50, width);
             }
-            SubstructureOwnership.BumpStructureVersion(); Set(universe, "objectById", null); Set(universe, "objectByMap", null);
             var method = typeof(ShipAutoManeuverControl).GetMethod("PlanTacticTrajectory", Private);
             var staticPlans = new List<Action>();
             foreach (var own in ships.Take(count))
@@ -597,19 +616,21 @@ internal static partial class Program
             if (staticBattle)
             {
                 RunStaticFleet(universe, staticPlans, ships, staticMode, width, gunCount);
+                foreach (var ship in ships) RemoveEngagementMap(universe, ship);
+                universe.Controls.Reset();
                 break;
             }
             var times = new List<double>();
             var damageMs = new List<double>[3] { new List<double>(), new List<double>(), new List<double>() };
             var watch = new Stopwatch();
-            double coldMs = 0, invalidationMs = 0, peakMs = 0;
+            double coldMs = 0, peakMs = 0;
             int peakTick = 0;
             long allocationStart = GC.GetAllocatedBytesForCurrentThread();
             int gen0 = GC.CollectionCount(0), gen1 = GC.CollectionCount(1), gen2 = GC.CollectionCount(2);
             TimeSpan gcPauseStart = GC.GetTotalPauseDuration();
             long started = universe.Performance.engagementStarted, completed = universe.Performance.engagementCompleted;
             long candidates = universe.Performance.engagementCandidates;
-            long events = universe.Structures.Events, publications = universe.Structures.Publications;
+            long events = universe.ShipStructure.Events, publications = universe.ShipStructure.Publications;
             long arcStart = fleetRangeCalls, gatesStart = fleetInstantGates + fleetOtherGates;
             long instantStart = fleetInstantGates, rejectsStart = fleetRejectedGates;
             if (first24 && count == 24)
@@ -621,7 +642,6 @@ internal static partial class Program
             for (int tick = 0; tick < 1800; tick++)
             {
                 if (profile || profileWindow) DeltaVMod.CurrentSettings.logPerformance = true;
-                if (!collisionEdits && tick == 1500) SubstructureOwnership.BumpStructureVersion();
                 watch.Restart();
                 int editIndex = (tick - 720) / 120;
                 int damageKind = collisionEdits && tick >= 720 && tick <= 1680 && (tick - 720) % 120 == 0
@@ -631,7 +651,7 @@ internal static partial class Program
                     int targetIndex = dense ? editIndex % 4 : editIndex;
                     int buildsBefore = fleetFullBuilds, updatesBefore = fleetBlockUpdates;
                     RunFleetCollisionEdit(ships[targetIndex], damageKind * 2 + editIndex / 4 % 2,
-                        projectile, collisionPublisher, rangeParity);
+                        projectile, rangeParity);
                     damageMs[damageKind].Add(watch.Elapsed.TotalMilliseconds);
                     if (parity)
                     {
@@ -660,31 +680,29 @@ internal static partial class Program
                     return;
                 }
                 if (tick == 0) coldMs = watch.Elapsed.TotalMilliseconds;
-                if (tick >= 1500 && tick < 1506) invalidationMs += watch.Elapsed.TotalMilliseconds;
                 if (tick >= 300) times.Add(watch.Elapsed.TotalMilliseconds);
             }
             times.Sort();
             double mean = times.Average(), p95 = times[(int)(times.Count * .95)], p99 = times[(int)(times.Count * .99)];
             rows.Add(new { ships = count, gunCount, floorsPerShip = (width - 4) * (width - 4), ticks = 1800,
                 warmup = 300, peakMs, peakTick, meanTickMs = mean, p95TickMs = p95,
-                p99TickMs = p99, maxTickMs = times.Last(), coldMs, invalidationSixTicksMs = invalidationMs,
+                p99TickMs = p99, maxTickMs = times.Last(), coldMs,
                 damageToFirstBatchMs = collisionEdits ? damageMs : null,
                 allocationBytes = GC.GetAllocatedBytesForCurrentThread() - allocationStart,
                 gcPauseMs = (GC.GetTotalPauseDuration() - gcPauseStart).TotalMilliseconds,
                 searchesStarted = universe.Performance.engagementStarted - started,
                 searchesCompleted = universe.Performance.engagementCompleted - completed,
                 candidatesEvaluated = universe.Performance.engagementCandidates - candidates,
-                structureEvents = universe.Structures.Events - events,
-                structurePublications = universe.Structures.Publications - publications,
+                structureEvents = universe.ShipStructure.Events - events,
+                structurePublications = universe.ShipStructure.Publications - publications,
                 collections = new[] { GC.CollectionCount(0) - gen0, GC.CollectionCount(1) - gen1, GC.CollectionCount(2) - gen2 } });
             Check(universe.Performance.engagementStarted - started == universe.Performance.engagementCompleted - completed,
                 "fleet completes every started search at " + count + " ships");
             Console.WriteLine($"ENGAGEMENT_FLEET ships={count} meanMs={mean:F3} p95Ms={p95:F3} p99Ms={p99:F3} maxMs={times.Last():F3}");
             Check(ships.Take(count).All(s => !float.IsNaN(s.pose.velocity.x)), "fleet production guidance remains finite at " + count + " ships");
             foreach (var own in ships.Take(count)) universe.Autopilot.Cancel(new DriveSubject(own.objectId, own.member.Identity.key));
-            universe.Controls.Reset(); universe.objects.Clear(); Find.Maps.Clear();
-            ShipRegistry.ClearCaches(); ShipPhysics.ClearCache(); SpaceCollision.ClearCaches();
-            Set(universe, "objectById", null); Set(universe, "objectByMap", null);
+            foreach (var ship in ships) RemoveEngagementMap(universe, ship);
+            universe.Controls.Reset();
         }
         string output = staticBattle ? StaticFleetOutput(staticDense)
             : Environment.GetEnvironmentVariable("DELTAV_ENGAGEMENT_OUTPUT") ?? (args.Contains("--engagement-fleet-regression")

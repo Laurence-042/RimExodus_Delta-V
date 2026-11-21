@@ -94,7 +94,7 @@ namespace DeltaV
                     snapshot.roofDefs.Add(roof);
                 }
             }
-            foreach (Thing thing in map.listerThings.AllThings)
+            foreach (Thing thing in ShipStructureIndex.Read(map).Things)
             {
                 // 只保建筑与物品（pawn 由删除条件排除；植物/幽灵等其他类别不属于 POI 模板词汇）。
                 if (!(thing is Building) && thing.def.category != ThingCategory.Item)

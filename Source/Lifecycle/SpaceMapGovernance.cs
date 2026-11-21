@@ -88,18 +88,7 @@ namespace DeltaV
             return parent is SpaceHostParent_DeltaV || parent.def.defName == "Space";
         }
 
-        public static bool IsBlankLandingCanvas(Map map)
-        {
-            if (map == null) return true;
-            foreach (Thing thing in map.listerThings.AllThings)
-            {
-                if (thing == null || thing.Destroyed || !thing.Spawned) continue;
-                if (thing.def.category == ThingCategory.Filth || thing.def.category == ThingCategory.Gas
-                    || thing.def.category == ThingCategory.Mote) continue;
-                return false;
-            }
-            return true;
-        }
+        public static bool IsBlankLandingCanvas(Map map) => ShipStructureIndex.Read(map)?.IsBlankCanvas ?? true;
     }
 
     /// <summary>把所有轨道 POI WorldObject 投影进持久化 Universe State。</summary>

@@ -41,7 +41,7 @@ internal static partial class Program
                 owners[index] = owner;
                 universe.NotifyFoundationChanged(map, cell);
             }
-            SubstructureOwnership.BumpStructureVersion();
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         }
         try
         {
@@ -49,6 +49,16 @@ internal static partial class Program
             var main = new HashSet<IntVec3> { console.parent.Position };
             var debris = new HashSet<IntVec3> { new IntVec3(3, 0, 1), new IntVec3(3, 0, 2), new IntVec3(3, 0, 3) };
             Deck(2610, main.Concat(debris).ToArray());
+            universe.ShipStructure.NotifyCell(map, console.parent.Position, ShipStructureAspect.Foundation, null, foundation, 0, 2610);
+            var index = universe.ShipStructure.For(map);
+            Check(!index.MissingPrimaryTargets(enemy).Any(), "installed primary suppresses its owner's console warning");
+            console.isMain = false;
+            universe.ShipStructure.NotifyConsole(console);
+            Check(index.MissingPrimaryTargets(enemy).Single() == console.parent && !index.MissingPrimaryTargets(player).Any(),
+                "primary loss exposes the warning only for the indexed faction");
+            console.isMain = true;
+            universe.ShipStructure.NotifyConsole(console);
+            Check(!index.MissingPrimaryTargets(enemy).Any(), "primary restoration clears the warning in the same change");
             Vector2 centerBefore = console.Vessel.HullCenter;
             Check(centerBefore == SpaceTransform.BoundsCenterOfCells(ShipRegistry.ControlDomain(console.Ship))
                 && centerBefore == console.Vessel.HullCenter, "hull center warm query uses the current connected domain");
@@ -59,7 +69,7 @@ internal static partial class Program
                 "structure-version change refreshes cached center after hull expansion");
             map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(bridge)] = null;
             universe.NotifyFoundationChanged(map, bridge);
-            SubstructureOwnership.BumpStructureVersion();
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
             Check(console.Vessel.HullCenter == centerBefore, "severed foundation immediately restores main-domain center");
             ShipRegistry.Forget(map);
             Check(console.Vessel.HullCenter == centerBefore, "map forget rebuilds domain and center together");
@@ -81,7 +91,7 @@ internal static partial class Program
             Check(station.Winner() == (map, stationId), "another vessel leaving does not steal the station selection");
 
             console.isMain = false;
-            SubstructureOwnership.BumpStructureVersion();
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
             ShipStatusPanel.SelectStructure(map, shipId);
             Check(ShipStatusPanel.TryGetSelectedStructure(map, out var selected) && selected == shipId
                 && !ShipStatusPanel.TryGetSelectedShip(map, out _) && !universe.Pilot.SelectedShipOnMap(map).IsValid,
@@ -103,7 +113,7 @@ internal static partial class Program
 
             for (int i = 0; i < map.terrainGrid.topGrid.Length; i++) map.terrainGrid.topGrid[i] = space;
             map.listerThings.AllThings.Clear();
-            ownership.ClearMapSupportIndex();
+            universe.ForgetFoundationTopology(map);
             Check(SpaceLifecycleService.HasMapSupport(frame)
                 && ownership.SupportCellCount == map.terrainGrid.foundationGrid.Count(terrain => terrain == foundation),
                 "foundation alone supports an otherwise all-space map");
@@ -118,7 +128,7 @@ internal static partial class Program
             universe.Lifecycle.QueueStructureCheck(map);
             Check(Actions(universe).Count == queued + 1, "structure-loss events coalesce into one frame action");
             map.terrainGrid.topGrid[0] = (TerrainDef)Raw(typeof(TerrainDef));
-            SubstructureOwnership.BumpStructureVersion(map);
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(map);
             Check(!SpaceLifecycleService.HasMapSupport(frame),
                 "a generic structure version change does not rescan the support grid");
             ShipStructureChanges.Notify(map, terrainCell: IntVec3.Zero);
@@ -151,10 +161,10 @@ internal static partial class Program
             Check(ownership.SupportCellCount == 1, "replacing temporary terrain with foundation keeps one support cell");
             map.terrainGrid.foundationGrid[0] = null;
             owners[0] = SubstructureOwnership.Unassigned;
-            Patch_TerrainGrid_RemoveGravshipTerrainUnsafe_Ownership.Postfix(map.terrainGrid, IntVec3.Zero);
+            Patch_TerrainGrid_RemoveGravshipTerrainUnsafe_Ownership.Postfix(map.terrainGrid, IntVec3.Zero, (foundation, SubstructureOwnership.Unassigned));
             Check(ownership.SupportCellCount == 0, "unsafe foundation removal updates the index");
             map.terrainGrid.topGrid[0] = (TerrainDef)Raw(typeof(TerrainDef));
-            ownership.ClearMapSupportIndex();
+            universe.ForgetFoundationTopology(map);
             Check(ownership.SupportCellCount == 1 && ownership.SpawnedBuildingCount == 0,
                 "a released map index rebuilds both counts from the real map");
             map.terrainGrid.topGrid[0] = space;

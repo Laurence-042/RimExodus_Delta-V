@@ -21,7 +21,7 @@ namespace DeltaV
                 if (!Spawned) return cells;
                 ShipBase station = ShipRegistry.ShipOf(this);
                 if (station.IsValid) return new HashSet<IntVec3>(station.HullCells);
-                SubstructureOwnership.CollectConnected(Map, Position, cells, null);
+                if (ShipStructureIndex.Read(Map)?.PhysicalDomainAt(Position) is { } domain) cells.UnionWith(domain);
                 // Shared-map docking must not make the player's ship a delivery destination.
                 foreach (var ship in ShipRegistry.AllShipsOnMap(Map)) cells.ExceptWith(ship.HullCells);
                 return cells;

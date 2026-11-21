@@ -54,9 +54,10 @@ namespace DeltaV
                 map = target.map; query = new SpaceCollision.RayQuery(target, scope);
                 if (scope != null) scopedFoundation = new HashSet<IntVec3>(query.foundationCells);
                 targets = new ShipFireControl.ExternalTargets();
-                foreach (Thing thing in map.listerThings.AllThings)
+                var index = Current.Game.GetComponent<UniverseManager>().ShipStructure;
+                foreach (Building thing in scope == null ? index.For(map).All.Buildings : scope.StructuralState.Buildings)
                 {
-                    if (thing is Building && !thing.Destroyed && (scope == null || scope.Contains(thing)))
+                    if (!thing.Destroyed)
                     {
                         health[thing] = Mathf.Max(0, thing.HitPoints);
                         if (targets.Add(thing) is CombatPart part)

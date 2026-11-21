@@ -218,9 +218,6 @@ namespace DeltaV
                     building.MaxHitPoints, 100f, -1f, launcher));
                 if (!building.Destroyed) building.Destroy(DestroyMode.KillFinalize);
             }
-            if (buildings.Count == 0) return;
-            SubstructureOwnership.BumpStructureVersion(map);
-            PlanetGlobeRenderer.InvalidateSilhouette(map);
         }
 
         private static void ApplyHullContact(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
@@ -485,7 +482,6 @@ namespace DeltaV
             IntVec3 cell = evt.hitCell.IsValid ? evt.hitCell : new IntVec3(
                 Mathf.FloorToInt(evt.hitDefenderLocal.x), 0,
                 Mathf.FloorToInt(evt.hitDefenderLocal.y)).ClampInsideMap(map);
-            bool buildingGeometryChanged = false;
             float remaining = 0f;
 
             using var leavings = CombatLeavingsScope.Enter(map);
@@ -500,7 +496,7 @@ namespace DeltaV
             else if (part.penetrationLayers != null && part.penetrationLayers.Count > 0
                 && evt.defenderBuilding != null)
             {
-                buildingGeometryChanged = ApplyDirectionalPenetration(evt, part, map, cell,
+                ApplyDirectionalPenetration(evt, part, map, cell,
                     amount, ap, damType);
             }
             else if (part.explosionRadius > 0f)
@@ -509,7 +505,6 @@ namespace DeltaV
                 GenExplosion.DoExplosion(cell, map, part.explosionRadius, damType, evt.launcher,
                     Mathf.Max(1, Mathf.RoundToInt(amount)), ap, projectile: evt.projectileDef);
                 // 原版后续逐格结算，实际结构变动由移除通知发布。
-                buildingGeometryChanged = true;
             }
             else if (evt.defenderBuilding != null && !evt.defenderBuilding.Destroyed)
                 target.ApplyDamage(cell, evt.defenderBuilding, part,
@@ -527,10 +522,6 @@ namespace DeltaV
                         SubstructureDamageUtility.TryDestroy(map, nearby, instigator: evt.launcher);
                     }
                 }
-            }
-            if (buildingGeometryChanged)
-            {
-                PlanetGlobeRenderer.InvalidateSilhouette(map);
             }
             return EnergyRatio(evt, part, remaining);
         }
@@ -553,12 +544,8 @@ namespace DeltaV
                 return 0f;
             }
             if (building.Destroyed) return 1f;
-            CellRect footprint = building.OccupiedRect();
             float consumed = target.ApplyResolvedDamage(building, new DamageInfo(damage, amount, ap, -1f, instigator, null, projectile));
             if (!building.Destroyed) return 0f;
-            SubstructureOwnership.BumpStructureVersion(map, footprint);
-            if (building.TryGetComp<CompProjectileInterceptor>() != null) SpaceCollision.InvalidateShield(map);
-            PlanetGlobeRenderer.InvalidateSilhouette(map);
             return BuildingContinuation(part, building.Destroyed, amount, consumed);
         }
 
@@ -575,18 +562,15 @@ namespace DeltaV
         /// 每层先伤中央结构，再伤两侧；中央结构尚存时弹芯在该层停止。
         /// 空格可跨越，同一多格建筑只结算一次，避免同一物体被一发重复击中。
         /// </summary>
-        private static bool ApplyDirectionalPenetration(SpaceCollision.ImpactEvent evt,
+        private static void ApplyDirectionalPenetration(SpaceCollision.ImpactEvent evt,
             ImpactOutcomePart part, Map map, IntVec3 entry, float amount, float ap, DamageDef damType)
         {
-            bool destroyedBuilding = false;
             WalkPenetration(part, map, entry, evt.incidentDir, c => SolidAt(map, c),
                 (target, factor) =>
                 {
                     target.TakeDamage(new DamageInfo(damType, amount * factor,
                         ap, -1f, evt.launcher, null, evt.projectileDef));
-                    destroyedBuilding |= target.Destroyed;
                 }, target => !target.Destroyed);
-            return destroyedBuilding;
         }
 
         internal static void WalkPenetration(ImpactOutcomePart part, Map map, IntVec3 entry,

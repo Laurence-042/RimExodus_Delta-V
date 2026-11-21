@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -9,6 +10,25 @@ using Verse;
 
 internal static partial class Program
 {
+    private static int installedThrusterBuilds;
+    private static void CountInstalledThrusterBuild() => installedThrusterBuilds++;
+
+    static void CheckInstalledLayoutChange(SpaceObject frame, ShipPhysics.MassReport report, Building thruster)
+    {
+        ShipPhysics.Thruster entry = report.thrusters.Single(t => t.thing == thruster);
+        float full = entry.thrust;
+        installedThrusterBuilds = 0;
+        int version = report.version;
+        thruster.GetComp<CompThrusterPowerLimit>().powerPercent = 50;
+        ShipPhysics.MassReport updated = ShipPhysics.GetReport(frame);
+        Check(ReferenceEquals(report, updated) && updated.thrusters.Contains(entry)
+            && entry.thrust == full * 0.5f && updated.version == version + 1 && installedThrusterBuilds == 1,
+            "one power limit change updates just its existing layout entry before the next drive read");
+        installedThrusterBuilds = 0;
+        for (int i = 0; i < 100; i++) _ = ShipPhysics.GetReport(frame);
+        Check(installedThrusterBuilds == 0, "stable physical reports do not rebuild installed thrusters");
+    }
+
     sealed class DrivePowerProbe : IThrusterPowerModel
     {
         internal int reads;
@@ -183,23 +203,27 @@ internal static partial class Program
         universe.objects.Add(own); universe.objects.Add(victim);
         Set(universe, "objectById", null); // Fixture insertion bypasses RegisterObject.
         Set(universe, "objectByMap", null);
+        var counting = new Harmony("DeltaV.Regression.SharedPdCandidates");
+        counting.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(RegressionSubstructure)));
         var weapons = new List<CompSpaceWeapon>();
         for (int i = 0; i < 3; i++)
         {
             var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon { range = 500f },
                 aimMode = SpaceWeaponAimMode.PointDefense, cooldownUntilTick = int.MaxValue };
             var building = AddTestBuilding(map, player, 19921 + i, TestBuildingDef("pdProbe" + i), weapon);
+            CellRect previous = building.OccupiedRect();
             MoveCombatFixture(building, new IntVec3(i + 1, 0, 2));
             ship.cells.Add(building.Position); weapons.Add(weapon);
             ownership[map.cellIndices.CellToIndex(building.Position)] = ship.Identity.key;
             map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(building.Position)] = deck;
+            universe.NotifyFoundationChanged(map, building.Position);
+            universe.ShipStructure.NotifyBuilding(map, building, previous);
+            universe.ShipStructure.NotifyCell(map, building.Position, ShipStructureAspect.Foundation, null, deck, 0, ship.Identity.key);
         }
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         ShipRegistry.ShipByIdentity(ship.Identity); universe.Controls.For(ship);
         var fire = new ShipFireControl(universe, ship.Identity);
-        var counting = new Harmony("DeltaV.Regression.SharedPdCandidates");
-        counting.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
-            prefix: new HarmonyMethod(typeof(Program), nameof(RegressionSubstructure)));
         counting.Patch(AccessTools.Method(typeof(ShipFireControl), "FindPdTarget"),
             prefix: new HarmonyMethod(typeof(Program), nameof(CountPdSearch)));
         counting.Patch(AccessTools.Method(typeof(SpaceWeaponService), "TargetingMuzzle"),

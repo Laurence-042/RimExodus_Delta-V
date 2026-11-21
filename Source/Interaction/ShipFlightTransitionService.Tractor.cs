@@ -24,19 +24,26 @@ namespace DeltaV
             internal readonly HashSet<Building> buildings;
             internal readonly ShipBase independent;
             internal readonly int owner;
+            private readonly int revision, membershipRevision;
+            private readonly Rot4 facing;
 
-            internal ForceDomain(Map map, HashSet<IntVec3> cells, HashSet<Building> buildings, ShipBase independent, int owner)
+            internal ForceDomain(Map map, HashSet<IntVec3> cells, HashSet<Building> buildings, ShipBase independent, int owner, int revision, int membershipRevision)
             {
                 this.map = map;
                 this.cells = cells;
                 this.buildings = buildings;
                 this.independent = independent;
                 this.owner = owner;
+                this.revision = revision;
+                this.membershipRevision = membershipRevision;
+                facing = independent?.Anchor.Rotation ?? Rot4.Invalid;
             }
 
             internal bool Matches(ForceDomain current) => current != null && current.map == map
                 && current.independent?.Identity == independent?.Identity && current.owner == owner
-                && current.cells.SetEquals(cells) && current.buildings.SetEquals(buildings);
+                && revision == current.revision && membershipRevision == current.membershipRevision
+                && (independent == null ? ReferenceEquals(cells, current.cells)
+                    : current.facing == facing && current.cells.SetEquals(cells) && current.buildings.SetEquals(buildings));
         }
 
         private HashSet<IntVec3> ForceCells(ShipBase ship) => ship.Transfer.body is Building body
@@ -47,10 +54,12 @@ namespace DeltaV
         {
             if (independent != null)
                 return new ForceDomain(map, ForceCells(independent),
-                    new HashSet<Building> { independent.Transfer.body }, independent, 0);
+                    new HashSet<Building> { independent.Transfer.body }, independent, 0,
+                    independent.StructuralState?.TransferRevision ?? -1, -1);
             return cells?.Count > 0 ? new ForceDomain(map, cells,
                 universe.FoundationTopology.BuildingsIn(map, cells), null,
-                SubstructureOwnership.For(map).OwnerAt(cells.First())) : null;
+                SubstructureOwnership.For(map).OwnerAt(cells.First()), universe.FoundationTopology.DomainRevision(map, cells),
+                universe.FoundationTopology.MembershipRevision(map, cells)) : null;
         }
 
         private ForceDomain ResolveForceDomain(Map map, IntVec3 cell, Building building)

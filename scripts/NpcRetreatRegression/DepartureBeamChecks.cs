@@ -10,33 +10,69 @@ using Verse;
 
 internal static partial class Program
 {
-    sealed class DepartureLaunchProbe : CompLaunchable
+    static void CheckEvaDeparture(UniverseManager universe, CompEvaSuit eva)
     {
-        internal AcceptanceReport report = true;
-        internal int calls;
-        public override AcceptanceReport CanLaunch(float? overrideFuelLevel = null) { calls++; return report; }
+        Map map = TestMap(58131);
+        map.roofGrid = new RoofGrid(map);
+        map.weatherManager = new WeatherManager(map);
+        Set(map.weatherManager, "curWeather", new WeatherDef());
+        Set(map, "gameConditionManager", new GameConditionManager(map));
+        StatDef originalMass = StatDefOf.Mass, originalPiloting = StatDefOf.PilotingAbility;
+        StatDefOf.Mass = new StatDef { defName = "DepartureFixtureMass", defaultBaseValue = 20f };
+        StatDefOf.PilotingAbility = new StatDef { defName = "DepartureFixturePiloting", defaultBaseValue = 1f };
+        CompEvaSuit PlaceSuit(int id, IntVec3 cell, List<ShuttleThrusterConfig> thrusters)
+        {
+            ThingDef def = TestBuildingDef("departureEva" + id);
+            def.comps.Add(new CompProperties_LocalShuttle());
+            def.comps.Add(new CompProperties_LocalLaunchable { minFuelCost = 0f, cooldownTicks = 0 });
+            def.comps.Add(new CompProperties_VehicleCargo { massCapacity = 60f, crewCount = 1 });
+            def.comps.Add(new CompProperties_StructureMass());
+            def.comps.Add(new CompProperties_EvaSuit { virtualThrusters = thrusters });
+            var building = CreateFixtureBuilding(def, id, cell, Rot4.North, eva.parent.Faction);
+            PlaceFixtureBuilding(building, map);
+            return building.GetComp<CompEvaSuit>();
+        }
+        try
+        {
+            CompEvaSuit powered = PlaceSuit(58132, new IntVec3(1, 0, 2), eva.ShuttleProps.virtualThrusters);
+            CompEvaSuit unpowered = PlaceSuit(58133, new IntVec3(3, 0, 2), null);
+            CompVehicleCargo cargo = powered.parent.GetComp<CompVehicleCargo>();
+            var launch = powered.parent.GetComp<CompLocalLaunchable>();
+            var ship = powered.Vessel;
+            Check(!launch.CanLaunch() && !ship.CheckDeparture(), "unstarted EVA loading fails the native departure gate");
+            cargo.groupID = 1;
+            Check(!launch.CanLaunch() && !ship.CheckDeparture(), "a loaded EVA group still requires a pilot");
+            var pilot = (Pawn)Raw(typeof(Pawn));
+            pilot.def = TestBuildingDef("departureEvaPilot");
+            pilot.def.category = ThingCategory.Pawn;
+            pilot.def.race = new RaceProperties { intelligence = Intelligence.Humanlike };
+            pilot.def.race.lifeStageAges = new List<LifeStageAge> { new LifeStageAge { def = new LifeStageDef() } };
+            pilot.stackCount = 1;
+            pilot.health = new Pawn_HealthTracker(pilot);
+            pilot.ageTracker = new Pawn_AgeTracker(pilot);
+            Set(pilot.ageTracker, "cachedLifeStageIndex", 0);
+            Set(typeof(Thing), pilot, "mapIndexOrState", (sbyte)-1);
+            Set(typeof(Thing), pilot, "factionInt", powered.parent.Faction);
+            Check(cargo.innerContainer.TryAdd(pilot, canMergeWithExistingStacks: false), "native transporter accepts the pilot");
+            Check(launch.CanLaunch() && ship.CheckDeparture(), "a ready EVA passes the native departure gate");
+            var roofs = (RoofDef[])AccessTools.Field(typeof(RoofGrid), "roofGrid").GetValue(map.roofGrid);
+            roofs[map.cellIndices.CellToIndex(powered.parent.Position)] = new RoofDef();
+            Check(!launch.CanLaunch() && !ship.CheckDeparture(), "ordinary roof blocks the native EVA departure");
+            Check(!unpowered.Vessel.BuildThrusters().Any() && !unpowered.Vessel.CheckDeparture(),
+                "an EVA generated without propulsion cannot depart");
+        }
+        finally
+        {
+            StatDefOf.Mass = originalMass;
+            StatDefOf.PilotingAbility = originalPiloting;
+            RetireFixtureMap(map);
+        }
     }
 
     static void CheckDepartureAndBeamFixes(UniverseManager universe, CompEvaSuit eva, CompSpaceWeapon weapon)
     {
+        CheckEvaDeparture(universe, eva);
         var map = eva.parent.Map;
-        map.roofGrid = new RoofGrid(map);
-        var launch = new DepartureLaunchProbe { parent = eva.parent };
-        eva.parent.AllComps.Add(launch);
-        eva.ShuttleProps.virtualThrusters = new List<ShuttleThrusterConfig> {
-            new ShuttleThrusterConfig { force = new Vector2(300, 0) } };
-        launch.report = "pilot unavailable";
-        Check(!eva.Vessel.CheckDeparture() && launch.calls == 1,
-            "shortcut departure propagates the native launch gate including pilot/cargo checks");
-        launch.report = true;
-        Check(eva.Vessel.CheckDeparture(), "ready EVA passes the same departure gate");
-        var roofs = (RoofDef[])AccessTools.Field(typeof(RoofGrid), "roofGrid").GetValue(map.roofGrid);
-        roofs[map.cellIndices.CellToIndex(eva.parent.Position)] = new RoofDef();
-        Check(!eva.Vessel.CheckDeparture(), "ordinary ceiling blocks departure even if native gate accepted");
-        Array.Clear(roofs, 0, roofs.Length);
-        eva.ShuttleProps.virtualThrusters.Clear();
-        Check(!eva.Vessel.CheckDeparture(), "departure rejects a craft without effective propulsion");
-
         var steel = (Thing)Raw(typeof(Thing)); steel.def = TestBuildingDef("departureSteel");
         steel.def.category = ThingCategory.Item; steel.def.bringAlongOnGravship = true;
         Set(steel, "positionInt", eva.parent.Position);
@@ -108,6 +144,5 @@ internal static partial class Program
             "reflected segment starts at its moving shield anchor instead of the emitter muzzle");
         AccessTools.Method(typeof(SpaceProjectileService), "NotifyContainerRemoving").Invoke(service, new object[] { target });
         Check(beams.Count == 0, "target removal releases attached laser segments");
-        eva.parent.AllComps.Remove(launch);
     }
 }

@@ -13,7 +13,7 @@ namespace DeltaV
     public class CompCargoTractor : CompSpaceTractor
     {
         public override bool ManualCargo => true;
-        public override bool CanOperate(CompSpaceWeapon weapon) => parent.TryGetComp<CompVehicleCargo>() != null
+        public override bool CanOperate(CompSpaceWeapon weapon) => parent.TryGetComp<CompTransporter>() is CompVehicleCargo
             && !parent.IsForbidden(Faction.OfPlayer);
         internal override bool Allows(Thing thing) => thing.def.category == ThingCategory.Item;
         public override void PostExposeData() { } // Cargo receiver has no moonpool storage or pawn filters.
@@ -24,14 +24,14 @@ namespace DeltaV
         public override TractorReceiveResult TryReceive(TractorReceiveContext context)
         {
             AbstractThing payload = context.Target.Payload;
-            CompVehicleCargo cargo = parent.TryGetComp<CompVehicleCargo>();
+            CompVehicleCargo cargo = parent.TryGetComp<CompTransporter>() as CompVehicleCargo;
             if (payload?.Recoverable != true || cargo == null || !Allows(payload.Entity))
                 return TractorReceiveResult.Rejected;
             Thing thing = payload.Entity;
             float unitMass = thing.GetStatValue(StatDefOf.Mass);
             int count = unitMass <= 0f ? thing.stackCount
                 : Mathf.Min(thing.stackCount, Mathf.FloorToInt((cargo.Remaining + .0001f) / unitMass));
-            return payload.Handoff(cargo.Transporter.innerContainer, count);
+            return payload.Handoff(cargo.innerContainer, count);
         }
     }
 }

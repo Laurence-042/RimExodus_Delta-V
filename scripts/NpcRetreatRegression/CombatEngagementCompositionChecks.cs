@@ -62,7 +62,7 @@ internal static partial class Program
             mode = SpaceShieldMode.Kinetic, projection = 10, length = 20,
             kineticStrengthPercent = 100, electromagneticStrengthPercent = 100 };
         var projector = AddTestBuilding(target.map, enemy, 157002, TestBuildingDef("compositionShield"), shield);
-        MoveCombatFixture(projector, new IntVec3(12, 0, 9)); projector.Rotation = Rot4.East;
+        MoveCombatFixture(projector, new IntVec3(12, 0, 9), Rot4.East);
         projector.def.useHitPoints = true; projector.def.fillPercent = 1; Set(typeof(Thing), projector, "hitPointsInt", 500);
         var battery = new CompPowerBattery { parent = projector, props = new CompProperties_Battery { storedEnergyMax = 100000 } };
         Set(battery, "storedEnergy", 100000f);
@@ -75,6 +75,7 @@ internal static partial class Program
         interceptor.currentHitPoints = -1;
         Set(interceptor, "lastInterceptTicks", -999999); Set(interceptor, "startedChargingTick", -1);
         projector.AllComps.AddRange(new ThingComp[] { battery, power, interceptor }); shield.InitializeGuard();
+        ShipStructureChanges.Notify(projector.Map, projector, null, projector.OccupiedRect());
         Impact("DeltaV_Impact_VsShield", cannonDef, projector.def);
         Impact("DeltaV_Impact_LaserVsShield", laser.WeaponProps.projectileDef, projector.def);
         SpaceImpactEffects.ResetCache();
@@ -91,7 +92,7 @@ internal static partial class Program
                 laser.WeaponProps.shotEnergy = suppressLaser ? 1000000 : laserEnergy;
                 cannon.WeaponProps.shotEnergy = suppressCannon ? 1000000 : cannonEnergy;
                 cannon.WeaponProps.cooldownTicks = mostlyLaser ? 3600 : 90;
-                SubstructureOwnership.BumpStructureVersion();
+
                 var evaluator = new CombatEngagementEvaluation(universe, own.member, target.member, other,
                     Array.Empty<ShipBase>(), true);
                 CombatEngagementEvaluation.Result At(float phase) => evaluator.Evaluate(new SpacePose(
@@ -111,7 +112,7 @@ internal static partial class Program
                 Set(laser.Tuning, "remainingTicks", 0); cannon.cooldownUntilTick = 0;
                 // Start both batteries on the kinetic shield's verified protected approach.
                 own.pose = new SpacePose(OrbitSphere.Move(other.position, Vector2.right * 100), Mathf.PI);
-                SubstructureOwnership.BumpStructureVersion();
+
                 var planner = new ShipAutoManeuverControl(universe, own.member.Identity);
                 Set(planner, "anchorTarget", CombatTarget.ForShip(target.member.Identity));
                 Set(planner, "anchorDistance", 100f); Set(planner, "offenseEnabled", true);
@@ -133,6 +134,7 @@ internal static partial class Program
             var onlyLaserKinetic = Evaluate(true, suppressCannon: true);
             var onlyCannonKinetic = Evaluate(false, suppressLaser: true);
             shield.mode = SpaceShieldMode.Electromagnetic;
+            universe.ShipStructure.NotifyShield(shield);
             var laserEm = Evaluate(true); var cannonEm = Evaluate(false);
             var onlyLaserEm = Evaluate(true, suppressCannon: true);
             var onlyCannonEm = Evaluate(false, suppressLaser: true);
@@ -143,6 +145,7 @@ internal static partial class Program
                 == onlyLaserEm.rear.outgoing && cannonEm.rear.outgoing > onlyLaserEm.rear.outgoing,
                 "one weapon's estimated hit does not change another weapon's shield snapshot");
             shield.mode = SpaceShieldMode.Guard;
+            universe.ShipStructure.NotifyShield(shield);
             var laserGuard = Evaluate(true); var cannonGuard = Evaluate(false);
             Check(laserGuard.rear.outgoing == 0 && laserGuard.side.outgoing == 0
                 && cannonGuard.rear.outgoing == 0 && cannonGuard.side.outgoing == 0
@@ -157,14 +160,8 @@ internal static partial class Program
             cannon.WeaponProps.shotEnergy = cannonEnergy;
             laser.Tuning.interval = originalInterval;
             Set(laser.Tuning, "remainingTicks", originalRemaining);
-            foreach (var building in new[] { gun, projector })
-            {
-                var map = building.Map; map.thingGrid.Deregister(building);
-                map.listerThings.AllThings.Remove(building); map.listerThings.ThingsOfDef(building.def).Remove(building);
-                ((ThingOwner<Thing>)map.spawnedThings).InnerListForReading.Remove(building);
-                Set(typeof(Thing), building, "mapIndexOrState", (sbyte)-2);
-            }
-            SubstructureOwnership.BumpStructureVersion();
+            RemoveFixtureBuilding(gun, gun.Map);
+            RemoveFixtureBuilding(projector, projector.Map);
             patch.UnpatchAll(patch.Id);
         }
     }

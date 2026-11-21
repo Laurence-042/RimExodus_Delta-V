@@ -1,3 +1,8 @@
+using System.IO;
+using System.Linq;
+using System.Xml.Linq;
+using RimWorld;
+using HarmonyLib;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -161,6 +166,8 @@ internal static partial class Program
             Check(!universe.IsResettingScene, "reset gate releases only when steps and frame callbacks are exhausted");
         }
 
+        CheckMothershipStructureAfterReset(universe);
+
         bool tailRan = false;
         QueueFrame(universe, () => throw new InvalidOperationException("intentional cleanup failure"));
         QueueFrame(universe, () => tailRan = true);
@@ -169,4 +176,113 @@ internal static partial class Program
         Call(universe, "RunFrameActions");
         Check(tailRan, "a failed frame action does not discard the remaining cleanup batch");
     }
+
+    static void CheckMothershipStructureAfterReset(UniverseManager universe)
+    {
+        DirectoryInfo repo = new DirectoryInfo(AppContext.BaseDirectory);
+        const string relative = "Common/Prefabs/Special/MotherShip.xml";
+        while (repo != null && !File.Exists(Path.Combine(repo.FullName, relative))) repo = repo.Parent;
+        if (repo == null) throw new InvalidOperationException("Cannot locate the production Mothership prefab.");
+        XElement doc = XElement.Load(Path.Combine(repo.FullName, relative));
+        IntVec3 origin = IntVec3.FromString((string)doc.Element("sourceOrigin"));
+        IntVec3 Point(XElement node) => IntVec3.FromString((string)node.Element("pos")) + origin;
+        var foundations = doc.Element("foundations").Elements("li").Select(Point).ToArray();
+        var entries = doc.Element("thingStates").Elements("li")
+            .Where(node => (string)node.Element("def") is "PilotConsole" or "LargeThruster" or "DeltaV_ShieldGenerator")
+            .ToArray();
+        using var odyssey = new FixtureOdyssey();
+        var power = ThrusterPower.Model;
+        ThrusterPower.Model = new DrivePowerProbe();
+        var originalTopology = universe.FoundationTopology;
+        var allStructures = new HashSet<ShipStructure>();
+        int invalidated = 0;
+        try
+        {
+            for (int cycle = 0; cycle < 2; cycle++)
+            {
+                universe.ResetShipStructures();
+                Check(ReferenceEquals(universe.FoundationTopology, originalTopology),
+                    "scene reset keeps the topology service bound to the same event publisher");
+                var maps = new List<MapSpaceObject>();
+                var states = new List<ShipStructure>();
+                for (int side = 0; side < 2; side++)
+                {
+                    int ownerId = 162000 + cycle * 300 + side * 100;
+                    Map map = TestMap(ownerId, 76);
+                    var obj = new MapSpaceObject(ownerId + 1, map, new SpacePose(Vector3.forward, 0));
+                    universe.RegisterObject(obj);
+                    maps.Add(obj);
+                    var deck = FixtureFoundation("mothershipDeck");
+                    using (universe.ShipStructure.BeginChanges())
+                    {
+                        foreach (IntVec3 cell in foundations) SetFixtureFoundation(map, cell, deck, ownerId);
+                    }
+
+                    CompDeltaVPilotConsole console = null;
+                    using (universe.ShipStructure.BeginChanges())
+                    {
+                        int thingId = ownerId + 2;
+                        foreach (var entry in entries)
+                        {
+                            string kind = (string)entry.Element("def");
+                            ThingDef def = TestBuildingDef(kind);
+                            if (kind == "LargeThruster")
+                            {
+                                def.size = new IntVec2(2, 2);
+                                def.comps.Add(new CompProperties_GravshipThruster());
+                                def.modExtensions = new List<DefModExtension>
+                                    { new DefModExtension_ThrusterPower { thrust = 2000f } };
+                            }
+                            else if (kind == "DeltaV_ShieldGenerator")
+                            {
+                                def.size = new IntVec2(3, 3);
+                                def.comps.Add(new CompProperties_SpaceShield());
+                            }
+                            else
+                            {
+                                def.size = new IntVec2(3, 2);
+                                def.comps.Add(new CompProperties_DeltaVPilotConsole());
+                            }
+                            var building = CreateFixtureBuilding(def, thingId++, Point(entry),
+                                new Rot4((int?)entry.Element("rotation") ?? 0));
+                            if (building.TryGetComp<CompDeltaVPilotConsole>() is { } primary)
+                            {
+                                console = primary;
+                                primary.shipId = ownerId;
+                                primary.isMain = true;
+                            }
+                            building.TryGetComp<CompSpaceShield>()?.InitializeGuard();
+                            PlaceFixtureBuilding(building, map);
+                        }
+                    }
+                    ShipStructure structure = console.Vessel.StructuralState;
+                    Check(allStructures.Add(structure) && structure.Foundation.Count == 2000
+                        && structure.Thrusters.Count() == 26 && obj.MotionInfo.AvailableThrust == 52000,
+                        "fresh Mothership binds its 2,000 bases and 26 installed thrusters after scene reset");
+                    Check(structure.WholeFootprintShields.Count == 9 && structure.SharedGuardCapacity > 0,
+                        "fresh Mothership binds the nine real guard components in its own domain");
+                    states.Add(structure);
+                }
+                double first = states[0].SharedGuardCapacity, second = states[1].SharedGuardCapacity;
+                var shields = states[0].WholeFootprintShields;
+                double otherShield = shields[1].RegularCapacity;
+                shields[0].ConsumeGuard(90);
+                Check(states[0].SharedGuardCapacity == first - 90 && shields[1].RegularCapacity < otherShield
+                    && states[1].SharedGuardCapacity == second,
+                    "guard damage is shared by the nine shields of one Mothership only");
+                foreach (var state in states)
+                    state.Watch(ShipStructureAspect.Membership | ShipStructureAspect.Shield, _ => invalidated++);
+                universe.ResetShipStructures();
+                Check(states.All(state => state.Map == null && !state.Buildings.Any() && state.WholeFootprintShields.Count == 0),
+                    "scene reset releases old vessel bindings, member lists and shield banks");
+                foreach (var obj in maps) RetireFixtureMap(obj.map);
+            }
+            Check(invalidated == 0, "disposed Mothership subscriptions do not receive events from the next scene");
+        }
+        finally
+        {
+            ThrusterPower.Model = power;
+        }
+    }
+
 }

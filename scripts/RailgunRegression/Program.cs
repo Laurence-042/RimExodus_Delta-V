@@ -153,10 +153,19 @@ internal static partial class Program
         SpaceImpactEffects.DamageAtRemainingEnergy(SpaceImpactEffects.Resolve(shot.projectileDef,
             guard ? shieldDef : null, shieldSurface: guard).defenderEffect, shot.attacker.pose.velocity.magnitude,
             0f, 1f, shot.mass, shot.energyFraction) * shot.damageScale;
+    static bool FixtureBuildingMaxHealth(ref int __result)
+    { __result = 100; return false; }
+
     static void Run(string[] args)
     {
         using var logs = Log.LockMessages(); DeepProfiler.enabled = false;
         var harmony = new Harmony("DeltaV.RailgunRegression");
+        StatDefOf.Mass ??= new StatDef { defName = "RegressionMassStat" };
+        harmony.Patch(AccessTools.Method(typeof(StatExtension), nameof(StatExtension.GetStatValue),
+            new[] { typeof(Thing), typeof(StatDef), typeof(bool), typeof(int) }),
+            prefix: new HarmonyMethod(typeof(Program), nameof(CargoMassStat)));
+        harmony.Patch(AccessTools.PropertyGetter(typeof(Thing), nameof(Thing.MaxHitPoints)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(FixtureBuildingMaxHealth)));
         harmony.Patch(typeof(ModsConfig).TypeInitializer,
             prefix: new HarmonyMethod(typeof(Program), nameof(Skip)));
         harmony.Patch(typeof(CompProjectileInterceptor).TypeInitializer,
@@ -625,11 +634,11 @@ internal static partial class Program
             Debit(a, hit / 2, hit / 2, 0, "reconnecting the bridge restores the shared guard pool");
 
             firstConsole.isMain = false;
-            SubstructureOwnership.BumpStructureVersion(map);
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(map);
             Debit(a, hit, 0, 0, "loss of the primary console falls back to the struck guard");
             var successor = ConsoleAt(21, firstOwner);
             hull.members[0] = successor.Vessel;
-            SubstructureOwnership.BumpStructureVersion(map);
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(map);
             Debit(a, hit / 2, hit / 2, 0, "the replacement primary console restores shared debits");
 
             Own(bridgeX, 70, otherOwner);
@@ -639,7 +648,7 @@ internal static partial class Program
             Set(other.parent, "mapIndexOrState", (sbyte)-2);
             AccessTools.Method(typeof(SubstructureOwnership), "UpdateSpawnedBuilding")
                 .Invoke(ownership, new object[] { other.parent });
-            SubstructureOwnership.BumpStructureVersion(map);
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(map);
             Debit(b, 0, hit, 0, "a removed generator no longer supplies its former pool");
         }
         finally
@@ -816,6 +825,131 @@ internal static partial class Program
         public bool TryLaunch(SpaceWeaponShot shot) { calls++; return succeeds; }
     }
 
+    static bool MissileFixtureFoundation(TerrainDef __instance, ref bool __result)
+    {
+        __result = __instance.defName == "MissileFixtureDeck";
+        return false;
+    }
+
+    static void CheckExteriorMissileMagazine()
+    {
+        Reset();
+        var patches = new Harmony("DeltaV.Regression.ExteriorMagazine");
+        patches.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(MissileFixtureFoundation)));
+        try
+        {
+            var deck = (TerrainDef)Raw(typeof(TerrainDef));
+            deck.defName = "MissileFixtureDeck";
+            deck.isFoundation = true;
+            var ownership = new SubstructureOwnership(map);
+            map.components.Add(ownership);
+            var owners = new int[map.cellIndices.NumGridCells];
+            Set(ownership, "ownerGrid", owners);
+            foreach (IntVec3 cell in new CellRect(2, 2, 8, 6))
+            {
+                int index = map.cellIndices.CellToIndex(cell);
+                owners[index] = 42;
+                map.terrainGrid.foundationGrid[index] = deck;
+            }
+
+            var shell = MakeDef("fixtureMissileAmmo");
+            shell.category = ThingCategory.Item;
+            shell.destroyable = true;
+            shell.virtualDefs = new List<ThingDef>();
+            shell.projectileWhenLoaded = rail;
+            shell.modExtensions = new List<DefModExtension> { new DefModExtension_SpaceMissileAmmo { spaceProjectileDef = rail } };
+            var magazineDef = MakeDef("fixtureExteriorMagazine"); magazineDef.size = new IntVec2(1, 2);
+            var launcherDef = MakeDef("fixtureLauncher"); launcherDef.size = new IntVec2(1, 3);
+            var launcherProps = new CompProperties_SpaceWeapon
+            {
+                attachmentSlots = new List<SpaceWeaponAttachmentSlot>
+                {
+                    new SpaceWeaponAttachmentSlot { cell = new IntVec3(-1, 0, -1), external = true },
+                    new SpaceWeaponAttachmentSlot { cell = new IntVec3(1, 0, -1), external = true }
+                },
+                allowedAttachmentDefs = new List<ThingDef> { magazineDef }
+            };
+            CompSpaceWeapon AddLauncher(int x)
+            {
+                var weapon = new CompSpaceWeapon { props = launcherProps };
+                var chamber = new CompChangeableProjectile { props = new CompProperties_ChangeableProjectile() };
+                var load = new CompSpaceWeaponMagazine
+                    { props = new CompProperties_SpaceWeaponMagazine { externalMissileSupply = true } };
+                var building = Add(x, 5, 100, weapon, chamber, load);
+                map.thingGrid.Deregister(building);
+                building.def = launcherDef;
+                map.thingGrid.Register(building);
+                chamber.Initialize(chamber.props);
+                chamber.allowedShellsSettings.filter.SetAllow(shell, true);
+                return weapon;
+            }
+
+            CompSpaceWeapon left = AddLauncher(5), right = AddLauncher(7);
+            var magazine = new CompMissileMagazineFacility
+            {
+                props = new CompProperties_MissileMagazineFacility
+                    { external = true, allowedHostDefs = new List<ThingDef> { launcherDef } }
+            };
+            Building warehouse = Add(6, 4, 100, magazine);
+            map.thingGrid.Deregister(warehouse);
+            warehouse.def = magazineDef;
+            map.thingGrid.Register(warehouse);
+            universe.ShipStructure.For(map);
+            Check(left.AttachedThings().Single() == warehouse && right.AttachedThings().Single() == warehouse,
+                "both missile launchers use the same exterior magazine from the common layout");
+            var cached = left.Layout;
+            left.Component<CompSpaceWeaponMagazine>().QueueReload();
+            right.Component<CompSpaceWeaponMagazine>().QueueReload();
+            Check(magazine.TryStore(shell), "common attachment accepts stock");
+            universe.Weapons.TickPendingUpdates();
+            Check(left.Component<CompChangeableProjectile>().Loaded && !right.Component<CompChangeableProjectile>().Loaded
+                && magazine.StoredCount == 0 && ReferenceEquals(cached, left.Layout),
+                "two queued launchers consume a shared missile once in ID order without rebuilding attachment layout");
+
+            IntVec3 otherFoot = warehouse.OccupiedRect().First(cell => cell != warehouse.Position);
+            int offset = map.cellIndices.CellToIndex(otherFoot);
+            owners[offset] = 17;
+            universe.ShipStructure.NotifyCell(map, otherFoot, ShipStructureAspect.Ownership, 42, 17, 42, 17);
+            Check(SpaceWeaponGeometry.OwnerIdOf(warehouse) == 0 && !left.AttachedThings().Any()
+                && !right.AttachedThings().Any(), "a second-footprint ownership change disconnects both exterior slots");
+            owners[offset] = 42;
+            universe.ShipStructure.NotifyCell(map, otherFoot, ShipStructureAspect.Ownership, 17, 42, 17, 42);
+            Check(left.AttachedThings().Single() == warehouse && right.AttachedThings().Single() == warehouse,
+                "restoring the footprint ownership reconnects both slots through the same dependency");
+
+            map.reservationManager = new Verse.AI.ReservationManager(map);
+            map.physicalInteractionReservationManager = new PhysicalInteractionReservationManager();
+            if (DefDatabase<DesignationDef>.DefCount == 0)
+                DefDatabase<DesignationDef>.Add(new DesignationDef { defName = "OfflineSupplyDesignation" });
+            map.designationManager = new DesignationManager(map);
+            var extra = new Thing { def = shell, stackCount = 1, thingIDNumber = nextId++ };
+            Check(!GunSupplyUtility.TryReceiveMissile(left.parent, extra) && !extra.Destroyed,
+                "shared supply receiver returns the payload intact if a launcher filled before arrival");
+            Check(GunSupplyUtility.TryReceiveMissile(warehouse, extra) && extra.Destroyed && magazine.StoredCount == 1,
+                "the shared supply receiver commits one real item to the connected magazine");
+            universe.Weapons.TickPendingUpdates();
+            Check(right.Component<CompChangeableProjectile>().Loaded && magazine.StoredCount == 0,
+                "magazine delivery wakes its linked empty launcher");
+
+            right.Component<CompChangeableProjectile>().LoadShell(null, 0);
+            extra = new Thing { def = shell, stackCount = 1, thingIDNumber = nextId++ };
+            Check(GunSupplyUtility.TryReceiveMissile(right.parent, extra) && extra.Destroyed
+                && right.Component<CompChangeableProjectile>().Loaded,
+                "the same supply receiver loads the native ready chamber directly");
+            Patch_SpaceWeaponAttachmentLifecycle.Prefix((Building)right.parent, out var cascade);
+            Check(cascade != null && !cascade.Contains(warehouse),
+                "host destruction leaves an independently built exterior magazine standing");
+
+
+        }
+        finally
+        {
+            universe.ForgetFoundationTopology(map);
+            patches.UnpatchAll(patches.Id);
+        }
+    }
+
     static void CheckRapidReset()
     {
         Reset();
@@ -867,7 +1001,7 @@ internal static partial class Program
         Set(weapon, "ownerMap", map);
         Set(weapon, "ownerPosition", weapon.parent.Position);
         Set(weapon, "ownerRotation", weapon.parent.Rotation);
-        Set(weapon, "ownerVersion", SubstructureOwnership.StructureVersion(map));
+        Set(weapon, "ownerVersion", CompSpaceWeapon.OwnerBinding(weapon.parent));
         Set(weapon, "ownerCacheValid", true);
         Set(weapon, "ownerWasValid", true);
         var attachments = weapon.Layout.attachments;
@@ -1222,6 +1356,7 @@ internal static partial class Program
                 .Any(n => n.Value == "DeltaV_Weapon_RailgunLoader"), "rail and auxiliary magazine slot rules agree");
         CheckEnergy();
         CheckRapidReset();
+        CheckExteriorMissileMagazine();
     }
 
     static void CheckEnergy()

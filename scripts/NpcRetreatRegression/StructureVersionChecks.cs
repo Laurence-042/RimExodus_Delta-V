@@ -33,15 +33,15 @@ internal static partial class Program
             long searches = universe.Performance.engagementCompleted;
             for (int tick = 30; tick < deadline; tick += 30)
             {
-                SubstructureOwnership.BumpStructureVersion(enemy.map);
-                SubstructureOwnership.BumpStructureVersion(own.map);
+                Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(enemy.map);
+                Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(own.map);
                 report.version++;
                 Plan(tick);
             }
             Check(universe.Performance.engagementCompleted == searches && reposition.nextTick == deadline
                 && Field<uint>(reposition, "random") == random,
                 "repeated target/own structure and drive notifications neither search early nor postpone the deadline nor consume randomness");
-            SubstructureOwnership.BumpStructureVersion(enemy.map);
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(enemy.map);
             Plan(deadline);
             Check(universe.Performance.engagementCompleted == searches + 1 && reposition.nextTick > deadline,
                 "normal due decision still completes exactly once under continuous structural events");
@@ -63,16 +63,27 @@ internal static partial class Program
             var reports = bodies.Select(ShipPhysics.GetReport).ToArray();
             var surfaces = bodies.Select(body => HarmonyLib.AccessTools.Method(typeof(SpaceCollision),
                 "SurfaceFor").Invoke(null, new object[] { body })).ToArray();
-            var surfaceVersions = surfaces.Select(surface => (int)HarmonyLib.AccessTools.Field(surface.GetType(), "structureVersion").GetValue(surface)).ToArray();
+            var observed = new System.Collections.Generic.List<ShipStructureBatch>();
+            var unaffected = new System.Collections.Generic.List<ShipStructureBatch>();
+            using var local = universe.ShipStructure.WatchMap(maps[0], ShipStructureAspect.Representation, observed.Add);
+            using var remote = universe.ShipStructure.WatchMap(maps[1], ShipStructureAspect.Representation, unaffected.Add);
             var weapons = hulls.Select(hull => hull.Vessel.Weapons).ToArray();
-            var oldVersions = maps.Select(SubstructureOwnership.StructureVersion).ToArray();
-            long publications = universe.Structures.Publications;
-            for (int i = 0; i < 100; i++) ShipStructureChanges.Notify(maps[0]);
-            Check(universe.Structures.Publications == publications,
-                "structure events mark dirty without eagerly rebuilding facts");
-            Check(SubstructureOwnership.StructureVersion(maps[0]) != oldVersions[0]
-                && SubstructureOwnership.StructureVersion(maps[1]) == oldVersions[1]
-                && universe.Structures.Publications == publications + 1,
+            const ShipStructureAspect dependencies = ShipStructureAspect.Representation | ShipStructureAspect.Membership;
+            int Revision(Map map) => universe.ShipStructure.RevisionOf(map, dependencies);
+            var oldVersions = maps.Select(Revision).ToArray();
+            long publications = universe.ShipStructure.Publications;
+            using (universe.ShipStructure.BeginChanges())
+            {
+                for (int i = 0; i < 100; i++) ShipStructureChanges.Notify(maps[0]);
+                Check(observed.Count == 0, "subscribers wait for the outer structural change scope");
+            }
+            Check(observed.Count == 1 && observed[0].Changes.Count == 100 && unaffected.Count == 0,
+                "map subscriptions receive the locally ordered delta batch once");
+            Check(universe.ShipStructure.Publications == publications + 1,
+                "structural publication is counted on commit without a consumer query");
+            Check(Revision(maps[0]) != oldVersions[0]
+                && Revision(maps[1]) == oldVersions[1]
+                && universe.ShipStructure.Publications == publications + 1,
                 "one hundred local events coalesce into one publication without touching the other map");
             Check(!ReferenceEquals(members[0], bodies[0].Ships) && ReferenceEquals(members[1], bodies[1].Ships),
                 "local structure changes rebuild only local member discovery");
@@ -84,66 +95,51 @@ internal static partial class Program
                 "local structure changes preserve unrelated weapon collections");
             for (int i = 0; i < 2; i++)
             {
+                var surface = (SpaceCollision.Surface)surfaces[i];
+                Check(surface.NeedsHullSnapshot == (i == 0), "collision changes stay within the affected map " + i);
                 SpaceCollision.BoundsRadiusOf(bodies[i]);
-                var current = (int)HarmonyLib.AccessTools.Field(surfaces[i].GetType(), "structureVersion").GetValue(surfaces[i]);
-                Check((surfaceVersions[i] == current) == (i == 1),
-                    "collision surface rebuild stays within the changed map " + i);
             }
-            int a = SubstructureOwnership.StructureVersion(maps[0]);
-            int b = SubstructureOwnership.StructureVersion(maps[1]);
-            SubstructureOwnership.BumpStructureVersion();
-            Check(SubstructureOwnership.StructureVersion(maps[0]) != a
-                && SubstructureOwnership.StructureVersion(maps[1]) != b,
+            int a = Revision(maps[0]);
+            int b = Revision(maps[1]);
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
+            Check(Revision(maps[0]) != a
+                && Revision(maps[1]) != b,
                 "explicit all-world invalidation retains the frozen recovery workload");
-            a = SubstructureOwnership.StructureVersion(maps[0]);
-            b = SubstructureOwnership.StructureVersion(maps[1]);
-            int count = universe.Structures.MapCount;
-            universe.Structures.Forget(maps[0]);
-            Check(universe.Structures.MapCount == count - 1
-                && SubstructureOwnership.StructureVersion(maps[0]) != a
-                && SubstructureOwnership.StructureVersion(maps[1]) == b,
+            a = Revision(maps[0]);
+            b = Revision(maps[1]);
+            int count = universe.ShipStructure.MapCount;
+            universe.ShipStructure.Forget(maps[0]);
+            Check(universe.ShipStructure.MapCount == count - 1
+                && Revision(maps[0]) != a
+                && Revision(maps[1]) == b,
                 "map release removes metadata and pooled reuse cannot alias the old stamp");
-            var otherGame = new StructureVersions();
-            int isolated = otherGame.For(maps[0]);
-            SubstructureOwnership.BumpStructureVersion(maps[0]);
-            Check(otherGame.For(maps[0]) == isolated && otherGame.GlobalVersion == 0,
+            var otherGame = new ShipStructureIndex(new FoundationTopologyService());
+            int isolated = otherGame.RevisionOf(maps[0], dependencies);
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(maps[0]);
+            Check(otherGame.RevisionOf(maps[0], dependencies) == isolated && otherGame.GlobalVersion == 0,
                 "structure version state belongs to its universe instance");
-            a = SubstructureOwnership.StructureVersion(maps[0]);
-            SubstructureOwnership.BumpStructureVersion(null);
-            Check(SubstructureOwnership.StructureVersion(maps[0]) == a,
+            a = Revision(maps[0]);
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(null);
+            Check(Revision(maps[0]) == a,
                 "missing local scope never silently becomes a global invalidation");
             int worldVersion = otherGame.GlobalVersion;
-            otherGame.For(maps[1]); otherGame.Forget(maps[1]);
+            otherGame.RevisionOf(maps[1], dependencies); otherGame.Forget(maps[1]);
             Check(otherGame.GlobalVersion == worldVersion,
                 "transient query-only map release does not invalidate the global identity index");
 
             var otherMembers = bodies[1].Ships;
             var extra = AddTestHull(maps[0], faction, 121050);
-            SubstructureOwnership.BumpStructureVersion(maps[0]);
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(maps[0]);
             Check(bodies[0].Ships.Select(s => s.Identity).Distinct().Count() == 2
                 && ReferenceEquals(otherMembers, bodies[1].Ships),
                 "same-map multiple ships rebuild together without changing another map");
-            int sourceVersion = SubstructureOwnership.StructureVersion(maps[0]);
-            int targetVersion = SubstructureOwnership.StructureVersion(maps[1]);
+            int sourceVersion = Revision(maps[0]);
+            int targetVersion = Revision(maps[1]);
             var moved = extra.parent;
-            maps[0].thingGrid.Deregister(moved);
-            maps[0].listerThings.AllThings.Remove(moved);
-            maps[0].listerThings.ThingsOfDef(moved.def).Remove(moved);
-            maps[0].listerThings.ThingsInGroup(ThingRequestGroup.Transporter).Remove(moved);
-            ((ThingOwner<Thing>)maps[0].spawnedThings).InnerListForReading.Remove(moved);
-            Set(typeof(Thing), moved, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(maps[1]));
-            maps[1].listerThings.AllThings.Add(moved);
-            var byDef = (System.Collections.Generic.Dictionary<ThingDef, System.Collections.Generic.List<Thing>>)
-                HarmonyLib.AccessTools.Field(typeof(ListerThings), "listsByDef").GetValue(maps[1].listerThings);
-            byDef[moved.def] = new System.Collections.Generic.List<Thing> { moved };
-            maps[1].listerThings.ThingsInGroup(ThingRequestGroup.Transporter).Add(moved);
-            ((ThingOwner<Thing>)maps[1].spawnedThings).InnerListForReading.Add(moved);
-            maps[1].thingGrid.Register(moved);
-            SubstructureOwnership.BumpStructureVersion(maps[0]);
-            SubstructureOwnership.BumpStructureVersion(maps[1]);
+            TransferFixtureBuilding((Building)moved, maps[1]);
             Check(bodies[0].Ships.Count() == 1 && bodies[1].Ships.Count() == 2
-                && SubstructureOwnership.StructureVersion(maps[0]) != sourceVersion
-                && SubstructureOwnership.StructureVersion(maps[1]) != targetVersion
+                && Revision(maps[0]) != sourceVersion
+                && Revision(maps[1]) != targetVersion
                 && extra.Vessel.Map == maps[1],
                 "transfer invalidates both maps and retains the moved ship identity");
         }
@@ -152,7 +148,7 @@ internal static partial class Program
             foreach (var body in bodies) universe.objects.Remove(body);
             foreach (var map in maps)
             {
-                universe.Structures.Forget(map);
+                universe.ShipStructure.Forget(map);
                 ShipRegistry.Forget(map); ShipPhysics.Forget(map); SpaceCollision.Forget(map);
                 Find.Maps.Remove(map);
             }

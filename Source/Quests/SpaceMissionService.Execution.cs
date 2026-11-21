@@ -91,7 +91,7 @@ namespace DeltaV
             if (!(item is MissionCargo box) || !box.Sealed || shelf?.Spawned != true) return false;
             SpaceMission m = Find(box.missionId);
             if (m?.Active != true || m.settled || m.faction != shelf.Faction || box.issuer != m.faction) return false;
-            return shelf.Map.listerThings.AllThings.OfType<Building_SpaceTradeTerminal>()
+            return ShipStructureIndex.Read(shelf.Map).BuildingsOf<Building_SpaceTradeTerminal>()
                 .Any(t => t.thingIDNumber == m.destination?.thingId && t.MissionCargo?.Thing == shelf);
         }
 

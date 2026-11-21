@@ -869,7 +869,7 @@ internal static partial class Program
         MoveCombatFixture(wall, new IntVec3(x, 0, z + 1));
         SetStaticFixtureHealth(wall, 100);
         wall.def.drawDamagedOverlay = false;
-        SubstructureOwnership.BumpStructureVersion(map);
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(map);
         var receiver = universe.ProtectionFor(ship);
         int sector = CombatProtectionTable.Receiver.DirectionOf(Vector2.down);
         var path = receiver.Get(null, sector);
@@ -914,7 +914,7 @@ internal static partial class Program
 
         map.thingGrid.Deregister(wall);
         Set(typeof(Thing), wall, "mapIndexOrState", (sbyte)-2);
-        SubstructureOwnership.BumpStructureVersion(map, wall.OccupiedRect());
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(map, wall.OccupiedRect());
         var damaged = universe.ProtectionFor(ship);
         Check(damaged != receiver && damaged.Get(null, sector).Hp < fullHp && Find.TickManager.TicksGame == gameTick,
             "same-tick structural removal replaces the protection view");

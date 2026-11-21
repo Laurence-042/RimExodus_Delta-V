@@ -43,8 +43,7 @@ internal static partial class Program
         hull.combat.fireControlMode = ShipFireControlMode.Manual;
         hull.combat.weaponGroupsMain = 8;
         var gun = new CompSpaceWeapon { parent = hull.parent, props = new CompProperties_SpaceWeapon() };
-        hull.parent.AllComps.Add(gun);
-        ShipStructureChanges.Notify(hostMap);
+        AddFixtureComponents(hull.parent, gun);
         Check(hull.Vessel.Weapons.Single() == gun && !hull.Vessel.CanDriveIn(host),
             "parked ship retains intrinsic weapons and combat state without driving its host");
         var subject = identity.InContainer(host.objectId);
@@ -107,7 +106,7 @@ internal static partial class Program
             && ReferenceEquals(ShipRegistry.ShipByIdentity(identity), restoredHull.Vessel)
             && !ReferenceEquals(Controllers(universe)[identity], controller),
             "load-style spawn reconstructs runtime adapters and controllers from the persisted identity");
-        restoredHull.parent.AllComps.Add(new CompLaunchable
+        AddFixtureComponents(restoredHull.parent, new CompLaunchable
             { parent = restoredHull.parent, props = new CompProperties_Launchable() });
         int countBeforeLaunch = universe.objects.Count;
         universe.Shuttles.Launch((Building)restoredHull.parent);

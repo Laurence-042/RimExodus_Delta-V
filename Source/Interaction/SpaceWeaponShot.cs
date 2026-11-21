@@ -336,7 +336,8 @@ namespace DeltaV
             Map map = weapon.parent.Map;
             ShipBase ship = weapon.OwnerShip;
             if (map == null || !ship.IsValid) return false;
-            var hull = weapon.WeaponProps.casemate ? null : new HashSet<IntVec3>(ship.HullCells);
+            var mapStructure = ShipStructureIndex.Read(map);
+            var hull = weapon.WeaponProps.casemate ? null : ship.StructuralState;
             var ownership = hull == null ? SubstructureOwnership.TryGet(map) : null;
             Vector2 dir = SpaceTransform.Rotate(Vector2.right, launchMapAngle);
             IntVec3 previous = IntVec3.Invalid;
@@ -352,7 +353,7 @@ namespace DeltaV
                 previous = cell;
                 if (weapon.parent.OccupiedRect().Contains(cell)) continue;
                 if (hull != null ? !hull.Contains(cell) : ownership?.OwnerAt(cell) != ship.Identity.key) continue;
-                SpaceCellKind kind = SpaceStructureRules.ClassifyCell(map, cell, out Thing building);
+                SpaceCellKind kind = SpaceStructureRules.ClassifyCell(map, cell, out Thing building, null, mapStructure);
                 if ((kind == SpaceCellKind.Building || kind == SpaceCellKind.NaturalRock)
                     && SpaceStructureRules.BuildingHitChance(building) > 0f) return false;
             }

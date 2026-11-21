@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using HarmonyLib;
@@ -348,6 +349,25 @@ namespace DeltaV
             sb.AppendLine("- mapDrawer.RegenerateEverythingNow() executed; if the view recovers, mesh state was stale.");
             Log.Message(sb.ToString());
             Messages.Message("Focused-map diagnostics + forced mesh regeneration written to the log.", MessageTypeDefOf.NeutralEvent, false);
+        }
+
+        [DebugAction("Delta-V", "Audit focused structure index", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        private static void AuditFocusedStructureIndex()
+        {
+            Map map = Find.CurrentMap;
+            UniverseManager universe = Um();
+            if (map == null || universe?.FrameOf(map) == null) return;
+            var index = universe.ShipStructure.For(map);
+            var registered = index.All.Buildings.ToHashSet();
+            var actual = map.listerThings.AllThings.OfType<Building>()
+                .Where(building => building.Spawned && building.Map == map).ToHashSet();
+            var owners = universe.FoundationTopology.OwnerCells(map);
+            var indexedCells = owners?.Values.SelectMany(cells => cells).ToHashSet() ?? new HashSet<IntVec3>();
+            var actualCells = map.AllCells.Where(cell => SubstructureOwnership.HasFoundation(map, cell)).ToHashSet();
+            Log.Message($"[DeltaV:Diag] {UniverseManager.MapTag(map)} buildings indexed={registered.Count} native={actual.Count} "
+                + $"missing={actual.Except(registered).Count()} stale={registered.Except(actual).Count()} "
+                + $"foundations indexed={indexedCells.Count} native={actualCells.Count} "
+                + $"missing={actualCells.Except(indexedCells).Count()} stale={indexedCells.Except(actualCells).Count()}");
         }
 
         [DebugAction("Delta-V", "Dump universe state", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]

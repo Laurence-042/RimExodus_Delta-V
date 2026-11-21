@@ -440,7 +440,7 @@ internal static partial class Program
         float initialPhase = state.phase;
         uint Random(CombatReposition s) => (uint)typeof(CombatReposition).GetField("random", Private).GetValue(s);
         uint initialRandom = Random(state);
-        SubstructureOwnership.BumpStructureVersion(); Plan(a, 1);
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll(); Plan(a, 1);
         Check(state.nextTick == deadline && Mathf.Abs(state.phase - initialPhase) < .00001f && Random(state) == initialRandom,
             "global structure invalidation refreshes caches without restarting intent, timer or random stream");
         own.layout.version++; Plan(a, 2);

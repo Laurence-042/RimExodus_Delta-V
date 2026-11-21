@@ -60,7 +60,7 @@ namespace DeltaV
                 if (tacticGroupMask != groupMask) cause |= CombatReplanCause.Groups;
                 if (lastOffenseEnabled != offenseEnabled) cause |= CombatReplanCause.Permission;
                 if (tacticDrive != drive || tacticDriveVersion != drive.version) cause |= CombatReplanCause.Drive;
-                if (SubstructureOwnership.CacheNeedsRefresh(tacticStructureVersion, ship.Map)) cause |= CombatReplanCause.Structure;
+                if (tacticStructureVersion != (ship.StructuralState?.GeometryRevision ?? 0)) cause |= CombatReplanCause.Structure;
                 if (now >= nextPoseTick || decisionDue) cause |= CombatReplanCause.Periodic;
             }
             if (changed || driveChanged || decisionDue || now >= nextTacticTick)
@@ -198,7 +198,7 @@ namespace DeltaV
                 tacticConfiguration = control?.configurationVersion ?? 0; tacticGroupMask = groupMask;
                 tacticDrive = drive;
                 tacticDriveVersion = drive.version;
-                tacticStructureVersion = SubstructureOwnership.StructureVersion(ship.Map);
+                tacticStructureVersion = (ship.StructuralState?.GeometryRevision ?? 0);
                 if (traceAi) TraceAiDecision(ship, own, self, target, rule, settings, cause, restartReposition,
                     repositionStatus, oldPhase, oldNextTick, poseReevaluated);
                 if (ship.CombatAI != null)

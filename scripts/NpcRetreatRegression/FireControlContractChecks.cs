@@ -28,7 +28,7 @@ internal static partial class Program
         Set(typeof(CompSpaceWeapon), fixture, "ownerMap", owner.Map);
         Set(typeof(CompSpaceWeapon), fixture, "ownerPosition", fixture.parent.Position);
         Set(typeof(CompSpaceWeapon), fixture, "ownerRotation", fixture.parent.Rotation);
-        Set(typeof(CompSpaceWeapon), fixture, "ownerVersion", SubstructureOwnership.StructureVersion(owner.Map));
+        Set(typeof(CompSpaceWeapon), fixture, "ownerVersion", CompSpaceWeapon.OwnerBinding(fixture.parent));
         Set(typeof(CompSpaceWeapon), fixture, "ownerCacheValid", true);
         Set(typeof(CompSpaceWeapon), fixture, "ownerWasValid", true);
         Current.Game?.GetComponent<UniverseManager>()?.Weapons.RegisterWeapon(fixture);
@@ -55,8 +55,8 @@ internal static partial class Program
         var engine1 = AddTestBuilding(enemyMap, enemy, 1973, engineDef, new EmptyComp());
         var engine2 = AddTestBuilding(enemyMap, enemy, 1974, engineDef, new EmptyComp());
         MoveCombatFixture(engine2, second.parent.Position);
-        Set(typeof(Thing), engine1, "hitPointsInt", 1); Set(typeof(Thing), engine2, "hitPointsInt", 1);
-        Set(typeof(Thing), first.parent, "hitPointsInt", 100); Set(typeof(Thing), second.parent, "hitPointsInt", 100);
+        SetFixtureHitPoints(engine1, 1); SetFixtureHitPoints(engine2, 1);
+        SetFixtureHitPoints(first.parent, 100); SetFixtureHitPoints(second.parent, 100);
         var projectileDef = TestBuildingDef("memberTestBullet");
         projectileDef.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, speed = 100f });
         DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef { defName = "memberTestImpact",
@@ -66,7 +66,7 @@ internal static partial class Program
         var weapon = new CompSpaceWeapon { parent = hull.parent,
             props = new CompProperties_SpaceWeapon { projectileDef = projectileDef, range = 500f, baseSpreadDeg = 0f }, safeFire = false };
         var traverse = new CompSpaceWeaponTraverse { parent = hull.parent, props = new CompProperties_SpaceWeaponTraverse() };
-        hull.parent.AllComps.Add(weapon); hull.parent.AllComps.Add(traverse);
+        AddFixtureComponents(hull.parent, weapon, traverse);
         var resolveProbe = new Harmony("DeltaV.Regression.AccelerationTiming");
         resolveProbe.Patch(AccessTools.Method(typeof(CompSpaceRailgun), "TraceConnections"),
             prefix: new HarmonyMethod(typeof(Program), nameof(CountAccelerationResolve)));
@@ -88,7 +88,7 @@ internal static partial class Program
         }
         void Refresh()
         {
-            SubstructureOwnership.BumpStructureVersion();
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
             ShipRegistry.ShipByIdentity(hull.Vessel.Identity);
             universe.Controls.For(firstHull); universe.Controls.For(secondHull);
         }
@@ -176,33 +176,33 @@ internal static partial class Program
         Check(universe.Weapons.EstimateFirepower(hull.Vessel, 60f, 10f) == 0f,
             "engineering emitter does not count as NPC combat firepower");
         weapon.WeaponProps.manualOnly = false;
-        fire.Clear(); Set(typeof(Thing), first.parent, "hitPointsInt", 500000);
+        fire.Clear(); SetFixtureHitPoints(first.parent, 500000);
         fire.Decide(hull.Vessel, own);
         Check(fire.Target.Ship == secondHull.Identity,
             "per-member hull durability changes the score instead of using whole-map durability");
         var debris = AddTestBuilding(enemyMap, enemy, 1975, TestBuildingDef("durableDebris"), new EmptyComp());
-        MoveCombatFixture(debris, new IntVec3(4, 0, 4)); Set(typeof(Thing), debris, "hitPointsInt", 1000000);
+        MoveCombatFixture(debris, new IntVec3(4, 0, 4)); SetFixtureHitPoints(debris, 1000000);
         Refresh(); fire.Clear(); fire.Decide(hull.Vessel, own);
         Check(fire.Target.Ship == secondHull.Identity, "unowned same-map debris cannot contaminate either ship score");
-        Set(typeof(Thing), first.parent, "hitPointsInt", 1); Set(typeof(Thing), second.parent, "hitPointsInt", 500000);
+        SetFixtureHitPoints(first.parent, 1); SetFixtureHitPoints(second.parent, 500000);
         Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 179);
         Refresh(); fire.Decide(hull.Vessel, own);
         Check(fire.Target.Ship == firstHull.Identity, "periodic reassessment switches to a substantially better target");
         Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
         Refresh(); fire.Decide(hull.Vessel, own);
         Check(fire.Target.Ship == firstHull.Identity, "unchanged scores preserve the newly selected target");
-        Set(typeof(Thing), second.parent, "factionInt", player);
+        SetFixtureFaction(second.parent, player);
         Refresh();
         Check(fire.TryGetIntent(hull.Vessel, own, false, out _)
             && fire.Target.Ship == firstHull.Identity,
             "cached target hostility loss reselects another enemy in the same combat tick");
-        Set(typeof(Thing), first.parent, "factionInt", player);
-        Set(typeof(Thing), second.parent, "factionInt", enemy);
+        SetFixtureFaction(first.parent, player);
+        SetFixtureFaction(second.parent, enemy);
         Refresh();
         Check(fire.TryGetIntent(hull.Vessel, own, false, out _)
             && fire.Target.Ship == secondHull.Identity && fire.LeadPoints(hull.Vessel).Count == 1,
             "mixed-faction map selects and previews only its eligible hostile member");
-        enemyMap.listerThings.AllThings.Remove(engine2); Refresh();
+        RemoveFixtureBuilding(engine2, enemyMap); Refresh();
         Check(fire.TryGetIntent(hull.Vessel, own, false, out _) && fire.LeadPoints(hull.Vessel).Count == 1,
             "propulsion loss preserves attackable hull and lead markers");
 
@@ -280,17 +280,15 @@ internal static partial class Program
         var capturedWeapon = new CompSpaceWeapon { props = weapon.props };
         var capturedBuilding = AddTestBuilding(ownMap, player, 1963, TestBuildingDef("capturedWeapon"), capturedWeapon);
         locks[capturedWeapon.Identity] = locks[weapon.Identity];
-        Set(typeof(Thing), capturedBuilding, "factionInt", enemy);
-        typeof(Patch_ShipFaction).GetMethod("Postfix", System.Reflection.BindingFlags.Static | Private)
-            .Invoke(null, new object[] { capturedBuilding });
+        SetFixtureFaction(capturedBuilding, enemy);
         Check(!locks.Contains(capturedWeapon.Identity) && locks.Count == 1,
             "standalone weapon faction change releases only its lock without replacing the ship controller");
         hull.parent.thingIDNumber = 1962;
-        SubstructureOwnership.BumpStructureVersion();
-        universe.Controls.NotifyWeaponOwnershipChanged(ownMap);
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
+        fire.PrunePointDefense(hull.Vessel, force: true);
         Check(locks.Count == 0, "changing weapon ship identity discards the previous owner's point-defense lock");
         hull.parent.thingIDNumber = 1961;
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         fire.TickPointDefense(hull.Vessel, own, false);
         universe.Controls.Reset();
         Check(locks.Count == 0, "controller disposal and game reset clear all point-defense target state");
@@ -402,7 +400,7 @@ internal static partial class Program
         attacker.Combat.weaponsArmed = true;
         void Refresh()
         {
-            SubstructureOwnership.BumpStructureVersion();
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
             ShipRegistry.ShipByIdentity(attacker.Identity);
             universe.Controls.For(attacker);
             foreach (ShipBase member in victim.Ships) universe.Controls.For(member);
@@ -502,7 +500,7 @@ internal static partial class Program
             "in-flight guidance resolves the original ship container");
 
         // Disable this member without removing its identity; manual/in-flight policies remain independent.
-        victim.map.listerThings.AllThings.Remove(engine);
+        RemoveFixtureBuilding(engine, victim.map);
         Refresh();
         Check(ShipFireControl.Candidates(attacker, own, victim).Any() && identity.TryResolve(universe, out _)
             && ShipFireControl.ManualTargetAlongRay(universe, own, own.pose.position, direction, player).Ship == hull.Identity,
@@ -512,7 +510,7 @@ internal static partial class Program
         universe.Projectiles.Tick();
         Check(missile.pose.velocity.x > 0.01f,
             "already launched missile still turns toward the ship after all propulsion is lost");
-        victim.map.listerThings.AllThings.Add(engine);
+        PlaceFixtureBuilding(engine, victim.map);
         Refresh();
 
         // Rehome the same identity; the old container remains as debris.
@@ -524,14 +522,9 @@ internal static partial class Program
         Set(universe, "objectById", null); // The fixture bypasses RegisterObject.
         RemoveConsoleFixture(console, oldMap);
         PlaceConsoleFixture(console, newMap);
-        oldMap.thingGrid.Deregister(engine);
-        oldMap.listerThings.AllThings.Remove(engine);
-        Set(typeof(Thing), engine, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(newMap));
-        newMap.listerThings.AllThings.Add(engine);
-        newMap.thingGrid.Register(engine);
+        TransferFixtureBuilding(engine, newMap);
         victim.members.Remove(hull);
-        var moved = new CombatHull(console.Ship);
-        moved.cells.UnionWith(hull.cells);
+        var moved = hull;
         separated.members.Add(moved);
         Refresh(); universe.Controls.For(moved);
         Check(identity.TryResolve(universe, out var movedTarget) && movedTarget.Container == separated
@@ -573,7 +566,10 @@ internal static partial class Program
         var successor = new CombatHull(replacement.Ship);
         successor.cells.UnionWith(moved.cells);
         separated.members.Clear(); separated.members.Add(successor);
-        Refresh(); universe.Controls.ReconcileOwner(successor.Identity);
+        universe.ShipStructure.NotifyConsole(console);
+        universe.ShipStructure.NotifyConsole(replacement);
+        Refresh(); universe.Controls.For(successor);
+        universe.Controls.ReconcileOwner(successor.Identity);
         Check(ReferenceEquals(universe.Controls.For(successor), movedController)
             && movedController.target.Vessel.Anchor == replacement.parent
             && attackerControl.FireControl.Target == identity,
@@ -581,6 +577,7 @@ internal static partial class Program
         Check(identity.TryResolve(universe, out var afterSuccession) && afterSuccession.Ship.Anchor == replacement.parent,
             "same-identity main-console succession preserves the combat target");
         replacement.isMain = false;
+        universe.ShipStructure.NotifyConsole(replacement);
         Refresh();
         Set(Find.TickManager, "ticksGameInt", Find.TickManager.TicksGame + 1);
         Vector2 coasting = missile.pose.velocity;
@@ -712,7 +709,7 @@ internal static partial class Program
         var weapon = new CompSpaceWeapon { parent = source.wall, safeFire = false,
             props = new CompProperties_SpaceWeapon { projectileDef = pellet, projectilesPerShot = 5,
                 projectileFanHalfAngle = 4, range = 60, baseSpreadDeg = 0 } };
-        source.wall.AllComps.Add(weapon);
+        AddFixtureComponents(source.wall, weapon);
         BindWeaponOwnerFixture(weapon, source.ship);
         var entity = new CollisionEntity { def = missileDef, HitPoints = 300 };
         var mapless = universe.CapturePayload(entity, mapped.body.pose, null);
@@ -784,7 +781,7 @@ internal static partial class Program
         var bodyDef = TestBuildingDef("pdCoverageMissile");
         bodyDef.comps.Add(new CompProperties_SpaceProjectile { guided = true });
         var body = AddTestBuilding(incoming.map, enemy, 1952, bodyDef, new EmptyComp());
-        Set(typeof(Thing), body, "hitPointsInt", 25);
+        SetFixtureHitPoints(body, 25);
         var reserved = (Dictionary<int, float>)typeof(ShipFireControl)
             .GetField("pdReservedDamage", Private).GetValue(fire);
         reserved[incoming.objectId] = 20f;

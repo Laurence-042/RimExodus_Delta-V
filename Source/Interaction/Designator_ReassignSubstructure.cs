@@ -40,7 +40,7 @@ namespace DeltaV
             // 无可改写基架（地表图/无归属数据/图上没有基架）直接拒绝，不进入选点。
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             SubstructureOwnership ownership = OwnershipOnCurrentMap(universe);
-            if (ownership == null || !System.Linq.Enumerable.Any(SubstructureOwnership.CellsOnMap(Map)))
+            if (ownership == null || !ownership.HasAnySubstructure())
             {
                 Messages.Message("DeltaV_ReassignNoTarget".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;

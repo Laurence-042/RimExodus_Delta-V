@@ -43,8 +43,8 @@ namespace DeltaV
                 if (!cell.InBounds(body.Map)) return;
             body.Rotation = choice;
             body.Map.mapDrawer.MapMeshDirty(body.Position, MapMeshFlagDefOf.Things);
-            ShipStructureChanges.Notify(body.Map);
-            PlanetGlobeRenderer.InvalidateSilhouette(body.Map);
+            if (body is not Building)
+                Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.Changed(body.Map, CellRect.SingleCell(body.Position));
         }
         internal static Rot4 SelectFacing(Rot4 current, Vector2 aim, System.Func<Rot4, Vector2> projection)
         {

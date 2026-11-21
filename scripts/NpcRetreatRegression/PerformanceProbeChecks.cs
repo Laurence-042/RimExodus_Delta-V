@@ -44,6 +44,36 @@ internal static partial class Program
             Call(probe, "Reset");
             Check(probe.hullPairs == 0 && probe.hullRequests == 0 && HullWork(0, 0, 0), "hull workload resets with its timing window");
             Check(DeltaVPerformanceProbe.Current == probe, "probe resolves this game's instance");
+            var map = TestMap(49157);
+            try
+            {
+                var view = universe.ShipStructure.For(map);
+                _ = view.SupportCount;
+                int bootstrap = Counts()[(int)PerformanceStage.StructureBootstrap];
+                IntVec3 cell = new IntVec3(1, 0, 2);
+                using (universe.ShipStructure.BeginChanges())
+                {
+                    universe.ShipStructure.NotifyCell(map, cell, ShipStructureAspect.Terrain, 0, 1);
+                    universe.ShipStructure.NotifyCell(map, cell, ShipStructureAspect.Foundation, null, map.terrainGrid.topGrid[0]);
+                }
+                _ = view.SupportCount;
+                var work = new StringBuilder();
+                Call(probe, "AppendStructureStats", work);
+                Check(bootstrap >= 2 && Counts()[(int)PerformanceStage.StructureBootstrap] == bootstrap
+                    && Counts()[(int)PerformanceStage.StructureCommit] == 1
+                    && work.ToString().Contains("structureBatches=1 structureEvents=2"),
+                    "prepared maps use the existing index and group normalized events in one timed commit");
+                Call(probe, "Reset");
+                work.Clear();
+                Call(probe, "AppendStructureStats", work);
+                Check(work.ToString().Contains("structureBatches=0 structureEvents=0")
+                    && Counts().All(n => n == 0), "the performance window also clears structure workload");
+            }
+            finally
+            {
+                universe.ShipStructure.Forget(map);
+                Find.Maps.Remove(map);
+            }
             probe.RecordCombatPose(100, default, null, CombatReplanCause.Structure | CombatReplanCause.Periodic, 1, 2, 3, 4);
             probe.RecordCombatPose(200, default, null, CombatReplanCause.Periodic, 5, 6, 7, 8);
             var summary = new StringBuilder(); Call(probe, "AppendCombatStats", summary);
@@ -55,6 +85,21 @@ internal static partial class Program
                 && !summary.ToString().Contains("Structure:1"), "window reset clears pose totals, reasons and peak");
 
             long ms = Stopwatch.Frequency / 1000;
+            var npcShip = new FoundationShip(new Ship(41, null, null));
+            var otherNpcShip = new FoundationShip(new Ship(47, null, null));
+            probe.BeginTick();
+            probe.BeginNpcRound();
+            probe.RecordElapsed(PerformanceStage.NpcGate, ms);
+            probe.RecordElapsed(PerformanceStage.NpcTarget, 5 * ms);
+            probe.RecordElapsed(PerformanceStage.FireControlCandidates, ms);
+            probe.RecordElapsed(PerformanceStage.CombatFactsHull, 3 * ms);
+            probe.RecordElapsed(PerformanceStage.NpcRetreat, 2 * ms);
+            probe.RecordElapsed(PerformanceStage.NpcRetreatConsoles, ms);
+            probe.RecordNpcShip(8 * ms, npcShip, NpcShipAiGate.Ready);
+            probe.RecordNpcShip(ms, otherNpcShip, NpcShipAiGate.FrozenMap);
+            Call(probe, "CaptureNpcRound", 41, 60, 10 * ms);
+            Call(probe, "CaptureTick", 41, 12 * ms);
+
             probe.BeginTick();
             probe.RecordElapsed(PerformanceStage.Autopilot, 9 * ms);
             probe.RecordElapsed(PerformanceStage.EngagementDamage, ms);
@@ -62,7 +107,7 @@ internal static partial class Program
             probe.RecordElapsed(PerformanceStage.EngagementCoverBuild, ms);
             probe.engagementCompleted += 2;
             probe.engagementCandidates += 7;
-            Call(probe, "CaptureTick", 41, 12 * ms);
+            Call(probe, "CaptureTick", 42, 13 * ms);
 
             probe.BeginFrame();
             probe.RecordElapsed(PerformanceStage.FrameActions, 3 * ms);
@@ -70,36 +115,52 @@ internal static partial class Program
             Call(probe, "CaptureUpdate", 70, 4, 10 * ms);
 
             probe.BeginTick();
+            probe.BeginNpcRound();
+            probe.RecordElapsed(PerformanceStage.NpcGate, ms);
+            probe.RecordNpcShip(ms, otherNpcShip, NpcShipAiGate.FrozenMap);
+            Call(probe, "CaptureNpcRound", 71, 30, 2 * ms);
             probe.RecordElapsed(PerformanceStage.EngagementDamage, 5 * ms);
             probe.engagementCompleted += 8;
             probe.engagementCandidates += 9;
-            Call(probe, "CaptureTick", 42, 8 * ms);
+            Call(probe, "CaptureTick", 71, 8 * ms);
 
             probe.BeginFrame();
             probe.RecordElapsed(PerformanceStage.Shells, 6 * ms);
             Call(probe, "CaptureUpdate", 71, 1, 7 * ms);
             summary.Clear(); Call(probe, "AppendSlowestSamples", summary);
             string peaks = summary.ToString();
-            Check(peaks.Contains("tickWorst={tick=41 ms=12.000 searches=2 candidates=7 otherMs=3.000")
+            Check(peaks.Contains("tickWorst={tick=42 ms=13.000 searches=2 candidates=7 otherMs=4.000")
                 && peaks.Contains("Autopilot=9.000/1") && peaks.Contains("EngagementDamage=3.000/2")
                 && peaks.Contains("EngagementCoverBuild=1.000/1"),
                 "slowest tick keeps its own stage durations, calls, cover builds and candidate counts");
+            Check(peaks.Contains("npcWorst={tick=41 interval=60 ms=10.000 ship=structure:41")
+                && peaks.Contains("gate=Ready shipMs=8.000 otherMs=2.000")
+                && peaks.Contains("NpcTarget=5.000/1") && peaks.Contains("FireControlCandidates=1.000/1")
+                && peaks.Contains("CombatFactsHull=3.000/1") && peaks.Contains("NpcRetreatConsoles=1.000/1")
+                && Counts()[(int)PerformanceStage.NpcRound] == 2,
+                "slowest NPC round keeps its own stages, interval and slowest ship even when a different tick is slower");
             Check(peaks.Contains("updateWorst={frame=70 ms=10.000 ticksThisFrame=4 otherMs=2.000")
                 && peaks.Contains("FrameActions=3.000/1") && peaks.Contains("Shells=5.000/1"),
                 "slowest frame callback keeps its own stage durations and tick cadence");
 
             DeltaVMod.CurrentSettings.logPerformance = false;
-            Check(probe.BeginTick() == 0 && probe.BeginFrame() == 0, "disabled probe skips both snapshots");
+            long disabledRound = probe.BeginNpcRound();
+            probe.FinishNpcRound(disabledRound, 73, 30);
+            Check(probe.BeginTick() == 0 && probe.BeginFrame() == 0 && disabledRound == 0
+                && Counts()[(int)PerformanceStage.NpcRound] == 2, "disabled probe skips tick, frame and NPC timing");
             probe.FrameFinished(0L);
             summary.Clear(); Call(probe, "AppendSlowestSamples", summary);
-            Check(summary.Length == 0 && Counts().All(n => n == 0), "disabling resets both slowest samples");
+            Check(summary.Length == 0 && Counts().All(n => n == 0), "disabling resets the tick, frame and NPC samples");
             long completed = probe.engagementCompleted, candidates = probe.engagementCandidates;
             DeltaVMod.CurrentSettings.logPerformance = true;
             probe.BeginTick();
+            probe.BeginNpcRound();
+            Call(probe, "CaptureNpcRound", 43, 60, ms);
             Call(probe, "CaptureTick", 43, ms);
             Call(probe, "AppendSlowestSamples", summary);
             Check(probe.engagementCompleted == completed && probe.engagementCandidates == candidates
                 && summary.ToString().Contains("tickWorst={tick=43 ms=1.000 searches=0 candidates=0")
+                && summary.ToString().Contains("npcWorst={tick=43 interval=60 ms=1.000 otherMs=1.000")
                 && !summary.ToString().Contains("updateWorst"), "new window accepts smaller samples with fresh deltas");
             Call(probe, "Reset");
 
@@ -165,6 +226,6 @@ internal static partial class Program
         var probe = universe.Performance;
         probe.Record(PerformanceStage.Autopilot, __state);
         probe.TickFinished(__state, Find.TickManager.TicksGame, universe.objects.Count, 0,
-            SubstructureOwnership.GlobalStructureVersion, 0, 0, 0);
+            ShipStructureIndex.UniverseRevision, 0, 0, 0);
     }
 }

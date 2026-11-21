@@ -107,9 +107,11 @@ namespace DeltaV
             }
             commandedTarget = default;
             var strategy = Strategy(ship);
+            long candidateStart = universe.Performance.Start();
             var candidates = universe.objects.SelectMany(c => Candidates(ship, own, c))
                 .OrderBy(s => OrbitSphere.ArcCells(own.pose.position, ShipRegistry.ShipPose(s).position))
                 .ThenBy(s => s.Identity.key).Take(64).ToList();
+            universe.Performance.Record(PerformanceStage.FireControlCandidates, candidateStart);
             // Keep the original first observation (including inherited baselines), even
             // without an enemy. An absent/zero baseline is not proof of initialization.
             var baseline = ship.CombatAI;
@@ -169,14 +171,7 @@ namespace DeltaV
                 : "DeltaV_CombatDecisionNoCandidate".Translate(candidates.Count).ToString();
         }
 
-        private static float HullHealth(ShipBase member)
-        {
-            double health = 0;
-            foreach (Thing thing in member.Map.listerThings.AllThings)
-                if (thing is Building && thing.Spawned && !thing.Destroyed && member.Contains(thing))
-                    health += thing.HitPoints;
-            return (float)health;
-        }
+        private static float HullHealth(ShipBase member) => member.StructuralState.HullHealth;
 
         private float PrimaryFirepower(ShipBase ship, ShipBase enemy, float distance, CombatWeaponFilter filter)
         {
@@ -220,7 +215,12 @@ namespace DeltaV
 
             internal ExternalTargets() { }
 
-            internal ExternalTargets(ShipBase ship) : this(ship.Map.listerThings.AllThings.Where(ship.Contains)) { }
+            internal ExternalTargets(ShipBase ship)
+            {
+                ShipStructure structure = ship.StructuralState;
+                weapons.AddRange(structure.ExposedWeapons);
+                propulsion.AddRange(structure.ExposedThrusters);
+            }
 
             internal ExternalTargets(IEnumerable<Thing> observed)
             {

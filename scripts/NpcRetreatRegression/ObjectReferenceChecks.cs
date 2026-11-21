@@ -21,8 +21,8 @@ internal static partial class Program
         Set(player, "relations", new List<FactionRelation> { new FactionRelation { other = enemy, kind = FactionRelationKind.Hostile } });
         ThingDefOf.PilotConsole = TestBuildingDef("console");
         Map map = TestMap(800);
-        CompDeltaVPilotConsole console = AddTestConsole(map, enemy, 810);
-        var hull = AddTestHull(map, player, 820);
+        CompDeltaVPilotConsole console = AddTestConsole(map, enemy, 810, buildingId: 820);
+        var hull = AddTestHull(map, player, 810);
         var container = new MapSpaceObject(800, map, new SpacePose(Vector3.forward, 0f)) { faction = enemy };
         universe.objects.Add(container);
         ShipBase ordinary = ShipRegistry.FoundationShipsOnMap(map).Single();
@@ -35,7 +35,6 @@ internal static partial class Program
             "multiple members produce one player reference object");
         Check(container.HasTag(SpaceObjectTag.Container) && ordinary.CanDriveIn(container) && !singleBuilding.CanDriveIn(container),
             "parked shuttle membership cannot drive its host container");
-        hull.parent.thingIDNumber = console.shipId;
         Check(ordinary.Identity != singleBuilding.Identity
             && ShipRegistry.ShipByIdentity(ordinary.Identity) is FoundationShip
             && ShipRegistry.ShipByIdentity(singleBuilding.Identity) is ShuttleShip,
@@ -97,6 +96,7 @@ internal static partial class Program
             && ordinary.Combat.fireControlMode == ShipFireControlMode.Automatic,
             "common fire control and weapon group state is anchored independently on each ship");
         console.isMain = false;
+        universe.ShipStructure.NotifyConsole(console);
         Check(container.HasTag(SpaceObjectTag.Ship) && container.HasFaction(player),
             "single-building member keeps ship identity without a main console");
         Set(typeof(Thing), hull.parent, "factionInt", enemy);
@@ -150,9 +150,10 @@ internal static partial class Program
             "ordinary projectiles are excluded and the reference enumeration is a stable snapshot");
         solo.projectileRoleOverride = false;
         console.isMain = true;
+        universe.ShipStructure.NotifyConsole(console);
         RemoveFixtureBuilding((Building)hull.parent, soloMap);
         PlaceFixtureBuilding((Building)hull.parent, map);
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         var archived = new ArchivedSpaceObject { memberFactions = ShipRegistry.AllShipsOnMap(map).Select(ship => ship.Faction).ToList() };
         Check(archived.HasTag(SpaceObjectTag.Ship) && archived.HasFaction(player) && archived.HasFaction(enemy),
             "archived member affiliation retains ship identity without a live map");
@@ -172,71 +173,4 @@ internal static partial class Program
 
     static void Set(Type type, object owner, string name, object value) =>
         type.GetField(name, Private | BindingFlags.Public).SetValue(owner, value);
-
-    static ThingDef TestBuildingDef(string name)
-    {
-        var def = (ThingDef)Raw(typeof(ThingDef));
-        def.defName = name; def.category = ThingCategory.Building; def.size = new IntVec2(1, 1);
-        def.shortHash = ++testDefHash;
-        def.comps = new List<CompProperties>();
-        def.building = new BuildingProperties();
-        return def;
-    }
-
-    static ushort testDefHash = 100;
-
-    static Map TestMap(int id, int width = 5)
-    {
-        var map = (Map)Raw(typeof(Map));
-        map.uniqueID = id;
-        map.info = new MapInfo { Size = new IntVec3(width, 1, width), parent = (ShipPocketParent_DeltaV)Raw(typeof(ShipPocketParent_DeltaV)) };
-        map.cellIndices = new CellIndices(map);
-        map.designationManager = new DesignationManager(map);
-        map.components = new List<MapComponent> { new SubstructureOwnership(map) };
-        map.terrainGrid = new TerrainGrid(map);
-        // These generic fixtures model supported stations. Structure-loss tests replace this terrain.
-        var ground = (TerrainDef)Raw(typeof(TerrainDef));
-        ground.defName = "regressionGround";
-        map.terrainGrid.topGrid[0] = ground;
-        map.thingGrid = new ThingGrid(map);
-        map.listerThings = new ListerThings(ListerThingsUse.Global);
-        map.spawnedThings = new ThingOwner<Thing>(map);
-        map.floodFiller = new FloodFiller(map);
-        Find.Maps.Add(map);
-        return map;
-    }
-
-    static Building AddTestBuilding(Map map, Faction faction, int id, ThingDef def, ThingComp comp, Building body = null)
-    {
-        // These pre-existing fixtures specify a 2000-force model independently of vanilla range calibration.
-        if (def.GetCompProperties<CompProperties_GravshipThruster>() != null
-            && def.GetModExtension<DefModExtension_ThrusterPower>() == null)
-            (def.modExtensions ??= new List<DefModExtension>()).Add(
-                new DefModExtension_ThrusterPower { thrust = 2000f });
-        body ??= (Building)Raw(typeof(Building));
-        body.def = def; body.thingIDNumber = id;
-        Set(typeof(Thing), body, "positionInt", new IntVec3(1, 0, 2));
-        Set(typeof(Thing), body, "factionInt", faction);
-        Set(typeof(ThingWithComps), body, "comps", new List<ThingComp> { comp });
-        comp.parent = body;
-        PlaceFixtureBuilding(body, map, notify: false);
-        foreach (var weapon in CompSpaceWeapon.On(body))
-            Current.Game?.GetComponent<UniverseManager>()?.Weapons.RegisterWeapon(weapon);
-        SubstructureOwnership.TryGet(map)?.UpdateSpawnedBuilding(body);
-        return body;
-    }
-
-    static CompDeltaVPilotConsole AddTestConsole(Map map, Faction faction, int id)
-    {
-        var comp = new CompDeltaVPilotConsole { isMain = true, shipId = id };
-        AddTestBuilding(map, faction, id, ThingDefOf.PilotConsole, comp);
-        return comp;
-    }
-
-    static CompSpaceShuttle AddTestHull(Map map, Faction faction, int id, CompSpaceShuttle comp = null)
-    {
-        comp ??= new CompSpaceShuttle { props = new CompProperties_SpaceShuttle() };
-        AddTestBuilding(map, faction, id, TestBuildingDef("shuttle"), comp);
-        return comp;
-    }
 }

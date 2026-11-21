@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -52,16 +53,10 @@ namespace DeltaV
         public static int OwnerIdOf(Thing thing)
         {
             if (thing?.Map == null) return 0;
-            SubstructureOwnership ownership = SubstructureOwnership.TryGet(thing.Map);
-            if (ownership == null) return 0;
-            int owner = 0;
-            foreach (IntVec3 cell in thing.OccupiedRect())
-            {
-                int at = ownership.OwnerAt(cell);
-                if (at <= 0 || (owner != 0 && owner != at)) return 0;
-                owner = at;
-            }
-            return owner;
+            var index = Current.Game?.GetComponent<UniverseManager>()?.ShipStructure;
+            return index != null && index.TryFootprintOwner(thing, out int owner)
+                ? owner
+                : ShipStructureIndex.OwnerOfFootprint(SubstructureOwnership.TryGet(thing.Map), thing.OccupiedRect());
         }
     }
 
@@ -181,6 +176,7 @@ namespace DeltaV
 
     public class CompProperties_SpaceWeaponMagazine : CompProperties
     {
+        public bool externalMissileSupply;
         public ThingDef projectileDef;
         public float ammoPerShot = 1f;
         public float unitMass = 1f;
@@ -211,7 +207,7 @@ namespace DeltaV
     }
 
     /// <summary>通过原版 Refuelable 读取弹头/装药；导弹适配原版可换弹组件。</summary>
-    public partial class CompSpaceWeaponMagazine : ThingComp
+    public partial class CompSpaceWeaponMagazine : ThingComp, ISpaceWeaponFireCommit
     {
         private int priority;
         private bool initialized;
@@ -222,6 +218,7 @@ namespace DeltaV
             ?? parent.TryGetComp<CompSpaceWeaponAttachment>()?.HostWeapon;
         public CompRefuelable Refuelable => Supply(GunSupplyKind.Heads) ?? parent.TryGetComp<CompRefuelable>();
         public CompChangeableProjectile ChangeableProjectile => parent.TryGetComp<CompChangeableProjectile>();
+        internal bool IsMissileChamber => MagazineProps.externalMissileSupply;
         public int Priority => priority;
         public bool HasShot => ChangeableProjectile != null
             ? ChangeableProjectile.Loaded && ChangeableProjectile.Projectile != null
@@ -239,6 +236,61 @@ namespace DeltaV
         internal float UnitMass(CompSpaceWeapon weapon) => UsesAlternateBallistics(weapon)
             ? weapon.WeaponProps.armorPiercingUnitMass : MagazineProps.unitMass;
 
+        public void NotifyShotCommitted(SpaceWeaponShot shot) => QueueReload();
+
+        private void EjectLoadedShell()
+        {
+            CompChangeableProjectile chamber = parent.TryGetComp<CompChangeableProjectile>();
+            if (!parent.Spawned || chamber?.Loaded != true) return;
+            Thing shell = ThingMaker.MakeThing(chamber.LoadedShell);
+            shell.stackCount = chamber.loadedCount;
+            if (GenPlace.TryPlaceThing(shell, parent.Position, parent.Map, ThingPlaceMode.Near))
+                chamber.LoadShell(null, 0);
+            else shell.Destroy(DestroyMode.Vanish);
+        }
+
+        internal void QueueReload()
+        {
+            if (IsMissileChamber && parent.Spawned) Current.Game?.GetComponent<UniverseManager>()?.Weapons.QueueMissileReload(this);
+        }
+
+        internal void TryReload()
+        {
+            if (!parent.Spawned || parent.Map == null || parent.Map.Disposed) return;
+            CompChangeableProjectile chamber = parent.TryGetComp<CompChangeableProjectile>();
+            if (chamber == null) return;
+            if (chamber.Loaded && !chamber.allowedShellsSettings.AllowedToAccept(chamber.LoadedShell))
+                EjectLoadedShell();
+            if (chamber.Loaded) return;
+            CompPowerTrader power = parent.TryGetComp<CompPowerTrader>();
+            if (power != null && !power.PowerOn) return;
+
+            int ownerId = SpaceWeaponGeometry.OwnerIdOf(parent);
+            if (ownerId <= 0) return;
+            if (HostWeapon is not CompSpaceWeapon weapon) return;
+            foreach (ThingWithComps plugin in weapon.AttachedThings())
+            {
+                if (plugin.TryGetComp<CompMissileMagazineFacility>() is not CompMissileMagazineFacility magazine
+                    || !plugin.Spawned || plugin.Faction != parent.Faction) continue;
+                foreach (ThingDef shell in magazine.StoredMissiles.ToList())
+                {
+                    if (!chamber.allowedShellsSettings.AllowedToAccept(shell)
+                        || !magazine.TryTake(shell)) continue;
+                    chamber.LoadShell(shell, 1);
+                    return;
+                }
+            }
+        }
+
+        public override void PostDestroy(DestroyMode mode, Map previousMap)
+        {
+            base.PostDestroy(mode, previousMap);
+            if (!IsMissileChamber || mode == DestroyMode.Vanish || previousMap == null) return;
+            CompChangeableProjectile chamber = parent.TryGetComp<CompChangeableProjectile>();
+            if (chamber?.Loaded == true)
+                GenPlace.TryPlaceThing(chamber.RemoveShell(), parent.Position, previousMap, ThingPlaceMode.Near);
+        }
+
         internal float PenetrationScale(CompSpaceWeapon weapon) => UsesAlternateBallistics(weapon)
             ? weapon.WeaponProps.armorPiercingPenetrationScale : MagazineProps.armorPenetrationScale;
 
@@ -250,18 +302,21 @@ namespace DeltaV
                 priority = MagazineProps.defaultPriority;
                 initialized = true;
             }
+            QueueReload();
             if (!respawningAfterLoad) ShipControlService.NotifyGunnerChange(parent.Map);
         }
 
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
         {
             base.PostDeSpawn(map, mode);
+            if (IsMissileChamber) Current.Game?.GetComponent<UniverseManager>()?.Weapons.CancelMissileReload(this);
             ShipControlService.NotifyGunnerChange(map);
         }
 
         public override void ReceiveCompSignal(string signal)
         {
             base.ReceiveCompSignal(signal);
+            if (signal == "PowerTurnedOn" || signal == "PowerTurnedOff") QueueReload();
             if (signal == "Refueled" || signal == "RanOutOfFuel")
             {
                 ShipControlService.NotifyGunnerChange(parent.Map);
@@ -299,7 +354,21 @@ namespace DeltaV
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
-            if (ChangeableProjectile != null) yield break;
+            if (ChangeableProjectile is { } chamber)
+            {
+                if (IsMissileChamber && parent.Faction == Faction.OfPlayer && parent.Spawned && chamber.Loaded)
+                    yield return new Command_BatchSetting<CompSpaceWeaponMagazine>("MissileLauncherEject", this, magazines =>
+                    {
+                        foreach (CompSpaceWeaponMagazine magazine in magazines) magazine.EjectLoadedShell();
+                    })
+                    {
+                        defaultLabel = "CommandExtractShell".Translate(),
+                        defaultDesc = "CommandExtractShellDesc".Translate(),
+                        icon = chamber.LoadedShell.uiIcon,
+                        iconDrawScale = GenUI.IconDrawScale(chamber.LoadedShell),
+                    };
+                yield break;
+            }
             if (parent.Faction != Faction.OfPlayer && !DebugSettings.godMode) yield break;
             var heads = Supply(GunSupplyKind.Heads);
             if (heads?.AlternateHead != null)
@@ -361,6 +430,7 @@ namespace DeltaV
     {
         public bool enabledByDefault = true;
         public bool requiresHostPower;
+        public bool external;
         public List<ThingDef> allowedHostDefs = new List<ThingDef>();
 
         public CompProperties_SpaceWeaponAttachment()
@@ -409,6 +479,14 @@ namespace DeltaV
             get
             {
                 if (!parent.Spawned || parent.Map == null) return null;
+                if (AttachmentProps.external)
+                {
+                    int owner = SpaceWeaponGeometry.OwnerIdOf(parent);
+                    return owner <= 0 ? null : SpaceWeaponAttachmentSlots
+                        .ExteriorHosts(parent.def, parent.Position, parent.Rotation, parent.Map)
+                        .Where(host => host.Faction == parent.Faction && SpaceWeaponGeometry.OwnerIdOf(host) == owner)
+                        .Select(host => host.TryGetComp<CompSpaceWeapon>()).FirstOrDefault(weapon => weapon != null);
+                }
                 return parent.Position.GetEdifice(parent.Map)?.TryGetComp<CompSpaceWeapon>();
             }
         }
@@ -470,7 +548,11 @@ namespace DeltaV
             yield return new Command_BatchToggle<CompSpaceWeaponAttachment>("AttachmentEnabled",
                 this, attachment => attachment.enabled, (attachment, active) =>
                 {
+                    using var changes = Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.BeginChanges();
+                    bool previous = attachment.enabled;
                     attachment.enabled = active;
+                    Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.RecordLoadout(
+                        attachment.parent, previous, active);
                     attachment.parent.TryGetComp<CompSwitchableBattery>()?.RefreshConnection();
                     attachment.parent.TryGetComp<CompCargoTemperature>()?.RefreshPower();
                     attachment.HostWeapon?.NotifyParametersChanged();

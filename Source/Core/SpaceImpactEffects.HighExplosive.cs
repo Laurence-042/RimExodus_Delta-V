@@ -49,7 +49,6 @@ namespace DeltaV
             GenExplosion.DoExplosion(center, map, radius, damage, evt.launcher,
                 part.highExplosive.CenterDamage(evt.mass), part.armorPenetration, projectile: evt.projectileDef,
                 damageFalloff: true, overrideCells: HighExplosiveCells(damage, map, center, radius));
-            PlanetGlobeRenderer.InvalidateSilhouette(map);
         }
     }
 

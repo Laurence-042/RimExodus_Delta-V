@@ -29,6 +29,7 @@ namespace DeltaV
     public class SpaceWeaponAttachmentSlot
     {
         public IntVec3 cell;
+        public bool external;
         public Vector2 drawOffset = Vector2.zero;
         public float drawScale = 1f;
     }
@@ -304,26 +305,25 @@ namespace DeltaV
         private int ownerVersion;
         private bool ownerCacheValid, ownerWasValid;
 
-        /// <summary>
-        /// 本武器所属船：船体内置武器归于自身，独立建筑按基架域解析；无船则 Invalid。
-        /// </summary>
+        internal static int OwnerBinding(Thing thing) => thing is Building building
+            ? ShipStructureIndex.Read(building.Map)?.WeaponOwnerBinding(building) ?? -1 : -1;
+
+        /// <summary>归属查询与挂件、弹仓和加速链布局独立。</summary>
         public ShipBase OwnerShip
         {
             get
             {
                 Map map = parent?.Map;
                 if (map == null || map.Disposed || parent.Destroyed) return ShipBase.Invalid;
-                int version = SubstructureOwnership.StructureVersion(map);
+                int version = OwnerBinding(parent);
                 if (!ownerCacheValid || ownerMap != map || ownerVersion != version
                     || ownerPosition != parent.Position || ownerRotation != parent.Rotation
                     || ownerWasValid && !cachedOwner.IsValid)
                 {
-                    // 独立于连接布局：纯指向不能因归属查询发现挂件、弹仓或加速链。
                     cachedOwner = ShipRegistry.ShipOf(parent, requireWholeFootprint: true);
                     ownerMap = map; ownerVersion = version;
                     ownerPosition = parent.Position; ownerRotation = parent.Rotation;
                     ownerWasValid = cachedOwner.IsValid;
-                    // 未注册地图没有完整的结构通知，不能缓存其归属结论。
                     ownerCacheValid = Container != null;
                 }
                 return cachedOwner;
@@ -409,30 +409,9 @@ namespace DeltaV
         }
         public IEnumerable<ThingWithComps> AttachedThings() => Layout.attachments;
 
-        internal IEnumerable<ThingWithComps> DiscoverAttachedThings()
-        {
-            if (parent.Map == null || WeaponProps.attachmentSlots.NullOrEmpty()) yield break;
-            int owner = SpaceWeaponGeometry.OwnerIdOf(parent);
-            var seen = new HashSet<int>();
-            foreach (SpaceWeaponAttachmentSlot slot in WeaponProps.attachmentSlots)
-            {
-                IntVec3 cell = SpaceWeaponGeometry.RotatedCell(parent, slot.cell);
-                if (!parent.OccupiedRect().Contains(cell)) continue;
-                if (!cell.InBounds(parent.Map)) continue;
-                foreach (Thing thing in parent.Map.thingGrid.ThingsListAtFast(cell))
-                {
-                    if (thing == parent || thing is not ThingWithComps comps || thing.Destroyed) continue;
-                    CompSpaceWeaponAttachment attachment = comps.TryGetComp<CompSpaceWeaponAttachment>();
-                    if (attachment == null || attachment.HostWeapon != this
-                        || !attachment.CompatibleWith(parent.def)) continue;
-                    if (!WeaponProps.allowedAttachmentDefs.NullOrEmpty()
-                        && !WeaponProps.allowedAttachmentDefs.Contains(thing.def)) continue;
-                    if (owner > 0 && SpaceWeaponGeometry.OwnerIdOf(thing) != owner) continue;
-                    if (!seen.Add(thing.thingIDNumber)) continue;
-                    yield return comps;
-                }
-            }
-        }
+        internal IEnumerable<ThingWithComps> DiscoverAttachedThings(HashSet<IntVec3> dependencies = null)
+            => SpaceWeaponAttachmentSlots.Discover(parent, WeaponProps.attachmentSlots, WeaponProps.allowedAttachmentDefs,
+                attachment => attachment.HostWeapon == this, dependencies);
 
         public bool AutoAimEffective
         {
@@ -614,7 +593,7 @@ namespace DeltaV
                 NotifyParametersChanged();
         }
 
-        internal void NotifyParametersChanged() => Universe?.Controls.ExistingFor(OwnerShip)?.FireControl.WeaponParametersChanged(this);
+        internal void NotifyParametersChanged() => Universe?.ShipStructure.RecordLoadout(parent, after: this);
 
         public override string CompInspectStringExtra()
         {

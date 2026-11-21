@@ -5,113 +5,7 @@ using Verse;
 
 namespace DeltaV
 {
-    public class CompProperties_MissileAutoloader : CompProperties
-    {
-        public List<ThingDef> magazineDefs = new List<ThingDef>();
-        public List<IntVec3> magazineRootOffsets = new List<IntVec3>();
-
-        public CompProperties_MissileAutoloader()
-        {
-            compClass = typeof(CompMissileAutoloader);
-        }
-    }
-
-    /// <summary>Moves one stored missile into the launcher's ready chamber.</summary>
-    public class CompMissileAutoloader : ThingComp, ISpaceWeaponFireCommit
-    {
-        private UniverseManager Universe => Current.Game?.GetComponent<UniverseManager>();
-
-        public override void PostSpawnSetup(bool respawningAfterLoad)
-        {
-            base.PostSpawnSetup(respawningAfterLoad);
-            QueueReload();
-        }
-
-        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
-        {
-            base.PostDeSpawn(map, mode);
-            Universe?.Weapons.CancelMissileReload(this);
-        }
-
-        public override void ReceiveCompSignal(string signal)
-        {
-            base.ReceiveCompSignal(signal);
-            if (signal == "PowerTurnedOn" || signal == "PowerTurnedOff") QueueReload();
-        }
-
-        public void NotifyShotCommitted(SpaceWeaponShot shot) => QueueReload();
-
-        public override IEnumerable<Gizmo> CompGetGizmosExtra()
-        {
-            if (parent.Faction != Faction.OfPlayer || !parent.Spawned
-                || parent.TryGetComp<CompChangeableProjectile>()?.Loaded != true) yield break;
-            yield return new Command_BatchSetting<CompMissileAutoloader>("MissileLauncherEject", this,
-                loaders =>
-                {
-                    foreach (CompMissileAutoloader loader in loaders) loader.EjectLoadedShell();
-                })
-            {
-                defaultLabel = "CommandExtractShell".Translate(),
-                defaultDesc = "CommandExtractShellDesc".Translate(),
-                icon = parent.TryGetComp<CompChangeableProjectile>().LoadedShell.uiIcon,
-                iconDrawScale = GenUI.IconDrawScale(parent.TryGetComp<CompChangeableProjectile>().LoadedShell)
-            };
-        }
-
-        private void EjectLoadedShell()
-        {
-            CompChangeableProjectile chamber = parent.TryGetComp<CompChangeableProjectile>();
-            if (!parent.Spawned || chamber?.Loaded != true) return;
-            Thing shell = ThingMaker.MakeThing(chamber.LoadedShell);
-            shell.stackCount = chamber.loadedCount;
-            if (GenPlace.TryPlaceThing(shell, parent.Position, parent.Map, ThingPlaceMode.Near))
-                chamber.LoadShell(null, 0);
-            else shell.Destroy(DestroyMode.Vanish);
-        }
-
-        internal void QueueReload()
-        {
-            if (parent.Spawned) Universe?.Weapons.QueueMissileReload(this);
-        }
-
-        internal void TryReload()
-        {
-            if (!parent.Spawned || parent.Map == null || parent.Map.Disposed) return;
-            CompChangeableProjectile chamber = parent.TryGetComp<CompChangeableProjectile>();
-            if (chamber == null) return;
-            if (chamber.Loaded && !chamber.allowedShellsSettings.AllowedToAccept(chamber.LoadedShell))
-                GenPlace.TryPlaceThing(chamber.RemoveShell(), parent.Position, parent.Map, ThingPlaceMode.Near);
-            if (chamber.Loaded) return;
-            CompPowerTrader power = parent.TryGetComp<CompPowerTrader>();
-            if (power != null && !power.PowerOn) return;
-
-            int ownerId = SpaceWeaponGeometry.OwnerIdOf(parent);
-            if (ownerId <= 0) return;
-            foreach (CompMissileMagazineFacility magazine in SpaceMissileMagazineGeometry.ConnectedMagazines(parent))
-            {
-                if (magazine.parent.Faction != parent.Faction
-                    || SpaceWeaponGeometry.OwnerIdOf(magazine.parent) != ownerId) continue;
-                foreach (ThingDef shell in magazine.StoredMissiles.ToList())
-                {
-                    if (!chamber.allowedShellsSettings.AllowedToAccept(shell)
-                        || !magazine.TryTake(shell)) continue;
-                    chamber.LoadShell(shell, 1);
-                    return;
-                }
-            }
-        }
-
-        public override void PostDestroy(DestroyMode mode, Map previousMap)
-        {
-            base.PostDestroy(mode, previousMap);
-            if (mode == DestroyMode.Vanish || previousMap == null) return;
-            CompChangeableProjectile chamber = parent.TryGetComp<CompChangeableProjectile>();
-            if (chamber?.Loaded == true)
-                GenPlace.TryPlaceThing(chamber.RemoveShell(), parent.Position, previousMap, ThingPlaceMode.Near);
-        }
-    }
-
-    public class CompProperties_MissileMagazineFacility : CompProperties_Facility
+    public class CompProperties_MissileMagazineFacility : CompProperties_SpaceWeaponAttachment
     {
         public int totalCapacity = 20;
 
@@ -121,8 +15,8 @@ namespace DeltaV
         }
     }
 
-    /// <summary>原版设施链接负责发现相邻发射架；弹药只以 Def 和数量保存在本 Comp。</summary>
-    public class CompMissileMagazineFacility : CompFacility
+    /// <summary>Stores missiles by type and exposes the inventory to connected launchers.</summary>
+    public class CompMissileMagazineFacility : CompSpaceWeaponAttachment
     {
         private Dictionary<ThingDef, int> contents = new Dictionary<ThingDef, int>();
         private Dictionary<ThingDef, int> limits = new Dictionary<ThingDef, int>();
@@ -185,7 +79,6 @@ namespace DeltaV
 
         public override IEnumerable<Gizmo> CompGetGizmosExtra()
         {
-            foreach (Gizmo gizmo in base.CompGetGizmosExtra()) yield return gizmo;
             if (parent.Faction != Faction.OfPlayer) yield break;
             yield return new Command_BatchSetting<CompMissileMagazineFacility>("MissileMagazineLimits",
                 this, magazines =>
@@ -259,37 +152,23 @@ namespace DeltaV
             else item.Destroy(DestroyMode.Vanish);
         }
 
-        public override void PostSpawnSetup(bool respawningAfterLoad)
-        {
-            OnLinkAdded += NotifyLinkChanged;
-            OnLinkRemoved += NotifyLinkChanged;
-            base.PostSpawnSetup(respawningAfterLoad);
-            NotifyStockChanged();
-        }
+        private readonly HashSet<SpaceWeaponLayout> connections = new HashSet<SpaceWeaponLayout>();
 
-        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
-        {
-            base.PostDeSpawn(map, mode);
-            OnLinkAdded -= NotifyLinkChanged;
-            OnLinkRemoved -= NotifyLinkChanged;
-        }
-
-        private void NotifyLinkChanged(CompFacility facility, Thing launcher) =>
-            launcher.TryGetComp<CompMissileAutoloader>()?.QueueReload();
+        internal void AddConnection(SpaceWeaponLayout layout) => connections.Add(layout);
+        internal void RemoveConnection(SpaceWeaponLayout layout) => connections.Remove(layout);
 
         internal void NotifyStockChanged()
         {
-            foreach (Thing launcher in LinkedBuildings)
-                launcher.TryGetComp<CompMissileAutoloader>()?.QueueReload();
+            foreach (SpaceWeaponLayout layout in connections)
+                layout.weapon.Component<CompSpaceWeaponMagazine>()?.QueueReload();
         }
 
         public override string CompInspectStringExtra()
         {
-            string facilityInfo = base.CompInspectStringExtra();
             string inventory = "DeltaV_MissileMagazineStored".Translate(StoredCount, TotalCapacity)
                 + (StoredCount == 0 ? "" : "\n" + string.Join("\n", StoredMissiles.Select(def =>
                     "DeltaV_MissileMagazineCountEntry".Translate(def.LabelCap, CountOf(def)).ToString())));
-            return string.IsNullOrEmpty(facilityInfo) ? inventory : facilityInfo + "\n" + inventory;
+            return inventory;
         }
 
         public override void PostDestroy(DestroyMode mode, Map previousMap)

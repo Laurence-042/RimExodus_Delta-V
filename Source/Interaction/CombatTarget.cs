@@ -43,8 +43,8 @@ namespace DeltaV
             {
                 point = ship.HullCenter;
                 int systemId = SystemId;
-                Thing system = systemId == 0 ? null : ship.Map.listerThings.AllThings
-                    .FirstOrDefault(t => t.thingIDNumber == systemId && t.Spawned && !t.Destroyed && ship.Contains(t));
+                Thing system = systemId == 0 ? null : universe.ShipStructure.For(ship.Map).Find(systemId);
+                if (system != null && (!system.Spawned || system.Destroyed || !ship.Contains(system))) system = null;
                 if (systemId != 0 && system == null) return false;
                 if (system != null) point = new Vector2(system.DrawPos.x, system.DrawPos.z);
             }

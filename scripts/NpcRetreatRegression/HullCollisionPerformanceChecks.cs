@@ -58,7 +58,7 @@ internal static partial class Program
             CellRect footprint = this.OccupiedRect();
             map.thingGrid.Deregister(this);
             Set(typeof(Thing), this, "mapIndexOrState", (sbyte)-2);
-            SubstructureOwnership.BumpStructureVersion(map, footprint);
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(map, footprint);
         }
     }
     static void HullBenchSweep() => hullBenchSweeps++;
@@ -188,7 +188,7 @@ internal static partial class Program
                         Set(typeof(Thing),building,"factionInt",faction);walls.Add(building);
                     }
                 }
-                SubstructureOwnership.BumpStructureVersion(map);
+                Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(map);
                 float east=(n%2)*(w+500f), north=(n/2)*(h+500f);
                 Vector2 velocity=Vector2.zero;float angular=0;
                 if(mode=="far-drift")velocity=new Vector2(20,3);

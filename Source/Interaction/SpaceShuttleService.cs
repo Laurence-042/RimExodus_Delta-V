@@ -41,6 +41,16 @@ namespace DeltaV
         public ShipCombatState combat = new ShipCombatState();
         private const int DefaultBoostRestartPercent = 50;
         private ShipBase vessel;
+        internal static double TransportedMass(Thing item)
+        {
+            double weight = CompStructureMass.StackMass(item);
+            // Match CompTransporter.MassUsage for a single manifest entry.
+            if (item is Pawn pawn
+                && InventoryCalculatorsUtility.ShouldIgnoreInventoryOf(pawn, IgnorePawnsInventoryMode.IgnoreIfAssignedToUnload))
+                weight -= MassUtility.InventoryMass(pawn) * item.stackCount;
+            return weight;
+        }
+
         private int lastBoostBurnTick = -1;
         private CompAfterburnerTank afterburnerTank;
         private bool boostRestartPending = true;
@@ -85,9 +95,8 @@ namespace DeltaV
         public override void PostSpawnSetup(bool respawningAfterLoad)
         {
             base.PostSpawnSetup(respawningAfterLoad);
-            ShipStructureChanges.Notify(parent.Map);
+            ShipStructureChanges.Notify(parent.Map, parent as Building);
             Current.Game?.GetComponent<UniverseManager>()?.Controls.For(Vessel);
-            PlanetGlobeRenderer.InvalidateSilhouette(parent.Map);
         }
 
         public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
@@ -96,7 +105,6 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             DriveSubject identity = Vessel.Identity;
             universe?.QueueFrameAction(() => universe.Controls.ReconcileOwner(identity, map));
-            PlanetGlobeRenderer.InvalidateSilhouette(map);
         }
 
         public override void PostExposeData()

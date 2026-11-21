@@ -41,6 +41,7 @@ namespace DeltaV
         public Faction faction;
         public Vector2 localCenter;
         public float localAngle, area;
+        internal GlobeShipSummary Snapshot() => (GlobeShipSummary)MemberwiseClone();
         public void ExposeData()
         {
             Scribe_Values.Look(ref key, "key");
@@ -122,131 +123,252 @@ namespace DeltaV
         }
         internal static bool HasComp(ThingDef def, Type comp) => def?.comps != null
             && def.comps.Any(p => p.compClass != null && comp.IsAssignableFrom(p.compClass));
-        internal static bool HasEquipment(IEnumerable<ThingDef> defs) => defs.Any(def =>
+        internal static bool HasEquipment(IEnumerable<ThingDef> defs) => defs.Any(IsEquipment);
+        internal static bool IsWeapon(CompSpaceWeapon weapon) => !weapon.WeaponProps.manualOnly && !weapon.WeaponProps.tractor;
+        internal static bool IsEquipment(ThingDef def) =>
             HasComp(def, typeof(CompSpaceWeapon)) || ThrusterPower.IsThrusterDef(def)
             || HasComp(def, typeof(CompSpaceShuttle)) || HasComp(def, typeof(CompDeltaVPilotConsole))
-            || (def.thingClass != null && typeof(Building_Turret).IsAssignableFrom(def.thingClass)));
+            || (def.thingClass != null && typeof(Building_Turret).IsAssignableFrom(def.thingClass));
     }
 
     /// <summary>Per-game cache; map structure invalidation is shared with physics and ship roles.</summary>
     internal sealed class GlobeDisplayInfo
     {
+        private sealed class Member
+        {
+            internal HashSet<IntVec3> domain;
+            internal int revision;
+            internal HashSet<IntVec3> hull = new HashSet<IntVec3>();
+            internal readonly HashSet<IntVec3> visible = new HashSet<IntVec3>();
+            internal CellRect shuttleFootprint;
+            internal GlobeDisplayEntry entry;
+        }
+
         private sealed class MapInfo
         {
-            internal int version;
-            internal bool populationDirty, equipment;
-            internal GlobeDisplaySummary summary;
-            internal List<GlobeDisplayEntry> entries;
+            internal SpaceObject owner;
+            internal IDisposable structureChanges;
+            internal bool populationDirty = true, updateMembers = true, allHulls;
+            internal readonly Dictionary<DriveSubject, Member> members = new Dictionary<DriveSubject, Member>();
+            internal readonly Dictionary<IntVec3, HashSet<Member>> covered = new Dictionary<IntVec3, HashSet<Member>>();
+            internal readonly HashSet<IntVec3> dirtyCells = new HashSet<IntVec3>();
+            internal readonly HashSet<IntVec3> visible = new HashSet<IntVec3>();
+            internal readonly HashSet<IntVec3> environment = new HashSet<IntVec3>();
+            internal readonly HashSet<IntVec3> natural = new HashSet<IntVec3>();
+            internal readonly HashSet<IntVec3> armed = new HashSet<IntVec3>();
+            internal GlobeDisplayEntry environmentEntry;
+            internal readonly List<GlobeDisplayEntry> entries = new List<GlobeDisplayEntry>();
+            internal readonly GlobeDisplaySummary summary = new GlobeDisplaySummary();
+
+            internal void Record(ShipStructureBatch batch)
+            {
+                foreach (ShipStructureChange change in batch.Changes)
+                {
+                    if (change.Aspect != ShipStructureAspect.Terrain) updateMembers = true;
+                    if (change.Aspect == ShipStructureAspect.Representation) allHulls = true;
+                    if (change.Cell is IntVec3 cell) dirtyCells.Add(cell);
+                    if (change.Before is CellRect before) dirtyCells.UnionWith(before);
+                    if (change.After is CellRect after) dirtyCells.UnionWith(after);
+                    if (change.Aspect == ShipStructureAspect.Membership) populationDirty = true;
+                }
+            }
+
+            internal void SetHull(Member member, HashSet<IntVec3> next)
+            {
+                foreach (IntVec3 cell in member.hull)
+                {
+                    if (next.Contains(cell)) continue;
+                    member.visible.Remove(cell);
+                    var membersAtCell = covered[cell];
+                    membersAtCell.Remove(member);
+                    if (membersAtCell.Count == 0) covered.Remove(cell);
+                    dirtyCells.Add(cell);
+                }
+                foreach (IntVec3 cell in next)
+                {
+                    if (member.hull.Contains(cell)) continue;
+                    if (!covered.TryGetValue(cell, out var membersAtCell))
+                        covered.Add(cell, membersAtCell = new HashSet<Member>());
+                    membersAtCell.Add(member);
+                    dirtyCells.Add(cell);
+                }
+                member.hull = next;
+            }
         }
+
         private readonly Dictionary<Map, MapInfo> maps = new Dictionary<Map, MapInfo>();
-        internal void Forget(Map map) { if (map != null) maps.Remove(map); }
-        internal void Clear() => maps.Clear();
+        internal void Forget(Map map)
+        {
+            if (map != null && maps.Remove(map, out MapInfo info)) info.structureChanges?.Dispose();
+        }
+        internal void Clear()
+        {
+            foreach (MapInfo info in maps.Values) info.structureChanges?.Dispose();
+            maps.Clear();
+        }
         internal void NotifyPopulationChanged(Map map)
         {
             if (map != null && maps.TryGetValue(map, out MapInfo info)) info.populationDirty = true;
         }
 
-        private static void RefreshPopulation(Map map, MapInfo info)
-        {
-            info.summary.wreck = GlobeDisplayRules.IsWreck(
-                map.mapPawns.AllPawns.Any(p => !p.Dead), info.equipment);
-            foreach (var entry in info.entries) if (entry.ship == null) entry.wreck = info.summary.wreck;
-            info.populationDirty = false;
-        }
+        private static float ProjectionSide(IEnumerable<IntVec3> cells, Vector2 center) =>
+            ShipSilhouette.AnchoredSide(cells, center) / (float)ShipSilhouette.AnchoredPixelsPerCell;
 
         private MapInfo ReadMap(SpaceObject obj)
         {
             Map map = obj.map;
-            if (maps.TryGetValue(map, out MapInfo cached)
-                && !SubstructureOwnership.CacheNeedsRefresh(cached.version, map))
+            var universe = Current.Game.GetComponent<UniverseManager>();
+            var index = universe.ShipStructure;
+            var structure = index.For(map);
+            if (!maps.TryGetValue(map, out var info) || info.owner != obj)
             {
-                if (cached.populationDirty) RefreshPopulation(map, cached);
-                return cached;
+                Forget(map);
+                info = new MapInfo { owner = obj };
+                info.dirtyCells.UnionWith(structure.VisibleTerrain);
+                info.dirtyCells.UnionWith(structure.RockCells);
+                info.structureChanges = index.WatchMap(map, ShipStructureAspect.Foundation | ShipStructureAspect.Terrain
+                    | ShipStructureAspect.Ownership | ShipStructureAspect.Membership | ShipStructureAspect.Footprint
+                    | ShipStructureAspect.Primary | ShipStructureAspect.Faction | ShipStructureAspect.Representation, info.Record);
+                maps.Add(map, info);
             }
-            var terrain = new HashSet<IntVec3>();
-            foreach (IntVec3 cell in map.AllCells)
-                if (GlobeDisplayRules.IsTerrain(map.terrainGrid.TerrainAt(cell))
-                    || GlobeDisplayRules.IsTerrain(map.terrainGrid.FoundationAt(cell))) terrain.Add(cell);
-            var rockCells = new HashSet<IntVec3>();
-            foreach (Thing thing in map.listerThings.AllThings)
-                if (thing is Building && thing.Spawned && GlobeDisplayRules.IsNaturalRock(thing.def))
-                    rockCells.UnionWith(thing.OccupiedRect());
-            terrain.UnionWith(rockCells);
-            var environment = new HashSet<IntVec3>(terrain);
-            var entries = new List<GlobeDisplayEntry>();
-            var summary = new GlobeDisplaySummary { area = terrain.Count };
-            foreach (ShipBase ship in obj.Ships)
+            if (!info.updateMembers && info.dirtyCells.Count == 0 && !info.populationDirty) return info;
+
+            var ships = obj.Ships;
+            var refresh = new HashSet<Member>();
+            var projectionChanges = new HashSet<Member>();
+            if (info.updateMembers)
             {
-                var hull = new HashSet<IntVec3>(ship.HullCells);
-                var cells = hull.Where(terrain.Contains).ToList();
-                if (ship is ShuttleShip && cells.Count == 0) cells.AddRange(hull);
-                environment.ExceptWith(hull);
-                var member = new GlobeShipSummary
+                var remaining = new HashSet<DriveSubject>(ships.Select(ship => ship.Identity));
+                foreach (var removed in info.members.Keys.Where(key => !remaining.Contains(key)).ToArray())
                 {
-                    key = ship.Identity.key, shuttle = ship is ShuttleShip,
-                    label = ship.Label, faction = ship.Faction,
-                    localCenter = SpaceTransform.MapToShipLocal(map, ship.HullCenter),
-                    localAngle = ship.FrameAngle, area = cells.Count,
-                    armament = ship.Weapons.Any(w => !w.WeaponProps.manualOnly && !w.WeaponProps.tractor)
-                        || map.listerThings.AllThings.OfType<Building_Turret>().Any(b => ship.Contains(b))
-                        ? GlobeArmament.Armed : GlobeArmament.Unarmed
-                };
-                summary.ships.Add(member);
-                entries.Add(new GlobeDisplayEntry { owner = obj, ship = member, area = member.area,
-                    cells = cells, mapAnchor = ship.HullCenter, craft = true,
-                    projectionSide = ShipSilhouette.AnchoredSide(cells, ship.HullCenter) / (float)ShipSilhouette.AnchoredPixelsPerCell });
-            }
-            if (summary.area == 0f) summary.area = summary.ships.Sum(s => s.area);
-            summary.environmentArea = environment.Count;
-            summary.natural = environment.Any(c => rockCells.Contains(c)
-                || map.terrainGrid.TerrainAt(c)?.natural == true);
-            summary.armament = map.listerThings.AllThings.OfType<Building>().Any(b =>
-                environment.Contains(b.Position) && (b is Building_Turret
-                    || b.TryGetComp<CompSpaceWeapon>() is CompSpaceWeapon w
-                        && !w.WeaponProps.manualOnly && !w.WeaponProps.tractor))
-                ? GlobeArmament.Armed : GlobeArmament.Unarmed;
-            Vector2 environmentAnchor = environment.Count > 0
-                ? SpaceTransform.BoundsCenterOfCells(environment) : SpaceTransform.ShipLocalOrigin(map);
-            summary.environmentCenter = SpaceTransform.MapToShipLocal(map, environmentAnchor);
-            bool equipment = GlobeDisplayRules.HasEquipment(map.listerThings.AllThings
-                    .Where(t => t is Building && t.Spawned && !t.Destroyed).Select(t => t.def));
-            bool native = obj is PoiState poi && poi.kind == PoiKind.NativeParent;
-            if (environment.Count > 0 || summary.ships.Count == 0 || native)
-                entries.Add(new GlobeDisplayEntry { owner = obj, area = environment.Count,
-                    cells = environment.ToList(), mapAnchor = environmentAnchor,
-                    localCenter = summary.environmentCenter,
-                    natural = summary.natural, armament = summary.armament,
-                    native = native, projectionSide = ShipSilhouette.AnchoredSide(environment, environmentAnchor)
-                        / (float)ShipSilhouette.AnchoredPixelsPerCell });
-            cached = new MapInfo { version = SubstructureOwnership.StructureVersion(map),
-                summary = summary, entries = entries, equipment = equipment };
-            // Generated class belongs to the principal structure, never every visiting member.
-            var principalEntry = entries.OrderByDescending(e => e.area).FirstOrDefault();
-            if (principalEntry?.ship != null) principalEntry.ship.contentType = obj.contentTypeId;
-            if (IsStationType(obj.contentTypeId))
-            {
-                // The station's principal structure represents the location; visiting ships
-                // remain separate entries in All and never duplicate the station in Stations.
-                var principal = entries.OrderByDescending(e => e.area).FirstOrDefault();
-                if (principal != null)
+                    info.SetHull(info.members[removed], new HashSet<IntVec3>());
+                    info.members.Remove(removed);
+                    PlanetGlobeRenderer.ReleaseSilhouette(map, removed);
+                }
+                foreach (ShipBase ship in ships)
                 {
-                    principal.station = true;
-                    if (principal.ship != null) principal.ship.station = true;
+                    if (!info.members.TryGetValue(ship.Identity, out var member))
+                        info.members.Add(ship.Identity, member = new Member());
+                    bool foundation = ship.GetType() == typeof(FoundationShip);
+                    var domain = foundation ? ship.HullCells as HashSet<IntVec3> : null;
+                    int revision = foundation ? universe.FoundationTopology.DomainRevision(map, domain) : -1;
+                    CellRect footprint = ship is ShuttleShip ? ship.Anchor.OccupiedRect() : CellRect.Empty;
+                    if (member.entry == null || info.allHulls || member.domain != domain || member.revision != revision
+                        || member.shuttleFootprint != footprint || !foundation && ship is not ShuttleShip)
+                    {
+                        info.SetHull(member, new HashSet<IntVec3>(ship.HullCells));
+                        member.domain = domain;
+                        member.revision = revision;
+                        member.shuttleFootprint = footprint;
+                        refresh.Add(member);
+                        projectionChanges.Add(member);
+                    }
                 }
             }
-            if (native && obj is PoiState nativePoi && nativePoi.nativeParent?.def?.defName == "SpaceSettlement")
-                entries.First(e => e.native).station = true;
-            RefreshPopulation(map, cached);
-            maps[map] = cached;
-            return cached;
+
+            bool environmentChanged = false;
+            foreach (IntVec3 cell in info.dirtyCells)
+            {
+                if (!cell.InBounds(map)) continue;
+                bool visible = structure.IsGlobeCell(cell);
+                if (visible) info.visible.Add(cell); else info.visible.Remove(cell);
+                bool covered = info.covered.TryGetValue(cell, out var coveredBy);
+                if (covered)
+                    foreach (Member member in coveredBy)
+                    {
+                        refresh.Add(member);
+                        if (visible ? member.visible.Add(cell) : member.visible.Remove(cell))
+                            projectionChanges.Add(member);
+                    }
+                bool inEnvironment = visible && !covered;
+                environmentChanged |= inEnvironment ? info.environment.Add(cell) : info.environment.Remove(cell);
+                if (inEnvironment && (structure.IsGlobeRock(cell) || map.terrainGrid.TerrainAt(cell)?.natural == true))
+                    info.natural.Add(cell);
+                else info.natural.Remove(cell);
+                if (inEnvironment && structure.RecordsAt(cell).Any(record => record.Building.Position == cell && record.GlobeArmed))
+                    info.armed.Add(cell);
+                else info.armed.Remove(cell);
+            }
+
+            var summary = info.summary;
+            info.entries.Clear();
+            summary.ships.Clear();
+            foreach (ShipBase ship in ships)
+            {
+                Member member = info.members[ship.Identity];
+                Vector2 anchor = ship.HullCenter;
+                if (projectionChanges.Contains(member) || member.entry.mapAnchor != anchor)
+                {
+                    var cells = ship is ShuttleShip && member.visible.Count == 0 ? member.hull.ToList() : member.visible.ToList();
+                    if (member.entry == null || member.entry.mapAnchor != anchor || !member.entry.cells.SequenceEqual(cells))
+                    {
+                        if (cells.Count == 0) PlanetGlobeRenderer.ReleaseSilhouette(map, ship.Identity);
+                        member.entry = new GlobeDisplayEntry { owner = obj,
+                            ship = new GlobeShipSummary { key = ship.Identity.key, shuttle = ship is ShuttleShip, area = cells.Count },
+                            cells = cells, area = cells.Count, mapAnchor = anchor, craft = true,
+                            projectionSide = ProjectionSide(cells, anchor) };
+                    }
+                    refresh.Add(member);
+                }
+                if (refresh.Contains(member))
+                    member.entry.ship.armament = ship.Weapons.Any(GlobeDisplayRules.IsWeapon) || ship.StructuralState?.HasTurret == true
+                        ? GlobeArmament.Armed : GlobeArmament.Unarmed;
+                GlobeShipSummary facts = member.entry.ship;
+                facts.label = ship.Label;
+                facts.faction = ship.Faction;
+                facts.localCenter = SpaceTransform.MapToShipLocal(map, anchor);
+                facts.localAngle = ship.FrameAngle;
+                facts.station = member.entry.station = false;
+                facts.contentType = null;
+                info.entries.Add(member.entry);
+                summary.ships.Add(facts);
+            }
+            summary.area = info.visible.Count > 0 ? info.visible.Count : summary.ships.Sum(ship => ship.area);
+            summary.environmentArea = info.environment.Count;
+            summary.natural = info.natural.Count != 0;
+            summary.armament = info.armed.Count != 0 ? GlobeArmament.Armed : GlobeArmament.Unarmed;
+            bool native = obj is PoiState { kind: PoiKind.NativeParent };
+            if (info.environmentEntry == null || environmentChanged)
+            {
+                if (info.environment.Count == 0) PlanetGlobeRenderer.ReleaseSilhouette(map, default);
+                Vector2 anchor = info.environment.Count > 0 ? SpaceTransform.BoundsCenterOfCells(info.environment)
+                    : SpaceTransform.ShipLocalOrigin(map);
+                summary.environmentCenter = SpaceTransform.MapToShipLocal(map, anchor);
+                info.environmentEntry = new GlobeDisplayEntry { owner = obj, area = info.environment.Count,
+                    cells = info.environment.ToList(), mapAnchor = anchor, localCenter = summary.environmentCenter,
+                    native = native, projectionSide = ProjectionSide(info.environment, anchor) };
+            }
+            var environmentEntry = info.environmentEntry;
+            environmentEntry.natural = summary.natural;
+            environmentEntry.armament = summary.armament;
+            environmentEntry.station = native && obj is PoiState nativePoi && nativePoi.nativeParent?.def?.defName == "SpaceSettlement";
+            if (info.environment.Count > 0 || summary.ships.Count == 0 || native)
+                info.entries.Add(environmentEntry);
+            // The generated class and its location marker belong to the principal structure.
+            GlobeDisplayEntry principal = null;
+            foreach (var entry in info.entries)
+                if (principal == null || entry.area > principal.area) principal = entry;
+            if (principal?.ship != null) principal.ship.contentType = obj.contentTypeId;
+            if (principal != null && IsStationType(obj.contentTypeId))
+            {
+                principal.station = true;
+                if (principal.ship != null) principal.ship.station = true;
+            }
+            if (info.populationDirty)
+                summary.wreck = GlobeDisplayRules.IsWreck(map.mapPawns.AllPawns.Any(pawn => !pawn.Dead), structure.All.HasGlobeEquipment);
+            environmentEntry.wreck = summary.wreck;
+            info.populationDirty = info.updateMembers = info.allHulls = false;
+            info.dirtyCells.Clear();
+            return info;
         }
 
         internal GlobeDisplaySummary Capture(SpaceObject obj)
         {
-            Forget(obj.map); // Capture current facts even when a transfer happened in this tick.
-            GlobeDisplaySummary summary = ReadMap(obj).summary;
-            summary.navigationRadius = SpaceCollision.OriginBoundsRadiusOf(obj);
-            return summary;
+            GlobeDisplaySummary current = ReadMap(obj).summary;
+            return new GlobeDisplaySummary { area = current.area, environmentArea = current.environmentArea,
+                navigationRadius = SpaceCollision.OriginBoundsRadiusOf(obj), environmentCenter = current.environmentCenter,
+                wreck = current.wreck, natural = current.natural, armament = current.armament,
+                ships = current.ships.Select(ship => ship.Snapshot()).ToList() };
         }
 
         internal IEnumerable<GlobeDisplayEntry> Entries(SpaceObject obj)

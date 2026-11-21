@@ -18,7 +18,9 @@ namespace DeltaV
                 var playerCells = new HashSet<IntVec3>(ShipRegistry.AllShipsOnMap(map)
                     .Where(s => s.Faction == Faction.OfPlayer).SelectMany(s => s.HullCells));
                 bool colony = map.IsPlayerHome && !ShipRegistry.AllShipsOnMap(map).Any(s => s.Faction != Faction.OfPlayer);
-                foreach (Thing thing in map.listerThings.AllThings)
+                IEnumerable<Thing> things = universe.FrameOf(map) != null
+                    ? universe.ShipStructure.For(map).Things : map.listerThings.AllThings;
+                foreach (Thing thing in things)
                 {
                     bool own = thing.Faction == Faction.OfPlayer;
                     if (thing is Pawn) { if (own) total += Value(thing, counted); continue; }

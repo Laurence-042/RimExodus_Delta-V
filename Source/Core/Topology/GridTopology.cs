@@ -53,37 +53,68 @@ namespace DeltaV.Topology
         }
     }
 
-    /// <summary>
-    /// 并查集：节点可以"只增不减"地分配——因为并查集**不支持删除**，
-    /// 而我们的格子会被反复拿走/放回。做法：每次"放上一格"给它一个**全新节点**，
-    /// 旧节点不回收（靠 Compact 定期整理），于是永远不会出现
-    /// "被拿走的格子还挂着孩子、放回时把别人的分量并进来"这种错合并。
-    /// </summary>
+    /// <summary>Union-find with bounded reclamation of nodes unreachable from either grid or child nodes.</summary>
     internal sealed class UnionFind
     {
-        public int[] Parent = new int[1024];
+        private int[] parent = new int[1024];
+        private int[] references = new int[1024];
+        private bool[] queued = new bool[1024];
+        private readonly Stack<int> free = new Stack<int>();
+        private readonly Queue<int> unreachable = new Queue<int>();
         public int[] Size = new int[1024];
-        public int NodeCount;
+        public int NodeCount { get; private set; } = 1;
+        internal int LastReclaimWork { get; private set; }
+        internal int Reclaimed { get; private set; }
 
         public int NewSingleton()
         {
-            if (NodeCount == 0) NodeCount = 1;   // 0 保留给"无节点"
-            if (NodeCount >= Parent.Length)
+            int node = free.Count == 0 ? NodeCount++ : free.Pop();
+            if (node == parent.Length)
             {
-                Array.Resize(ref Parent, Parent.Length * 2);
+                Array.Resize(ref parent, parent.Length * 2);
                 Array.Resize(ref Size, Size.Length * 2);
+                Array.Resize(ref references, references.Length * 2);
+                Array.Resize(ref queued, queued.Length * 2);
             }
-            int p = NodeCount++;
-            Parent[p] = p;
-            Size[p] = 1;
-            return p;
+            parent[node] = node;
+            Size[node] = 1;
+            return node;
+        }
+
+        public void LinkCell(ref int cellNode, int node)
+        {
+            if (cellNode == node) return;
+            if (node != 0) references[node]++;
+            Release(cellNode);
+            cellNode = node;
+        }
+
+        private void Release(int node)
+        {
+            if (node == 0 || --references[node] != 0 || queued[node]) return;
+            queued[node] = true;
+            unreachable.Enqueue(node);
+        }
+
+        private void SetParent(int node, int root)
+        {
+            int previous = parent[node];
+            if (previous == root) return;
+            references[root]++;
+            if (previous != node) Release(previous);
+            parent[node] = root;
         }
 
         public int Find(int i)
         {
             int root = i;
-            while (Parent[root] != root) root = Parent[root];
-            while (Parent[i] != root) { int nx = Parent[i]; Parent[i] = root; i = nx; }
+            while (parent[root] != root) root = parent[root];
+            while (parent[i] != root)
+            {
+                int next = parent[i];
+                SetParent(i, root);
+                i = next;
+            }
             return root;
         }
 
@@ -91,15 +122,36 @@ namespace DeltaV.Topology
         {
             int ra = Find(a), rb = Find(b);
             if (ra == rb) return;
-            if (Size[ra] < Size[rb]) { int t = ra; ra = rb; rb = t; }
-            Parent[rb] = ra;
+            if (Size[ra] < Size[rb]) (ra, rb) = (rb, ra);
+            SetParent(rb, ra);
             Size[ra] += Size[rb];
             Size[rb] = 0;
         }
 
+        public void Reclaim(int budget)
+        {
+            LastReclaimWork = 0;
+            while (LastReclaimWork < budget && unreachable.Count > 0)
+            {
+                LastReclaimWork++;
+                int node = unreachable.Dequeue();
+                queued[node] = false;
+                if (references[node] != 0) continue;
+                int previous = parent[node];
+                if (previous != node) Release(previous);
+                parent[node] = 0;
+                free.Push(node);
+                Reclaimed++;
+            }
+        }
+
         public void Reset()
         {
-            NodeCount = 0;
+            Array.Clear(references, 0, NodeCount);
+            Array.Clear(queued, 0, NodeCount);
+            free.Clear();
+            unreachable.Clear();
+            NodeCount = 1;
         }
     }
 
@@ -108,11 +160,8 @@ namespace DeltaV.Topology
     /// 恒等式 χ = w/4 = c − h 用来在 O(1) 内判断"这次改动到底有没有改变连通块数"，
     /// 只有真的变了才去 flood 修复（且只重挂受影响的那几块）。
     ///
-    /// 关键设计（撞过墙才定下来的）：
-    ///   · 并查集**不支持删除节点**，而格子会被反复拿走/放回 ⇒
-    ///     每次"放上一格"给它一个**全新节点**，永不复用旧节点，
-    ///     否则"被拿走的格子还挂着孩子、放回时把别人的分量并进来"⇒ 错合并。
-    ///   · 节点只增不减 ⇒ 达到阈值后 Compact（按整图重建，O(格子数)）。
+    /// 已移除的格子仍可作为子树的中间节点。每次操作回收固定数量的不可达节点，
+    /// 只复用从格索引和子节点均无法抵达的位置。
     /// </summary>
     internal sealed class GridTopology
     {
@@ -157,7 +206,7 @@ namespace DeltaV.Topology
             // 初始全空 ⇒ 整张图（含 padding）是一个连外部的背景分量
             int root = NewBgNode();
             _bgTouch[root] = true;
-            for (int i = 0; i < _cells; i++) _bgNode[i] = root;
+            for (int i = 0; i < _cells; i++) _bg.LinkCell(ref _bgNode[i], root);
             _bg.Size[root] = _cells;
         }
 
@@ -175,6 +224,7 @@ namespace DeltaV.Topology
         {
             int n = _bg.NewSingleton();
             if (n >= _bgTouch.Length) Array.Resize(ref _bgTouch, Math.Max(n + 1, _bgTouch.Length * 2));
+            _bgTouch[n] = false;
             return n;
         }
 
@@ -217,7 +267,7 @@ namespace DeltaV.Topology
 
             // 前景：本格拿一个全新节点，再与邻居所在分量合并（精确给出 Δc）
             int me = NewFgNode();
-            _fgNode[i] = me;
+            _fg.LinkCell(ref _fgNode[i], me);
             int k = GatherFgRoots(x, y);
             int dc;
             if (k == 0) dc = +1;
@@ -235,7 +285,7 @@ namespace DeltaV.Topology
             // 背景：该格离开背景。它的 bg 节点留在树里当"穿线"，
             // 由 BgRepair 负责把被它连起来的部分拆开（或整块重挂）。
             int oldBgRoot = _bg.Find(_bgNode[i]);
-            _bgNode[i] = 0;
+            _bg.LinkCell(ref _bgNode[i], 0);
             _bg.Size[oldBgRoot]--;
             if (_bg.Size[oldBgRoot] < 0) _bg.Size[oldBgRoot] = 0;
 
@@ -263,7 +313,7 @@ namespace DeltaV.Topology
                 }
             }
 
-            MaybeCompact();
+            ReclaimNodes();
         }
 
         // ------------------------------------------------------------------
@@ -290,7 +340,7 @@ namespace DeltaV.Topology
             if (dc < -1) throw new InvalidOperationException($"拿掉一格最多减少 1 块，得到 {dc}");
             _fgCount += dc;
 
-            _fgNode[i] = 0; // 该节点留在树里当穿线，由修复决定拆不拆
+            _fg.LinkCell(ref _fgNode[i], 0);
             if (dc > 0)
             {
                 int splits = FgRepairSplit(x, y);
@@ -298,7 +348,7 @@ namespace DeltaV.Topology
                     throw new InvalidOperationException($"实际断裂 {splits} 处，增量计数预测 {dc}");
             }
 
-            MaybeCompact();
+            ReclaimNodes();
         }
 
         // ------------------------------------------------------------------
@@ -327,7 +377,7 @@ namespace DeltaV.Topology
         private int BgAttach(int i)
         {
             int me = NewBgNode();
-            _bgNode[i] = me;
+            _bg.LinkCell(ref _bgNode[i], me);
             int x = i % Size, y = i / Size;
             int kr = 0;
             for (int t = 0; t < _bgOff.Length; t += 2)
@@ -399,7 +449,7 @@ namespace DeltaV.Topology
                 int fresh = NewBgNode();
                 _bgTouch[fresh] = touch;
                 _bg.Size[fresh] = count;
-                for (int q = 0; q < tail; q++) _bgNode[_queue[q]] = fresh;
+                for (int q = 0; q < tail; q++) _bg.LinkCell(ref _bgNode[_queue[q]], fresh);
                 if (fresh != oldRoot)
                 {
                     _bg.Size[oldRoot] -= count;
@@ -433,7 +483,7 @@ namespace DeltaV.Topology
                 var piece = _pieces[p];
                 int node = NewFgNode();
                 _fg.Size[node] = piece.Count;
-                for (int c = 0; c < piece.Count; c++) _fgNode[piece[c]] = node;
+                for (int c = 0; c < piece.Count; c++) _fg.LinkCell(ref _fgNode[piece[c]], node);
             }
             return splits;
         }
@@ -479,7 +529,7 @@ namespace DeltaV.Topology
                 _present[i] = true;
 
                 int me = NewFgNode();
-                _fgNode[i] = me;
+                _fg.LinkCell(ref _fgNode[i], me);
                 int k = GatherFgRoots(x - 1, y - 1);
                 int dc;
                 if (k == 0) dc = +1;
@@ -488,7 +538,7 @@ namespace DeltaV.Topology
                 _holes += dc - dw / 4;
 
                 int oldBgRoot = _bg.Find(_bgNode[i]);
-                _bgNode[i] = 0;
+                _bg.LinkCell(ref _bgNode[i], 0);
                 _bg.Size[oldBgRoot]--;
                 if (_bg.Size[oldBgRoot] < 0) _bg.Size[oldBgRoot] = 0;
 
@@ -501,14 +551,23 @@ namespace DeltaV.Topology
                 }
             }
             if (_bgSeeds.Count > 0) BgRepair(_bgSeeds);
-            MaybeCompact();
+            ReclaimNodes();
         }
         // ------------------------------------------------------------------
         //  节点池整理：整图重建并查集（O(格子数)）
         // ------------------------------------------------------------------
-        private void MaybeCompact()
+        internal const int ReclaimBudget = 32;
+        internal Func<long> StartReclaim { get; set; }
+        internal Action<long, int, int> RecordReclaim { get; set; }
+
+        private void ReclaimNodes()
         {
-            if (_fg.NodeCount > 4 * _cells || _bg.NodeCount > 4 * _cells) CompactAll();
+            long start = StartReclaim?.Invoke() ?? 0;
+            int before = _fg.Reclaimed + _bg.Reclaimed;
+            _fg.Reclaim(ReclaimBudget);
+            _bg.Reclaim(ReclaimBudget);
+            if (start != 0)
+                RecordReclaim?.Invoke(start, _fg.LastReclaimWork + _bg.LastReclaimWork, _fg.Reclaimed + _bg.Reclaimed - before);
         }
 
         /// <summary>整图重建前景/背景结构，回收不再引用的节点。</summary>
@@ -521,7 +580,7 @@ namespace DeltaV.Topology
         private void CompactFg()
         {
             _fg.Reset();
-            for (int i = 0; i < _cells; i++) _fgNode[i] = 0;
+            Array.Clear(_fgNode, 0, _fgNode.Length);
             _markGen++;
             int comps = 0;
             for (int i = 0; i < _present.Length; i++)
@@ -530,7 +589,7 @@ namespace DeltaV.Topology
                 var piece = FloodFgPiece(i);
                 int node = NewFgNode();
                 _fg.Size[node] = piece.Count;
-                for (int c = 0; c < piece.Count; c++) _fgNode[piece[c]] = node;
+                for (int c = 0; c < piece.Count; c++) _fg.LinkCell(ref _fgNode[piece[c]], node);
                 comps++;
             }
             _fgCount = comps;
@@ -540,8 +599,7 @@ namespace DeltaV.Topology
         {
             _bg.Reset();
             _bgTouch = new bool[2048];
-            _bgNode[0] = 0;
-            for (int i = 0; i < _cells; i++) _bgNode[i] = 0;
+            Array.Clear(_bgNode, 0, _bgNode.Length);
             _markGen++;
             int holes = 0;
             for (int i = 0; i < _cells; i++)
@@ -572,7 +630,7 @@ namespace DeltaV.Topology
                 int node = NewBgNode();
                 _bgTouch[node] = touch;
                 _bg.Size[node] = cellsOfComp.Count;
-                for (int c = 0; c < cellsOfComp.Count; c++) _bgNode[cellsOfComp[c]] = node;
+                for (int c = 0; c < cellsOfComp.Count; c++) _bg.LinkCell(ref _bgNode[cellsOfComp[c]], node);
                 if (!touch) holes++;
             }
             if (holes != _holes)

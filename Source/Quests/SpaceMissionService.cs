@@ -20,7 +20,7 @@ namespace DeltaV
         internal bool PreserveGuestStatus(Pawn pawn) => preservingGuestStatus.Contains(pawn);
         internal Faction PassengerFaction(Pawn pawn) => Active.FirstOrDefault(m => m.passengers.Any(p => p.pawn == pawn))?.faction;
         internal IEnumerable<Building_SpaceTradeTerminal> Terminals => universe.objects.Where(o => o.map != null && !o.map.Disposed)
-            .SelectMany(o => o.map.listerThings.AllThings.OfType<Building_SpaceTradeTerminal>());
+            .SelectMany(o => ShipStructureIndex.Read(o.map).BuildingsOf<Building_SpaceTradeTerminal>());
         private int Now => FindTick;
         private static int FindTick => Verse.Find.TickManager.TicksGame;
         internal static bool HasPilotConsole(MapPrefabDocument document) => document.thingEntries.Any(e =>

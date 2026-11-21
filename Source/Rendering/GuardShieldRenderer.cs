@@ -12,12 +12,14 @@ namespace DeltaV
         {
             public Map map;
             public GuardShieldOutline.Circle self;
+            public IReadOnlyList<CompSpaceShield> bank;
+            public int revision = -1;
+            public bool regularActive;
             public readonly List<GuardShieldOutline.Circle> neighbors = new List<GuardShieldOutline.Circle>();
             public Mesh outline;
             public readonly MaterialPropertyBlock outlineTint = new MaterialPropertyBlock();
             public readonly MaterialPropertyBlock fullTint = new MaterialPropertyBlock();
             public readonly MaterialPropertyBlock hitTint = new MaterialPropertyBlock();
-            public int version = -1;
             public void Dispose()
             {
                 Destroy(ref outline);
@@ -42,30 +44,34 @@ namespace DeltaV
             if (!Caches.TryGetValue(shield, out Cache cache))
                 Caches.Add(shield, cache = new Cache { map = shield.parent.Map });
             var self = CircleOf(shield, interceptor);
-            Scratch.Clear();
-            if (active && shield.UsesRegular)
+            bool regularActive = active && shield.UsesRegular;
+            shield.ObserveGuardOutline(regularActive);
+            var (bank, revision) = regularActive ? shield.GuardOutline : (null, 0);
+            if (!self.Equals(cache.self) || cache.bank != bank || cache.revision != revision || cache.regularActive != regularActive)
             {
-                var members = shield.OwnedShields;
-                if (members != null)
-                    foreach (CompSpaceShield other in members)
+                cache.bank = bank;
+                cache.revision = revision;
+                cache.regularActive = regularActive;
+                Scratch.Clear();
+                if (bank != null)
+                    foreach (CompSpaceShield other in bank)
                     {
                         if (other == shield || !other.UsesRegular || !other.parent.Spawned) continue;
                         CompProjectileInterceptor field = other.parent.TryGetComp<CompProjectileInterceptor>();
                         if (field?.Active == true) Scratch.Add(CircleOf(other, field));
                     }
-            }
-            bool changed = !self.Equals(cache.self) || cache.version != SubstructureOwnership.StructureVersion(shield.parent.Map)
-                || Scratch.Count != cache.neighbors.Count;
-            if (!changed)
-                for (int i = 0; i < Scratch.Count; i++)
-                    if (!Scratch[i].Equals(cache.neighbors[i])) { changed = true; break; }
-            if (changed)
-            {
-                cache.self = self;
-                cache.version = SubstructureOwnership.StructureVersion(shield.parent.Map);
-                cache.neighbors.Clear(); cache.neighbors.AddRange(Scratch);
-                Destroy(ref cache.outline);
-                cache.outline = Build(self.radius, GuardShieldOutline.Clip(self, cache.neighbors));
+                bool changed = !self.Equals(cache.self) || Scratch.Count != cache.neighbors.Count || cache.outline == null;
+                if (!changed)
+                    for (int i = 0; i < Scratch.Count; i++)
+                        if (!Scratch[i].Equals(cache.neighbors[i])) { changed = true; break; }
+                if (changed)
+                {
+                    cache.self = self;
+                    cache.neighbors.Clear();
+                    cache.neighbors.AddRange(Scratch);
+                    Destroy(ref cache.outline);
+                    cache.outline = Build(self.radius, GuardShieldOutline.Clip(self, cache.neighbors));
+                }
             }
             Vector3 center = new Vector3((float)self.x, AltitudeLayer.MoteOverhead.AltitudeFor(), (float)self.z);
             // One tick-driven phase for the cooperating field prevents brightness seams and freezes on pause.

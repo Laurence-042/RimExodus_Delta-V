@@ -41,14 +41,14 @@ internal static partial class Program
         var ship = new CombatHull(console.Ship);
         var gun = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon() };
         var body = AddTestBuilding(map, faction, 29902, TestBuildingDef("powerGun"), gun);
-        ship.cells.Add(body.Position); BindWeaponOwnerFixture(gun, ship);
+        ship.cells.Add(body.Position);
         var props = new CompProperties_Power { idlePowerDraw = 5f };
         Set(props, "basePowerConsumption", 220f);
         var power = new CompPowerTrader { parent = body, props = props };
         var mannable = new CompMannable { parent = body, props = new CompProperties_Mannable() };
-        body.AllComps.Add(power); body.AllComps.Add(mannable);
+        AddFixtureComponents(body, power, mannable);
         Set(power, "powerOnInt", true);
-        universe.Weapons.RegisterWeapon(gun);
+        universe.ShipStructure.BindIdentity(ship);
         powerProbe = gun;
         var patch = new Harmony("DeltaV.Regression.WeaponPowerEvents");
         patch.Patch(AccessTools.Method(typeof(SpaceWeaponService), "SyncPowerRequest"),
@@ -96,13 +96,13 @@ internal static partial class Program
                 gun.CompTick(); universe.Weapons.TickPendingUpdates();
             }
             Check(powerUpdates == 0 && power.PowerOutput == -330, "ten thousand stable ticks never synchronize weapon power");
-            Check(SpaceWeaponService.InstalledWeaponsOn(map).Contains(gun), "existing registry includes non-PD weapons");
-            SubstructureOwnership.BumpStructureVersion(map); BindWeaponOwnerFixture(gun, ship);
+            Check(universe.Weapons.RegisteredWeapons(map).Contains(gun), "existing registry includes non-PD weapons");
+            universe.ShipStructure.Changed(map);
             Check(ship.Weapons.Single() == gun && powerDiscoveries == 0,
                 "cold ship weapon cache and power events reuse the index without map discovery");
             universe.Weapons.QueuePower(map); universe.Weapons.UnregisterWeapon(gun, map);
             universe.Weapons.TickPendingUpdates();
-            Check(powerUpdates == 0 && !SpaceWeaponService.InstalledWeaponsOn(map).Contains(gun),
+            Check(powerUpdates == 0 && !universe.Weapons.RegisteredWeapons(map).Contains(gun),
                 "despawn removes both registered weapon and pending work");
         }
         finally { powerProbe = null; patch.UnpatchAll(patch.Id); universe.Weapons.ForgetMap(map); }
@@ -130,15 +130,14 @@ internal static partial class Program
             { projectileDef = bullet, range = 500f, fireArcDeg = 360f, intrinsicAimSkill = 10 }, safeFire = false };
         var traverse = new CompSpaceWeaponTraverse { props = new CompProperties_SpaceWeaponTraverse() };
         var building = AddTestBuilding(map, faction, 19950, TestBuildingDef("executionGun"), weapon);
-        traverse.parent = building; building.AllComps.Add(traverse);
+        AddFixtureComponents(building, traverse);
         var console = AddTestConsole(map, faction, 19951);
         var weaponOwner = new CombatHull(console.Ship);
         weaponOwner.cells.Add(building.Position);
         weaponOwner.Combat.weaponsArmed = true;
-        BindWeaponOwnerFixture(weapon, weaponOwner);
         var own = new MapSpaceObject(1995, map, new SpacePose(Vector3.forward, 0f));
         universe.objects.Add(own); Set(universe, "objectById", null); Set(universe, "objectByMap", null);
-        universe.Weapons.RegisterWeapon(weapon);
+        universe.ShipStructure.BindIdentity(weaponOwner);
         var harness = new Harmony("DeltaV.Regression.WeaponExecution");
         harness.Patch(AccessTools.Method(typeof(CompSpaceWeapon), "SelectMagazine"),
             prefix: new HarmonyMethod(typeof(Program), nameof(CountWeaponAmmo)));
@@ -188,18 +187,18 @@ internal static partial class Program
             Check(Math.Abs(SpaceTransform.WrapAngle(commandedWeaponAngle - Mathf.Atan2(delta.y, delta.x))) < .00001f,
                 "automatic cooldown pointing uses exactly the same lead as manual preview");
             Check(weaponTopologyReads == 1, "repeated ballistic queries reuse one structural connection model");
-            SubstructureOwnership.BumpStructureVersion(); SpaceWeaponService.AimInfo(weapon, own);
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll(); SpaceWeaponService.AimInfo(weapon, own);
             Check(weaponTopologyReads == 2, "a structural change invalidates weapon topology immediately");
 
             var magazine = new CompSpaceWeaponMagazine { parent = building,
                 props = new CompProperties_SpaceWeaponMagazine { projectileDef = bullet } };
-            building.AllComps.Add(magazine); weapon.ClearRuntimeModel();
+            AddFixtureComponents(building, magazine);
             weapon.cooldownUntilTick = 0;
             int oldPreparations = weaponPreparations;
             Check(!universe.Weapons.ApplyControl(weapon, own, new WeaponControlCommand(new Vector2(8, 3), true))
                 && weaponPreparations == oldPreparations && weapon.cooldownUntilTick == 0,
                 "missing ammunition rejects a triggered command without starting a firing transaction or cooldown");
-            building.AllComps.Remove(magazine); weapon.ClearRuntimeModel();
+            RemoveFixtureComponent(building, magazine);
 
             var mags = new List<CompSpaceWeaponMagazine>();
             for (int i = 0; i < 3; i++)
@@ -236,15 +235,16 @@ internal static partial class Program
         DeltaVDefOf.DeltaV_Weapon_MissileLauncher ??= TestBuildingDef("layoutFixtureLauncher");
         ThingDefOf.GravEngine ??= TestBuildingDef("layoutFixtureEngine");
         Map map = TestMap(1997);
+        using var odyssey = new FixtureOdyssey();
         universe.objects.Add(new MapSpaceObject(1997, map, new SpacePose(Vector3.forward, 0f)));
         Set(universe, "objectByMap", null); Set(universe, "objectById", null);
         var ownership = SubstructureOwnership.For(map);
-        var deck = (TerrainDef)Raw(typeof(TerrainDef)); deck.isFoundation = true;
+        var deck = FixtureFoundation("weaponFixtureDeck");
         var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon
             { acceleratorStarts = new List<IntVec3> { new IntVec3(0, 0, 1) } } };
         var body = AddTestBuilding(map, faction, 19970, TestBuildingDef("layoutLoader"), weapon);
         var loaderPower = new CompPowerTrader { parent = body, props = new CompProperties_Power { idlePowerDraw = 5 } };
-        Set(loaderPower.props, "basePowerConsumption", 220f); body.AllComps.Add(loaderPower);
+        Set(loaderPower.props, "basePowerConsumption", 220f); AddFixtureComponents(body, loaderPower);
         var console = AddTestConsole(map, faction, 19979); console.shipId = 7; console.combat.weaponsArmed = true;
         MoveCombatFixture(body, new IntVec3(1, 0, 1));
         var segments = new List<CompSpaceRailgun>();
@@ -254,17 +254,13 @@ internal static partial class Program
             var part = AddTestBuilding(map, faction, 19971 + i, TestBuildingDef("layoutSegment" + i), segment);
             MoveCombatFixture(part, new IntVec3(1, 0, 2 + i)); segments.Add(segment);
             var power = new CompPowerTrader { parent = part, props = new CompProperties_Power { idlePowerDraw = 5 } };
-            Set(power.props, "basePowerConsumption", 30f); part.AllComps.Add(power);
+            Set(power.props, "basePowerConsumption", 30f); AddFixtureComponents(part, power);
         }
         for (int z = 1; z <= 3; z++)
         {
             var cell = new IntVec3(1, 0, z);
-            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = deck;
-            ownership.Assign(cell, 7);
+            SetFixtureFoundation(map, cell, deck, 7);
         }
-        var patch = new Harmony("DeltaV.Regression.WeaponConnections");
-        patch.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
-            prefix: new HarmonyMethod(typeof(Program), nameof(RegressionSubstructure)));
         try
         {
             SpaceWeaponLayout initial = weapon.Layout;
@@ -282,9 +278,9 @@ internal static partial class Program
                 "layout replacement idles detached segments without dropping shared segments to idle");
             ownership.SetOwner(new[] { segments[1].parent.Position }, 7);
             Check(weapon.Layout.acceleration.segments.Count == 2, "ownership restoration reconnects the chain");
-            map.thingGrid.Deregister(segments[0].parent); SubstructureOwnership.BumpStructureVersion();
+            RemoveFixtureBuilding((Building)segments[0].parent, map);
             Check(weapon.Layout.acceleration.segments.Count == 0, "removing a middle segment disconnects the rest");
-            map.thingGrid.Register(segments[0].parent); SubstructureOwnership.BumpStructureVersion();
+            PlaceFixtureBuilding((Building)segments[0].parent, map);
             Check(weapon.Layout.acceleration.segments.Count == 2, "rebuilding the missing segment reconnects the original order");
             weapon.ClearRuntimeModel();
             Check(segments.All(s => s.Binding == null && s.parent.TryGetComp<CompPowerTrader>().PowerOutput == -5),
@@ -292,32 +288,30 @@ internal static partial class Program
             Check(!ReferenceEquals(initial, weapon.Layout) && weapon.Layout.acceleration.segments.Count == 2,
                 "runtime reset reconstructs connections from the current map without saved cache data");
         }
-        finally { patch.UnpatchAll(patch.Id); ThingDefOf.GravEngine = oldEngine; DeltaVDefOf.DeltaV_Weapon_MissileLauncher = oldLauncher; }
+        finally { ThingDefOf.GravEngine = oldEngine; DeltaVDefOf.DeltaV_Weapon_MissileLauncher = oldLauncher; }
     }
 
     static void CheckWeaponOwnershipReuse(UniverseManager universe, Faction faction)
     {
         Map map = TestMap(1998);
+        using var odyssey = new FixtureOdyssey();
         var frame = new MapSpaceObject(1998, map, new SpacePose(Vector3.forward, 0f));
         universe.objects.Add(frame); Set(universe, "objectByMap", null); Set(universe, "objectById", null);
         var console = AddTestConsole(map, faction, 19980);
         console.combat.weaponsArmed = true;
-        var deck = (TerrainDef)Raw(typeof(TerrainDef)); deck.isFoundation = true;
+        var deck = FixtureFoundation("weaponFixtureDeck");
         var ownership = SubstructureOwnership.For(map);
         for (int z = 0; z < 5; z++) for (int x = 0; x < 5; x++)
         {
             var cell = new IntVec3(x, 0, z);
-            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = deck;
-            ownership.Assign(cell, console.shipId);
+            SetFixtureFoundation(map, cell, deck, console.shipId);
         }
         var weapon = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon() };
         var def = TestBuildingDef("ownershipGun"); def.size = new IntVec2(2, 1);
         var body = AddTestBuilding(map, faction, 19981, def, weapon);
         var traverse = new CompSpaceWeaponTraverse { parent = body, props = new CompProperties_SpaceWeaponTraverse() };
-        body.AllComps.Add(traverse);
+        AddFixtureComponents(body, traverse);
         var patch = new Harmony("DeltaV.Regression.WeaponOwnership");
-        patch.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
-            prefix: new HarmonyMethod(typeof(Program), nameof(RegressionSubstructure)));
         patch.Patch(AccessTools.Method(typeof(ShipRegistry), "ShipOf"),
             prefix: new HarmonyMethod(typeof(Program), nameof(CountWeaponOwnership)));
         ownershipProbeThing = body; weaponOwnershipReads = 0;
@@ -353,13 +347,9 @@ internal static partial class Program
             Check(weaponOwnershipReads == invalidReads, "invalid full-footprint conclusions are cached too");
             ownership.Assign(edge, console.shipId);
             Check(weapon.OwnerShip.Identity == console.Vessel.Identity, "restored ownership re-enables the weapon immediately");
-            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(edge)] = null;
-            universe.NotifyFoundationChanged(map, edge);
-            SubstructureOwnership.BumpStructureVersion();
+            SetFixtureFoundation(map, edge, null, console.shipId);
             Check(!weapon.OwnerShip.IsValid, "destroyed supporting terrain invalidates full-footprint ownership");
-            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(edge)] = deck;
-            universe.NotifyFoundationChanged(map, edge);
-            SubstructureOwnership.BumpStructureVersion();
+            SetFixtureFoundation(map, edge, deck, console.shipId);
             Check(weapon.OwnerShip.IsValid, "rebuilt support restores ownership");
             int prior = weaponOwnershipReads;
             MoveCombatFixture(body, new IntVec3(2, 0, 3));
@@ -367,8 +357,11 @@ internal static partial class Program
             Set(typeof(Thing), body, "rotationInt", Rot4.East);
             Check(weapon.OwnerShip.IsValid && weaponOwnershipReads == prior + 2, "rotation invalidates its cached footprint");
             console.isMain = false;
+            universe.ShipStructure.NotifyConsole(console);
             Check(!weapon.OwnerShip.IsValid, "expired main-console handles cannot keep a cached weapon active");
-            console.isMain = true; universe.Controls.ReconcileOwner(console.shipId);
+            console.isMain = true;
+            universe.ShipStructure.NotifyConsole(console);
+            universe.Controls.ReconcileOwner(console.shipId);
             Check(weapon.OwnerShip.IsValid, "main-console reconciliation invalidates cached unowned results");
             universe.Weapons.ForgetMap(map);
             Check(AccessTools.Field(typeof(CompSpaceWeapon), "cachedOwner").GetValue(weapon) == null,

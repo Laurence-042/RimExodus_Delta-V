@@ -20,14 +20,16 @@ internal static partial class Program
         public override int HitPoints
         {
             get => (int)AccessTools.Field(typeof(Thing), "hitPointsInt").GetValue(this);
-            set => Set(typeof(Thing), this, "hitPointsInt", value);
+            set
+            {
+                int before = HitPoints;
+                Set(typeof(Thing), this, "hitPointsInt", value);
+                if (Spawned) Current.Game.GetComponent<UniverseManager>().ShipStructure.NotifyHealth(Map, this, before);
+            }
         }
         public override void Kill(DamageInfo? info = null, Hediff culprit = null)
         {
-            var map = Map;
-            map.thingGrid.Deregister(this);
-            Set(typeof(Thing), this, "mapIndexOrState", (sbyte)-2);
-            SubstructureOwnership.BumpStructureVersion();
+            RemoveFixtureBuilding(this, Map, () => Set(typeof(Thing), this, "mapIndexOrState", (sbyte)-2));
         }
     }
     static bool BattleNotFlammable(ref bool __result) { __result = false; return false; }
@@ -37,7 +39,7 @@ internal static partial class Program
 
     static void CheckEngagementBattle(UniverseManager universe, Faction player, Faction enemy)
     {
-        using var fixture = new EngagementFixturePatch();
+        using var fixture = new EngagementFixturePatch(editTerrain: true);
         var patch = new Harmony("DeltaV.Regression.EngagementBattle");
         patch.Patch(typeof(ModsConfig).TypeInitializer,
             prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
@@ -50,7 +52,6 @@ internal static partial class Program
             AccessTools.Method(typeof(DamageWatcher), "Notify_DamageTaken"),
             AccessTools.Method(typeof(Faction), "Notify_BuildingTookDamage"),
             AccessTools.Method(typeof(Building), "PostApplyDamage"),
-            AccessTools.Method(typeof(TerrainGrid), "DoTerrainChangedEffects"),
             AccessTools.Method(typeof(SpaceProjectileService), "NotifyFoundationDestroyed"),
             AccessTools.Method(typeof(SpaceProjectileService), "RegisterImpactFx"),
             AccessTools.Method(typeof(SpaceProjectileService), "RegisterShotVisuals"),
@@ -58,9 +59,6 @@ internal static partial class Program
             patch.Patch(method, prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
         patch.Patch(AccessTools.PropertyGetter(typeof(Thing), "FlammableNow"),
             prefix: new HarmonyMethod(typeof(Program), nameof(BattleNotFlammable)));
-        patch.Patch(AccessTools.Method(typeof(RoofGrid), "SetRoof"),
-            prefix: new HarmonyMethod(typeof(Program), nameof(BattleRoof)));
-        patch.CreateClassProcessor(typeof(SpaceImpactEffects).Assembly.GetType("DeltaV.Patch_TerrainGrid_RemoveFoundation_Ownership")).Patch();
         try
         {
             Set(enemy, "relations", new List<FactionRelation> { new FactionRelation { other = player, kind = FactionRelationKind.Hostile } });
@@ -102,6 +100,7 @@ internal static partial class Program
                 }
                 finally { Rand.PopState(); }
             }
+            CheckForecastFoundationBatch(universe);
             foreach (var pair in outcomes.GroupBy(o => (o.seed, o.mirrored)))
             {
                 var frontal = pair.Single(o => !o.automatic); var maneuver = pair.Single(o => o.automatic);
@@ -109,7 +108,6 @@ internal static partial class Program
                     && maneuver.loss < frontal.loss && maneuver.alive,
                     $"weak-side maneuver disables real enemy weapons earlier with lower damage taken: seed={pair.Key.seed}, mirror={pair.Key.mirrored}");
             }
-            CheckForecastFoundationBatch(universe);
             Directory.CreateDirectory("Source/obj/EngagementForecast");
             File.WriteAllText("Source/obj/EngagementForecast/battle.json", JsonSerializer.Serialize(new {
                 scope = "Production fire control, shot transactions, laser collision, native building damage and MPC. Fixed target motion, physical thrust fixture, no rendering, map topology splitting, crews, native power-net ticking or lifecycle simulation.",
@@ -172,9 +170,7 @@ internal static partial class Program
         }
         finally
         {
-            universe.UnregisterObject(frame);
-            Find.Maps.Remove(map);
-            ShipRegistry.ClearCaches();
+            RemoveEngagementMap(universe, frame);
         }
     }
 
@@ -268,13 +264,9 @@ internal static partial class Program
             map.damageWatcher = (DamageWatcher)Raw(typeof(DamageWatcher));
             map.roofGrid = new RoofGrid(map);
             map.edificeGrid = new EdificeGrid(map);
-            var vacuum = (TerrainDef)Raw(typeof(TerrainDef));
-            vacuum.exposesToVacuum = true;
-            Array.Fill(map.terrainGrid.topGrid, vacuum);
+            SetEngagementVacuum(map);
             var frame = new MapSpaceObject(id++, map, new SpacePose(Vector3.forward, 0));
-            universe.objects.Add(frame);
-            Set(universe, "objectById", null);
-            Set(universe, "objectByMap", null);
+            universe.RegisterObject(frame);
             var wallDef = TestBuildingDef("blastWall");
             wallDef.building.isWall = true;
             wallDef.useHitPoints = wallDef.destroyable = true;
@@ -295,8 +287,8 @@ internal static partial class Program
             var floor = (TerrainDef)Raw(typeof(TerrainDef));
             floor.isFoundation = true;
             floor.tags = new List<string> { "Substructure" };
-            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(center)] = floor;
-            SubstructureOwnership.BumpStructureVersion(map);
+            SetEngagementFoundation(map, CellRect.SingleCell(center), floor);
+
             try
             {
                 var from = new Vector2(2.5f, 5.5f);
@@ -325,10 +317,7 @@ internal static partial class Program
             }
             finally
             {
-                universe.objects.Remove(frame);
-                Find.Maps.Remove(map);
-                Set(universe, "objectById", null);
-                Set(universe, "objectByMap", null);
+                RemoveEngagementMap(universe, frame);
             }
         }
         CheckUraniumPenetration(universe, faction);
@@ -340,8 +329,6 @@ internal static partial class Program
         remove.Invoke(null, new object[] { effect });
         remove.Invoke(null, new object[] { deckEffect });
         SpaceImpactEffects.ResetCache();
-        SpaceCollision.ClearCaches();
-        ShipRegistry.ClearCaches();
     }
 
     static void CheckUraniumPenetration(UniverseManager universe, Faction faction)
@@ -376,7 +363,7 @@ internal static partial class Program
         var flank = (BattleBuilding)AddTestBuilding(map, faction, 159294, def, new CompPowerTransmitter(), new BattleBuilding());
         MoveCombatFixture(flank, new IntVec3(4, 0, 6));
         flank.HitPoints = 300;
-        SubstructureOwnership.BumpStructureVersion(map);
+
         try
         {
             float speed = SpaceKinetics.LaunchSpeed(48, 72f);
@@ -399,8 +386,7 @@ internal static partial class Program
         }
         finally
         {
-            universe.UnregisterObject(frame);
-            Find.Maps.Remove(map);
+            RemoveEngagementMap(universe, frame);
             AccessTools.Method(typeof(DefDatabase<SpaceImpactEffectDef>), "Remove").Invoke(null, new object[] { effect });
             SpaceImpactEffects.ResetCache();
         }
@@ -420,14 +406,11 @@ internal static partial class Program
         var map = TestMap(159279, 32);
         map.roofGrid = new RoofGrid(map);
         map.edificeGrid = new EdificeGrid(map);
-        var vacuum = (TerrainDef)Raw(typeof(TerrainDef));
-        vacuum.exposesToVacuum = true;
-        Array.Fill(map.terrainGrid.topGrid, vacuum);
+        SetEngagementVacuum(map);
         var deck = (TerrainDef)Raw(typeof(TerrainDef));
         deck.isFoundation = true;
         deck.tags = new List<string> { "Substructure" };
         var cells = new CellRect(9, 12, 12, 7).Cells.ToArray();
-        var indices = cells.Select(map.cellIndices.CellToIndex).ToArray();
         var frame = new MapSpaceObject(159278, map, new SpacePose(Vector3.forward, 0));
         universe.RegisterObject(frame);
         var guns = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml").Root.Elements("ThingDef");
@@ -481,8 +464,8 @@ internal static partial class Program
                         float offset = moving ? .5f * ((i % 13 - 6f) * .55f) * flight * flight : 0f;
                         float lane = 15.5f - offset;
                         if (lane < 12 || lane >= 19) continue;
-                        foreach (int index in indices) map.terrainGrid.foundationGrid[index] = deck;
-                        SubstructureOwnership.BumpStructureVersion(map);
+                        SetEngagementFoundation(map, cells, deck);
+
                         var from = new Vector2(2.5f, lane);
                         Vector3 start = SpaceTransform.MapPointToUniverse(frame, map, from);
                         var attacker = new SpaceObject(159277, new SpacePose(start, 0));
@@ -496,7 +479,7 @@ internal static partial class Program
                         try { SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot }); }
                         finally { Rand.PopState(); }
                         if (shot.resolvedHit) contacts++;
-                        var holes = cells.Where((_, index) => map.terrainGrid.foundationGrid[indices[index]] == null).ToArray();
+                        var holes = cells.Where(cell => !SubstructureOwnership.HasFoundation(map, cell)).ToArray();
                         destroyed += holes.Length;
                         if (holes.Length > 0)
                         {
@@ -521,8 +504,7 @@ internal static partial class Program
         }
         finally
         {
-            universe.UnregisterObject(frame);
-            Find.Maps.Remove(map);
+            RemoveEngagementMap(universe, frame);
             AccessTools.Method(typeof(DefDatabase<SpaceImpactEffectDef>), "Remove").Invoke(null, new object[] { penetration });
             SpaceImpactEffects.ResetCache();
         }
@@ -539,20 +521,15 @@ internal static partial class Program
             Map map = TestMap(id++, 10);
             map.damageWatcher = (DamageWatcher)Raw(typeof(DamageWatcher));
             map.roofGrid = new RoofGrid(map);
-            var vacuum = (TerrainDef)Raw(typeof(TerrainDef));
-            vacuum.exposesToVacuum = true;
-            Array.Fill(map.terrainGrid.topGrid, vacuum);
+            SetEngagementVacuum(map);
             var floor = (TerrainDef)Raw(typeof(TerrainDef));
             floor.isFoundation = true;
             floor.tags = new List<string> { "Substructure" };
             var floorCell = sameCell ? new IntVec3(4, 0, 5) : new IntVec3(4, 0, 3);
             var wallCell = sameCell ? floorCell : new IntVec3(5, 0, 5);
-            int floorIndex = map.cellIndices.CellToIndex(floorCell);
-            map.terrainGrid.foundationGrid[floorIndex] = floor;
+            SetEngagementFoundation(map, CellRect.SingleCell(floorCell), floor);
             var frame = new MapSpaceObject(id++, map, new SpacePose(Vector3.forward, 0));
-            universe.objects.Add(frame);
-            Set(universe, "objectById", null);
-            Set(universe, "objectByMap", null);
+            universe.RegisterObject(frame);
             var wallDef = TestBuildingDef("orderedContactWall");
             wallDef.building.isWall = true;
             wallDef.passability = Traversability.Impassable;
@@ -573,14 +550,14 @@ internal static partial class Program
             DefDatabase<SpaceImpactEffectDef>.Add(buildingEffect);
             DefDatabase<SpaceImpactEffectDef>.Add(floorEffect);
             SpaceImpactEffects.ResetCache();
-            SubstructureOwnership.BumpStructureVersion(map);
+
             try
             {
                 var forecast = new CombatDamageForecast(frame);
                 Vector2 from = new Vector2(2.4f, 5.2f);
                 var prediction = forecast.Fire(from, Vector2.right, 5, round, 1, 60, coverSample: .37f);
                 var deckLoss = (HashSet<IntVec3>)AccessTools.Field(typeof(CombatDamageForecast), "brokenFoundation").GetValue(forecast);
-                Check(deckLoss.Contains(floorCell) == expectFloor && map.terrainGrid.foundationGrid[floorIndex] == floor,
+                Check(deckLoss.Contains(floorCell) == expectFloor && SubstructureOwnership.FoundationAt(map, floorCell) == floor,
                     $"forecast resolves the ordered layers without changing the map (same cell: {sameCell}, deck hit: {floorHit})");
                 Vector3 start = SpaceTransform.MapPointToUniverse(frame, map, from);
                 var shot = new SpaceCollision.SweptBody
@@ -590,12 +567,12 @@ internal static partial class Program
                     projectileDef = round, mass = 1, damageScale = 1, sweepRadius = 1.3f
                 };
                 SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { shot });
-                Check((map.terrainGrid.foundationGrid[floorIndex] == null) == expectFloor,
+                Check((!SubstructureOwnership.HasFoundation(map, floorCell)) == expectFloor,
                     $"real sweep agrees with the forecast about the deck (same cell: {sameCell}, deck hit: {floorHit})");
                 Check(wall.Destroyed == (sameCell || !expectFloor) && shot.resolvedHitCell == (expectFloor ? floorCell : wallCell),
                     "earlier bare deck is resolved before the rear wall; a missed deck lets the wall resolve next");
                 if (sameCell)
-                    Check(Math.Abs(shot.damageScale - 1f / 6f) < .001f && prediction.contacts == 2,
+                    Check(Math.Abs(shot.energyFraction - 1f / 6f) < .001f && prediction.contacts == 2,
                         "building and confirmed same-cell deck each consume one layer of the penetration budget");
             }
             finally
@@ -604,12 +581,7 @@ internal static partial class Program
                 remove.Invoke(null, new object[] { buildingEffect });
                 remove.Invoke(null, new object[] { floorEffect });
                 SpaceImpactEffects.ResetCache();
-                universe.objects.Remove(frame);
-                Find.Maps.Remove(map);
-                Set(universe, "objectById", null);
-                Set(universe, "objectByMap", null);
-                SpaceCollision.ClearCaches();
-                ShipRegistry.ClearCaches();
+                RemoveEngagementMap(universe, frame);
             }
         }
     }
@@ -617,14 +589,13 @@ internal static partial class Program
     static void CheckForecastFoundationBatch(UniverseManager universe)
     {
         var map = TestMap(159000, 9); map.roofGrid = new RoofGrid(map);
-        var vacuum = (TerrainDef)Raw(typeof(TerrainDef)); vacuum.exposesToVacuum = true;
-        Array.Fill(map.terrainGrid.topGrid, vacuum);
+        SetEngagementVacuum(map);
         var foundation = (TerrainDef)Raw(typeof(TerrainDef));
         foundation.isFoundation = true; foundation.tags = new List<string> { "Substructure" };
-        var cell = new IntVec3(4, 0, 4); int index = map.cellIndices.CellToIndex(cell);
-        map.terrainGrid.foundationGrid[index] = foundation;
+        var cell = new IntVec3(4, 0, 4);
+        SetEngagementFoundation(map, CellRect.SingleCell(cell), foundation);
         var frame = new MapSpaceObject(159001, map, new SpacePose(Vector3.forward, 0));
-        universe.objects.Add(frame); Set(universe, "objectById", null); Set(universe, "objectByMap", null);
+        universe.RegisterObject(frame);
         var projectile = TestBuildingDef("foundationProbabilityBeam");
         projectile.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, laserRange = 10, speed = 60 });
         DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef { defName = "FoundationProbabilityImpact",
@@ -632,7 +603,7 @@ internal static partial class Program
             attackerEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DestroySelf },
             defenderEffect = new ImpactOutcomePart { kind = ImpactEffectKind.DamageMap, damage = 30,
                 substructureBreakThreshold = 60, incidenceMinFactor = 1 } });
-        SpaceImpactEffects.ResetCache(); SubstructureOwnership.BumpStructureVersion();
+        SpaceImpactEffects.ResetCache();
         var observation = new CombatDamageForecast.Observation(frame);
         var broken = AccessTools.Field(typeof(CombatDamageForecast), "brokenFoundation");
         int predicted = 0, actual = 0;
@@ -642,13 +613,13 @@ internal static partial class Program
         {
             for (int i = 0; i < samples; i++)
             {
-                map.terrainGrid.foundationGrid[index] = foundation;
-                SubstructureOwnership.BumpStructureVersion();
+                SetEngagementFoundation(map, CellRect.SingleCell(cell), foundation);
+
                 var forecast = new CombatDamageForecast(observation);
                 forecast.Fire(new Vector2(2.5f, 4.5f), Vector2.right, 4, projectile, 1, 60,
                     coverSample: (i + .5f) / samples);
                 if (((HashSet<IntVec3>)broken.GetValue(forecast)).Contains(cell)) predicted++;
-                if (map.terrainGrid.foundationGrid[index] != foundation)
+                if (SubstructureOwnership.FoundationAt(map, cell) != foundation)
                     throw new Exception("forecast wrote the native foundation grid");
                 Vector3 from = SpaceTransform.MapPointToUniverse(frame, map, new Vector2(2.5f, 4.5f));
                 var body = new SpaceCollision.SweptBody { attacker = new SpaceObject(159002, new SpacePose(from, 0)),
@@ -656,7 +627,7 @@ internal static partial class Program
                     projectileDef = projectile, mass = 1, damageScale = 1,
                     sweepRadius = SpaceProjectileService.FootprintRadius(projectile) };
                 SpaceCollision.SweepAndResolve(universe, new List<SpaceCollision.SweptBody> { body });
-                if (map.terrainGrid.foundationGrid[index] == null) actual++;
+                if (!SubstructureOwnership.HasFoundation(map, cell)) actual++;
                 foreach (var action in Actions(universe)?.ToArray() ?? Array.Empty<Action>()) { Actions(universe).Remove(action); action(); }
             }
             Check(Math.Abs(predicted / (float)samples - .25f) < .04f
@@ -665,9 +636,7 @@ internal static partial class Program
         }
         finally
         {
-            Rand.PopState(); universe.objects.Remove(frame); Find.Maps.Remove(map);
-            Set(universe, "objectById", null); Set(universe, "objectByMap", null);
-            SpaceCollision.ClearCaches(); ShipRegistry.ClearCaches();
+            Rand.PopState(); RemoveEngagementMap(universe, frame);
         }
     }
 
@@ -696,25 +665,16 @@ internal static partial class Program
             item.body.faction = item.faction;
             item.body.map.damageWatcher = (DamageWatcher)Raw(typeof(DamageWatcher));
             item.body.map.roofGrid = new RoofGrid(item.body.map);
-            var vacuum = (TerrainDef)Raw(typeof(TerrainDef)); vacuum.exposesToVacuum = true;
-            Array.Fill(item.body.map.terrainGrid.topGrid, vacuum);
+            SetEngagementVacuum(item.body.map);
             item.body.map.lordManager = (LordManager)Raw(typeof(LordManager));
             item.body.map.lordManager.lords = new List<Lord>();
             var console = new CompDeltaVPilotConsole { isMain = true, shipId = id };
             Add(item.body.map, item.faction, new IntVec3(10, 0, 10), ThingDefOf.PilotConsole, 300, console);
-            var hull = new CombatHull(console.Ship);
+            SetEngagementFoundation(item.body.map, new CellRect(4, 4, 13, 13), EngagementFoundation(), console.shipId);
+            ShipBase hull = console.Vessel;
             hull.Combat.weaponsArmed = true;
-            var foundation = (TerrainDef)Raw(typeof(TerrainDef));
-            foundation.tags = new List<string> { "Substructure" }; foundation.isFoundation = true;
-            var owners = new int[item.body.map.cellIndices.NumGridCells];
-            Set(SubstructureOwnership.TryGet(item.body.map), "ownerGrid", owners);
-            for (int x = 4; x <= 16; x++) for (int z = 4; z <= 16; z++)
-            {
-                var cell = new IntVec3(x, 0, z); hull.cells.Add(cell);
-                int index = item.body.map.cellIndices.CellToIndex(cell);
-                item.body.map.terrainGrid.foundationGrid[index] = foundation; owners[index] = console.shipId;
-            }
-            item.body.member = hull; universe.objects.Add(item.body);
+            item.body.member = hull;
+            universe.RegisterObject(item.body);
             var gun = new CompSpaceWeapon { props = new CompProperties_SpaceWeapon {
                 projectileDef = laser, range = 120, intrinsicAimSkill = 20, topTurret = true,
                 cooldownTicks = 90, impactScale = item.body == own ? 4 : .25f }, safeFire = false };
@@ -733,7 +693,7 @@ internal static partial class Program
             var def = TestBuildingDef("battleArmor" + id); def.fillPercent = 1; def.passability = Traversability.Impassable;
             Add(target.map, enemy, new IntVec3(x, 0, z), def, thin ? 48 : 180, new EmptyComp());
         }
-        SubstructureOwnership.BumpStructureVersion(); Set(universe, "objectById", null); Set(universe, "objectByMap", null);
+
         var strategy = universe.Controls.For(own.member).FireControl.Strategy(own.member);
         var rule = strategy.BuiltInManeuver; rule.tactic.distance = 100;
         if (!automatic) { rule.tactic.bearing = CombatBearing.World; rule.tactic.bearingDegrees = 90; }
@@ -789,9 +749,11 @@ internal static partial class Program
         var result = new { seed, mirrored, automatic, ticks, ownShots, enemyShots, outgoing, incoming, firstHit, firstLoss, enemyDisarmedTick, rangeTicks, weakTicks, timeline,
             ownAlive = own.member.IsValid, targetAlive = target.member.IsValid,
             destroyedOwn = buildings.Count(b => b.own && b.thing.Destroyed), destroyedEnemy = buildings.Count(b => !b.own && b.thing.Destroyed) };
-        universe.Autopilot.Cancel(subject); universe.Controls.Reset(); universe.objects.Clear(); Find.Maps.Clear();
-        ShipRegistry.ClearCaches(); ShipPhysics.ClearCache(); SpaceCollision.ClearCaches();
-        Set(universe, "objectById", null); Set(universe, "objectByMap", null);
+        universe.Autopilot.Cancel(subject);
+        RemoveEngagementMap(universe, own);
+        RemoveEngagementMap(universe, target);
+        universe.Controls.Reset();
+
         return (result, enemyDisarmedTick, incoming, result.ownAlive);
     }
 }

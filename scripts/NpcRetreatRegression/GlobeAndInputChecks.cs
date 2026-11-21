@@ -124,31 +124,39 @@ internal static partial class Program
         Check(first.area == 2 && first.wreck && first.cells.Count == 2,
             "loaded maps share terrain de-duplication and actual wreck classification");
         Check(ReferenceEquals(first, display.Entries(mapped).Single()), "unchanged map display reads reuse the measured entry");
-        map.terrainGrid.topGrid[1] = space;
-        SubstructureOwnership.BumpStructureVersion();
+        void ChangeTerrain(IntVec3 cell, TerrainDef terrain)
+        {
+            int index = map.cellIndices.CellToIndex(cell);
+            TerrainDef former = map.terrainGrid.topGrid[index];
+            map.terrainGrid.topGrid[index] = terrain;
+            universe.ShipStructure.NotifyTerrain(map, cell);
+            universe.ShipStructure.NotifyCell(map, cell, ShipStructureAspect.Terrain, former, terrain);
+        }
+        ChangeTerrain(map.cellIndices.IndexToCell(1), space);
         var damaged = display.Entries(mapped).Single();
         Check(damaged.area == 1 && !ReferenceEquals(first, damaged), "structural damage invalidates actual footprint and projection source together");
         var collisionHarness = new HarmonyLib.Harmony("DeltaV.Regression.GlobeArchiveCollision");
         collisionHarness.Patch(HarmonyLib.AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
             prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(GlobeSubstructure)));
         GlobeDisplaySummary captured;
-        try { captured = display.Capture(mapped); }
+        try
+        {
+            universe.NotifyFoundationChanged(map, IntVec3.Zero);
+            universe.ShipStructure.NotifyCell(map, IntVec3.Zero, ShipStructureAspect.Foundation, null, deck);
+            captured = display.Capture(mapped);
+        }
         finally { collisionHarness.UnpatchAll(collisionHarness.Id); }
         Check(captured.area == 1 && captured.wreck && captured.navigationRadius > 0f,
             "archive capture retains damaged display area and the live collision clearance");
         var mineable = AddTestBuilding(map, null, 2372, asteroidRock, new CompDeltaVPilotConsole(),
             (Mineable)Raw(typeof(Mineable)));
-        SubstructureOwnership.BumpStructureVersion(map);
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(map);
         Check(display.Entries(mapped).Single().area == 2 && display.Entries(mapped).Single().natural,
             "a live rock above Space adds a natural environment cell");
-        map.terrainGrid.topGrid[map.cellIndices.CellToIndex(mineable.Position)] = deck;
-        SubstructureOwnership.BumpStructureVersion(map);
+        ChangeTerrain(mineable.Position, deck);
         Check(display.Entries(mapped).Single().area == 2, "live rock and terrain beneath it count as one cell");
-        map.terrainGrid.topGrid[map.cellIndices.CellToIndex(mineable.Position)] = space;
-        map.thingGrid.Deregister(mineable);
-        map.listerThings.AllThings.Remove(mineable);
-        map.listerThings.ThingsOfDef(asteroidRock).Remove(mineable);
-        SubstructureOwnership.BumpStructureVersion(map);
+        ChangeTerrain(mineable.Position, space);
+        RemoveFixtureBuilding(mineable, map);
         var holder = new GlobePawnHolder(map);
         map.components.Add(holder);
         var pawn = (Pawn)Raw(typeof(Pawn));
@@ -164,10 +172,60 @@ internal static partial class Program
         Check(display.Entries(mapped).Single().wreck, "removing the last contained pawn refreshes wreck status without a terrain rescan");
         var backup = new CompDeltaVPilotConsole { isMain = false };
         var console = AddTestBuilding(map, null, 2371, consoleDef, backup);
-        SubstructureOwnership.BumpStructureVersion();
+        Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         Check(!display.Entries(mapped).Single().wreck, "a backup console alone prevents a loaded map from being labelled a wreck");
-        map.listerThings.AllThings.Remove(console);
-        SubstructureOwnership.BumpStructureVersion();
+        RemoveFixtureBuilding(console, map);
+        var shuttleA = new CompSpaceShuttle { props = new CompProperties_SpaceShuttle() };
+        var twoCellHull = TestBuildingDef("GlobeTwoCellShuttle");
+        twoCellHull.size = new IntVec2(2, 1);
+        AddTestBuilding(map, null, 2373, twoCellHull, shuttleA);
+        var shuttleB = AddTestHull(map, null, 2374);
+        var secondCell = new IntVec3(3, 0, 3);
+        RemoveFixtureBuilding((Building)shuttleB.parent, map);
+        Set(typeof(Thing), shuttleB.parent, "positionInt", secondCell);
+        PlaceFixtureBuilding((Building)shuttleB.parent, map);
+        var beforeLocal = display.Entries(mapped).ToArray();
+        ChangeTerrain(shuttleA.parent.OccupiedRect().First(), deck);
+        var afterLocal = display.Entries(mapped).ToArray();
+        GlobeDisplayEntry Member(GlobeDisplayEntry[] entries, int id) => entries.Single(entry => entry.ship?.key == id);
+        Check(afterLocal.Length == 3 && Member(beforeLocal, 2373).area == 2 && Member(afterLocal, 2373).area == 1
+            && !ReferenceEquals(Member(beforeLocal, 2373), Member(afterLocal, 2373))
+            && ReferenceEquals(Member(beforeLocal, 2374), Member(afterLocal, 2374))
+            && ReferenceEquals(beforeLocal.Single(entry => !entry.craft), afterLocal.Single(entry => !entry.craft)),
+            "one shuttle changes its displayed area while the other shuttle and environment keep their projection");
+        var piece = new IntVec3(3, 0, 2);
+        ChangeTerrain(piece, rock);
+        var afterEnvironment = display.Entries(mapped).ToArray();
+        Check(afterEnvironment.Where(entry => entry.craft).SequenceEqual(afterLocal.Where(entry => entry.craft))
+            && afterEnvironment.Single(entry => !entry.craft).area == 2
+            && !ReferenceEquals(afterEnvironment.Single(entry => !entry.craft), afterLocal.Single(entry => !entry.craft)),
+            "a local environment change updates its own area and preserves both ship projections");
+        var cacheType = typeof(PlanetGlobeRenderer);
+        var silhouetteCache = (System.Collections.IDictionary)cacheType
+            .GetField("SilhouetteCache", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+        var byShip = (System.Collections.IDictionary)Activator.CreateInstance(silhouetteCache.GetType().GetGenericArguments()[1]);
+        var cachedSilhouette = cacheType.GetNestedType("CachedSilhouette", BindingFlags.NonPublic);
+        var firstShip = new DriveSubject(0, 2373, true);
+        var secondShip = new DriveSubject(0, 2374, true);
+        foreach (DriveSubject key in new[] { firstShip, secondShip, default(DriveSubject) })
+            byShip.Add(key, Activator.CreateInstance(cachedSilhouette, nonPublic: true));
+        silhouetteCache.Add(map, byShip);
+
+        RemoveFixtureBuilding((Building)shuttleB.parent, map);
+        var afterRemoval = display.Entries(mapped).ToArray();
+        Check(!byShip.Contains(secondShip) && byShip.Contains(firstShip) && byShip.Contains(default(DriveSubject))
+            && ReferenceEquals(Member(afterEnvironment, 2373), Member(afterRemoval, 2373)),
+            "removing a ship releases its texture cache entry and retains the other ship and environment");
+        foreach (IntVec3 cell in afterRemoval.Single(entry => !entry.craft).cells)
+        {
+            map.terrainGrid.foundationGrid[map.cellIndices.CellToIndex(cell)] = null;
+            ChangeTerrain(cell, space);
+        }
+        Check(display.Entries(mapped).Single().craft && byShip.Contains(firstShip) && !byShip.Contains(default(DriveSubject)),
+            "losing the last environment cell releases only the environment texture cache entry");
+        RemoveFixtureBuilding((Building)shuttleA.parent, map);
+        _ = display.Entries(mapped).ToArray();
+        Check(!silhouetteCache.Contains(map), "releasing the last texture entry removes the empty map cache");
         display.Forget(map);
         Check(!ReferenceEquals(damaged, display.Entries(mapped).Single()), "map deletion/representation cleanup discards display caches");
         Find.Maps.Remove(map);

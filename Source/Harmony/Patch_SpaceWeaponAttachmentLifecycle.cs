@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Collections.Generic;
 using HarmonyLib;
 using Verse;
@@ -13,7 +14,7 @@ namespace DeltaV
             __state = null;
             CompSpaceWeapon weapon = __instance.TryGetComp<CompSpaceWeapon>();
             if (weapon != null && __instance.Spawned)
-                __state = new List<ThingWithComps>(weapon.AttachedThings());
+                __state = weapon.AttachedThings().Where(attachment => attachment.TryGetComp<CompSpaceWeaponAttachment>()?.AttachmentProps.external != true).ToList();
             CompSpaceRailgun rail = __instance.TryGetComp<CompSpaceRailgun>();
             if (rail != null && __instance.Spawned)
                 __state = new List<ThingWithComps>(rail.AttachedThings());

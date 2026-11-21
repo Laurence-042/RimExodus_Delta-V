@@ -185,7 +185,7 @@ internal static partial class Program
             var equal=new[]{Wall(12,9,50,99101),Wall(14,9,50,99102)};
             var mixed=new[]{Wall(12,11,30,99103),Wall(14,11,70,99104)};
             var thin=new[]{Wall(12,15,10,99105),Wall(14,15,10,99106),Wall(16,15,10,99107),Wall(18,15,10,99108)};
-            SubstructureOwnership.BumpStructureVersion();
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
             var reference = new CombatDamageForecast(defender);
             void Compare(string name, ThingDef projectile, int count, Building[] walls)
             {
@@ -282,7 +282,7 @@ internal static partial class Program
                     });
                 SpaceImpactEffects.ResetCache();
                 SpaceCollision.ClearCaches();
-                SubstructureOwnership.BumpStructureVersion();
+                Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
                 var shared=new CombatDamageForecast(defender);
                 float[] paid=new float[3];
                 var shield = projector.GetComp<CompSpaceShield>();
@@ -400,7 +400,7 @@ internal static partial class Program
             var state = settings[scenario];
             var own = Ship(100000,player,new SpacePose(OrbitSphere.Move(Vector3.forward,state.Item1),state.Item2),false);
             var foe = Ship(200000,enemy,new SpacePose(Vector3.forward,state.Item3),scenario==3);
-            SubstructureOwnership.BumpStructureVersion();
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
             Set(universe,"objectById",null); Set(universe,"objectByMap",null);
             universe.Controls.For(own.member); universe.Controls.For(foe.member);
             return (own,foe);
@@ -453,46 +453,24 @@ internal static partial class Program
             MoveCombatFixture(console.parent,new IntVec3(width/2,0,width/2));
             SetStaticFixtureHealth(console.parent,150);
             console.Vessel.Combat.weaponsArmed=true;
-            var foundation=(TerrainDef)Raw(typeof(TerrainDef));
-            foundation.tags=new List<string>{"Substructure"}; foundation.isFoundation=true;
-            var owners=new int[map.cellIndices.NumGridCells]; Set(SubstructureOwnership.TryGet(map),"ownerGrid",owners);
-            foreach (var original in foundations)
-            {
-                if (damaged && original.x<10 && original.z>30) continue;
-                var cell=original+translation;
-                int i=map.cellIndices.CellToIndex(cell);
-                map.terrainGrid.foundationGrid[i]=foundation; owners[i]=console.shipId;
-            }
+            var foundation = FixtureFoundation("engagementMothershipDeck");
+            using (universe.ShipStructure.BeginChanges())
+                foreach (var cell in foundations)
+                    if (!damaged || cell.x >= 10 || cell.z <= 30)
+                        SetFixtureFoundation(map, cell + translation, foundation, console.shipId);
             var battery=new CompPowerBattery(); Set(battery,"storedEnergy",1_000_000f);
             var net=(PowerNet)Raw(typeof(PowerNet)); net.batteryComps=new List<CompPowerBattery>{battery};
             foreach (var mount in mounts)
             {
                 if (damaged && mount.Cell.x<10 && mount.Cell.z>30) continue;
                 var def=Def(mount.Def);
-                var place=new Building { def=def, thingIDNumber=id+100+mount.Index, Rotation=mount.Facing };
-                Set(typeof(Thing),place,"positionInt",mount.Cell+translation);
-                Set(typeof(Thing),place,"factionInt",faction);
+                var place = CreateFixtureBuilding(def, id + 100 + mount.Index, mount.Cell + translation, mount.Facing, faction);
                 SetStaticFixtureHealth(place,mount.Hp);
-                var components=new List<ThingComp>();
                 var power=new CompPowerTrader { transNet=net }; Set(power,"powerOnInt",true);
-                components.Add(power);
-                foreach (CompProperties prop in def.comps)
-                {
-                    var instance=(ThingComp)Activator.CreateInstance(prop.compClass);
-                    instance.props=prop;
-                    if (instance is CompSpaceWeapon weapon)
-                    {
-                        var wp=(CompProperties_SpaceWeapon)prop;
-                        weapon.aimMode=wp.pointDefenseOnly?SpaceWeaponAimMode.PointDefense:wp.aimMode;
-                        weapon.fireDeviationDeg=wp.defaultFireDeviationDeg;
-                    }
-                    // Magazines are represented by a fixed supply of their actual projectile.
-                    if (instance is CompSpaceWeaponMagazine) continue;
-                    components.Add(instance);
-                }
-                foreach(var c in components) c.parent=place;
-                Set(typeof(ThingWithComps),place,"comps",components);
-                PlaceFixtureBuilding(place,map,notify:false);
+                AddFixtureComponents(place, power);
+                // These engagement samples provide the input projectile directly.
+                if (place.TryGetComp<CompSpaceWeaponMagazine>() is { } magazine) RemoveFixtureComponent(place, magazine);
+                PlaceFixtureBuilding(place, map);
                 if (place.Position!=mount.Cell+translation || !place.Rotation.Equals(mount.Facing))
                     throw new InvalidOperationException($"Fixture changed a prefab mount: {mount.Def} at {mount.Cell}.");
             }

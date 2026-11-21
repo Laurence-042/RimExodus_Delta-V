@@ -30,130 +30,24 @@ namespace DeltaV
     {
         public const int Unassigned = 0;
 
-        /// <summary>
-        /// 全局枚举的变化通知；单图派生数据必须使用 StructureVersion(map)。
-        /// </summary>
-        public static int GlobalStructureVersion => Versions?.GlobalVersion ?? 0;
-
-        private static StructureVersions Versions => Current.Game?.GetComponent<UniverseManager>()?.Structures;
-
-        public static void BumpStructureVersion()
-        {
-            Versions?.InvalidateAll();
-        }
-
-        public static void BumpStructureVersion(Map map) => Versions?.Changed(map);
-        internal static void BumpStructureVersion(Map map, CellRect collisionRange) =>
-            Versions?.Changed(map, collisionRange);
-
-        internal static HashSet<IntVec3> TakeCollisionChanges(Map map, out bool full)
-        {
-            var versions = Versions;
-            if (versions != null) return versions.TakeCollisionChanges(map, out full);
-            full = true;
-            return null;
-        }
-        public static int StructureVersion(Map map) => Versions?.For(map) ?? 0;
-        public static bool CacheNeedsRefresh(int cachedVersion, Map map) => cachedVersion != StructureVersion(map);
-
-        /// <summary>结构缓存失效条件：只认统一触发推进的版本，不再按时间重扫。</summary>
-        public static bool CacheNeedsRefresh(int cachedVersion) => cachedVersion != GlobalStructureVersion;
+        private static ShipStructureIndex Versions => Current.Game?.GetComponent<UniverseManager>()?.ShipStructure;
 
         private int[] ownerGrid;
 
-        [System.NonSerialized] private bool[] supportByCell;
-        [System.NonSerialized] private bool[] naturalGroundByCell;
-        [System.NonSerialized] private int supportCellCount;
-        [System.NonSerialized] private int naturalGroundCellCount;
-        [System.NonSerialized] private HashSet<Building> spawnedBuildings;
+        internal int SupportCellCount => ShipStructureIndex.Read(map)?.SupportCount ?? 0;
+        internal int SpawnedBuildingCount => ShipStructureIndex.Read(map)?.BuildingCount ?? 0;
+        internal IEnumerable<Building> SpawnedBuildings => ShipStructureIndex.Read(map)?.All.Buildings ?? Enumerable.Empty<Building>();
+        internal bool HasNaturalGround => ShipStructureIndex.Read(map)?.HasNaturalGround == true;
 
-        internal int SupportCellCount
-        {
-            get
-            {
-                EnsureMapSupportIndex();
-                return supportCellCount;
-            }
-        }
+        internal void UpdateSupportCell(IntVec3 cell) => Versions?.NotifyTerrain(map, cell);
 
-        internal int SpawnedBuildingCount
-        {
-            get
-            {
-                EnsureMapSupportIndex();
-                return spawnedBuildings.Count;
-            }
-        }
-
-        internal IReadOnlyCollection<Building> SpawnedBuildings
-        {
-            get
-            {
-                EnsureMapSupportIndex();
-                return spawnedBuildings;
-            }
-        }
-
-        private void EnsureMapSupportIndex()
-        {
-            if (supportByCell != null) return;
-            supportByCell = new bool[map.cellIndices.NumGridCells];
-            naturalGroundByCell = new bool[supportByCell.Length];
-            foreach (IntVec3 cell in map.AllCells)
-                UpdateSupportCell(cell);
-            // ListerBuildings excludes natural rock. The map's global Thing list includes it.
-            spawnedBuildings = new HashSet<Building>(map.listerThings.AllThings.OfType<Building>()
-                .Where(building => building.Spawned && building.Map == map));
-        }
-
-        internal void UpdateSupportCell(IntVec3 cell)
-        {
-            if (supportByCell == null || !cell.InBounds(map)) return;
-            int index = map.cellIndices.CellToIndex(cell);
-            bool supported = SupportsAt(map, cell);
-            if (supportByCell[index] != supported)
-            {
-                supportByCell[index] = supported;
-                supportCellCount += supported ? 1 : -1;
-            }
-            TerrainDef terrain = map.terrainGrid.BaseTerrainAt(cell);
-            bool natural = IsSupportTerrain(terrain) && terrain.natural && !terrain.isFoundation;
-            if (naturalGroundByCell[index] == natural) return;
-            naturalGroundByCell[index] = natural;
-            naturalGroundCellCount += natural ? 1 : -1;
-        }
-
-        internal void UpdateSpawnedBuilding(Building building)
-        {
-            if (spawnedBuildings == null) return;
-            if (building.Spawned && building.Map == map) spawnedBuildings.Add(building);
-            else spawnedBuildings.Remove(building);
-        }
-
-        internal void ClearMapSupportIndex()
-        {
-            supportByCell = null;
-            naturalGroundByCell = null;
-            supportCellCount = 0;
-            naturalGroundCellCount = 0;
-            spawnedBuildings = null;
-        }
+        internal void UpdateSpawnedBuilding(Building building) => Versions?.NotifyBuilding(map, building);
 
         internal static bool SupportsAt(Map map, IntVec3 cell) => HasFoundation(map, cell)
             || IsSupportTerrain(map.terrainGrid.TerrainAt(cell));
 
-        private static bool IsSupportTerrain(TerrainDef terrain) =>
+        internal static bool IsSupportTerrain(TerrainDef terrain) =>
             terrain != null && terrain != TerrainDefOf.Space && terrain != DeltaVDefOf.DeltaV_Void;
-
-        /// <summary>底层天然地面，忽略船上地板、基架及临时通道。</summary>
-        internal bool HasNaturalGround
-        {
-            get
-            {
-                EnsureMapSupportIndex();
-                return naturalGroundCellCount != 0;
-            }
-        }
 
         [System.NonSerialized] private Dictionary<IntVec3, int> pendingStamp;
 
@@ -180,7 +74,6 @@ namespace DeltaV
             Scribe_Collections.Look(ref sparse, "owners", LookMode.Value, LookMode.Value);
             if (Scribe.mode == LoadSaveMode.LoadingVars)
             {
-                ClearMapSupportIndex();
                 Current.Game?.GetComponent<UniverseManager>()?.ForgetFoundationTopology(map);
                 ownerGrid = new int[map.cellIndices.NumGridCells];
                 if (sparse != null)
@@ -193,7 +86,6 @@ namespace DeltaV
                         }
                     }
                 }
-                BumpStructureVersion(map);
             }
         }
 
@@ -213,6 +105,12 @@ namespace DeltaV
         public static IEnumerable<IntVec3> CellsOnMap(Map map)
         {
             if (map == null || map.Disposed) yield break;
+            if (Current.Game?.GetComponent<UniverseManager>()?.FoundationTopology.OwnerCells(map) is { } owners)
+            {
+                foreach (var cells in owners.Values)
+                    foreach (IntVec3 cell in cells) yield return cell;
+                yield break;
+            }
             foreach (IntVec3 cell in CellRect.WholeMap(map))
                 if (HasFoundation(map, cell)) yield return cell;
         }
@@ -239,88 +137,28 @@ namespace DeltaV
             return index >= 0 && index < ownerGrid.Length ? ownerGrid[index] : Unassigned;
         }
 
-        /// <summary>图中现存基架格的归属 ID 并集（升序；「修改基架归属」命令的候选列表）。</summary>
-        public List<int> OwnersOnMap()
-        {
-            var owners = new HashSet<int>();
-            if (ownerGrid != null)
-            {
-                foreach (IntVec3 cell in CellsOnMap(map))
-                {
-                    if (ownerGrid[map.cellIndices.CellToIndex(cell)] != Unassigned)
-                    {
-                        owners.Add(ownerGrid[map.cellIndices.CellToIndex(cell)]);
-                    }
-                }
-            }
-            var sorted = new List<int>(owners);
-            sorted.Sort();
-            return sorted;
-        }
+        private IReadOnlyDictionary<int, HashSet<IntVec3>> IndexedOwners =>
+            Current.Game?.GetComponent<UniverseManager>()?.FoundationTopology.OwnerCells(map);
 
-        /// <summary>归属 ownerId 的基架格（剪影扫描口径；地形与归属双重过滤）。</summary>
-        public List<IntVec3> CellsOwnedBy(int ownerId)
-        {
-            var cells = new List<IntVec3>();
-            if (ownerId == Unassigned || ownerGrid == null)
-            {
-                return cells;
-            }
-            foreach (IntVec3 cell in CellsOnMap(map))
-            {
-                if (ownerGrid[map.cellIndices.CellToIndex(cell)] == ownerId)
-                {
-                    cells.Add(cell);
-                }
-            }
-            return cells;
-        }
+        public List<int> OwnersOnMap() => IndexedOwners?.Keys.Where(owner => owner != Unassigned).OrderBy(owner => owner).ToList()
+            ?? new List<int>();
 
-        /// <summary>是否存在归属已指派的基架格（迁移前的快速探测）。</summary>
-        public bool HasAssignedSubstructure()
-        {
-            if (ownerGrid == null)
-            {
-                return false;
-            }
-            foreach (IntVec3 cell in CellsOnMap(map))
-            {
-                if (ownerGrid[map.cellIndices.CellToIndex(cell)] != Unassigned)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
+        public List<IntVec3> CellsOwnedBy(int ownerId) => ownerId != Unassigned
+            && IndexedOwners?.TryGetValue(ownerId, out var cells) == true ? cells.ToList() : new List<IntVec3>();
 
-        /// <summary>图上是否存在任何基架格。</summary>
-        public bool HasAnySubstructure() => CellsOnMap(map).Any();
+        public bool HasAssignedSubstructure() => IndexedOwners?.Keys.Any(owner => owner != Unassigned) == true;
+        public bool HasAnySubstructure() => IndexedOwners?.Count > 0;
 
-        /// <summary>归属 ownerId 的基架格数。</summary>
-        public int CountCellsOwnedBy(int ownerId)
-        {
-            if (ownerGrid == null)
-            {
-                return 0;
-            }
-            int count = 0;
-            foreach (IntVec3 cell in CellsOnMap(map))
-            {
-                if (ownerGrid[map.cellIndices.CellToIndex(cell)] == ownerId)
-                {
-                    count++;
-                }
-            }
-            return count;
-        }
+        public int CountCellsOwnedBy(int ownerId) => IndexedOwners?.TryGetValue(ownerId, out var cells) == true ? cells.Count : 0;
 
         /// <summary>
         /// 整图基架改归 ownerId，返回格数。读档时地图尚未纳管；运行时修复须通知。
         /// </summary>
         public int ClaimAllSubstructure(int ownerId)
         {
+            using var changes = Versions?.BeginChanges();
             int count = 0;
-            foreach (IntVec3 cell in CellsOnMap(map))
+            foreach (IntVec3 cell in CellsOnMap(map).ToArray())
             {
                 Assign(cell, ownerId);
                 count++;
@@ -331,24 +169,9 @@ namespace DeltaV
         }
 
         /// <summary>图上现存基架的归属域清单（显示用：按 owner 分组的格子）。</summary>
-        public List<KeyValuePair<int, List<IntVec3>>> OwnerDomains()
-        {
-            var domains = new Dictionary<int, List<IntVec3>>();
-            if (ownerGrid != null)
-            {
-                foreach (IntVec3 cell in CellsOnMap(map))
-                {
-                    int owner = ownerGrid[map.cellIndices.CellToIndex(cell)];
-                    if (!domains.TryGetValue(owner, out List<IntVec3> cells))
-                    {
-                        cells = new List<IntVec3>();
-                        domains[owner] = cells;
-                    }
-                    cells.Add(cell);
-                }
-            }
-            return domains.ToList();
-        }
+        public List<KeyValuePair<int, List<IntVec3>>> OwnerDomains() => IndexedOwners?
+            .Select(pair => new KeyValuePair<int, List<IntVec3>>(pair.Key, pair.Value.ToList())).ToList()
+            ?? new List<KeyValuePair<int, List<IntVec3>>>();
 
         /// <summary>归属的显示色（HSV 黄金角散列；未占有 = 灰）。显示层统一取色入口。</summary>
         public static Color OwnerColor(int ownerId)
@@ -405,9 +228,12 @@ namespace DeltaV
             {
                 ownerGrid = new int[map.cellIndices.NumGridCells];
             }
-            ownerGrid[map.cellIndices.CellToIndex(cell)] = ownerId;
-            Current.Game?.GetComponent<UniverseManager>()?.NotifyFoundationChanged(map, cell);
-            BumpStructureVersion(map, CellRect.SingleCell(cell));
+            int index = map.cellIndices.CellToIndex(cell);
+            int before = ownerGrid[index];
+            ownerGrid[index] = ownerId;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            universe?.NotifyFoundationChanged(map, cell);
+            universe?.ShipStructure.NotifyCell(map, cell, ShipStructureAspect.Ownership, before, ownerId, before, ownerId);
         }
 
         /// <summary>图中已盖出的最大归属 ID（读档 ID 下限对齐用；无数据返回 0）。</summary>
@@ -434,6 +260,7 @@ namespace DeltaV
         /// </summary>
         public void SetOwner(IEnumerable<IntVec3> cells, int ownerId)
         {
+            using var changes = Versions?.BeginChanges();
             if (NotifyIfChanged(cells, ownerId))
             {
                 NotifyOwnershipChanged();
@@ -466,13 +293,28 @@ namespace DeltaV
         public void ClaimConnectedDomain(IntVec3 start, int ownerId)
         {
             if (ownerId <= 0 || !start.InBounds(map)) return;
-            var cells = new List<IntVec3>();
-            CollectConnected(map, start, cells, cell =>
+            var topology = Current.Game?.GetComponent<UniverseManager>()?.FoundationTopology;
+            if (topology == null) return;
+            var seen = new HashSet<HashSet<IntVec3>>();
+            var frontier = new Queue<IntVec3>();
+            var unowned = new List<IntVec3>();
+            frontier.Enqueue(start);
+            while (frontier.Count != 0)
             {
-                int current = OwnerAt(cell);
-                return current == ownerId || current == Unassigned;
-            });
-            SetOwner(cells, ownerId);
+                IntVec3 seed = frontier.Dequeue();
+                int owner = OwnerAt(seed);
+                if (owner != ownerId && owner != Unassigned) continue;
+                if (topology.DomainAt(map, seed) is not { } domain || !seen.Add(domain)) continue;
+                if (owner == Unassigned) unowned.AddRange(domain);
+                foreach (IntVec3 cell in domain)
+                    foreach (IntVec3 direction in GenAdj.CardinalDirectionsAround)
+                    {
+                        IntVec3 neighbor = cell + direction;
+                        if (!domain.Contains(neighbor) && neighbor.InBounds(map) && HasFoundation(map, neighbor))
+                            frontier.Enqueue(neighbor);
+                    }
+            }
+            SetOwner(unowned, ownerId);
         }
 
         /// <summary>
@@ -486,21 +328,11 @@ namespace DeltaV
             {
                 return;
             }
-            bool changed = false;
-            for (int i = 0; i < ownerGrid.Length; i++)
-            {
-                if (ownerGrid[i] == ownerId)
-                {
-                    ownerGrid[i] = Unassigned;
-                    Current.Game?.GetComponent<UniverseManager>()?.NotifyFoundationChanged(map, map.cellIndices.IndexToCell(i));
-                    changed = true;
-                }
-            }
-            if (changed)
-            {
-                BumpStructureVersion(map);
-                NotifyOwnershipChanged();
-            }
+            var cells = CellsOwnedBy(ownerId);
+            if (cells.Count == 0) return;
+            using var changes = Versions?.BeginChanges();
+            foreach (IntVec3 cell in cells) Assign(cell, Unassigned);
+            NotifyOwnershipChanged();
         }
 
         /// <summary>批写并返回是否有实际变化（不通知；建造钩子收尾统一通知）。</summary>
@@ -523,27 +355,21 @@ namespace DeltaV
             return changed;
         }
 
-        /// <summary>归属变化的通知收尾：全部引擎 dirty（含非玩家引擎）+ 星球仪剪影失效。</summary>
+        /// <summary>同步备用主台、原版引擎和动力网络。</summary>
         private void NotifyOwnershipChanged()
         {
             foreach (CompDeltaVPilotConsole console in ShipRegistry.ConsolesOnMap(map))
                 console.SyncBackupIdentity();
-            foreach (Thing thing in map.listerThings.ThingsOfDef(ThingDefOf.GravEngine))
-            {
-                if (thing is Building_GravEngine engine)
-                {
-                    engine.ForceSubstructureDirty();
-                }
-            }
-            PlanetGlobeRenderer.InvalidateSilhouette(map);
-            Current.Game?.GetComponent<UniverseManager>()?.Weapons.NotifyMissileOwnershipChanged(map);
-            Current.Game?.GetComponent<UniverseManager>()?.Controls.NotifyWeaponOwnershipChanged(map);
+            if (Versions?.For(map) is { } index)
+                foreach (Building_GravEngine engine in index.BuildingsOf<Building_GravEngine>())
+                    if (engine.def == ThingDefOf.GravEngine) engine.ForceSubstructureDirty();
+            Current.Game?.GetComponent<UniverseManager>()?.Weapons.QueuePower(map);
         }
 
         /// <summary>
         /// 基架移除同步（RemoveFoundation / RemoveGravshipTerrainUnsafe postfix 的唯一
-        /// 落点）：该格归属清为 Unassigned + 版本 bump（域缓存/碰撞面/月池即时失效）
-        /// + 引擎/剪影通知。邻接不重解：移除不产生新归属，断连由读取端 flood 截断。
+        /// 落点）：该格归属清为 Unassigned，并发布到结构索引。
+        /// 移除不产生新归属，断连由增量拓扑处理。
         /// 与批末 ClearOwner(ownerId) 幂等共存。
         /// </summary>
         public void NotifyFoundationRemoved(IntVec3 cell)
@@ -556,12 +382,7 @@ namespace DeltaV
             Current.Game?.GetComponent<UniverseManager>()?.NotifyFoundationChanged(map, cell);
             // 原版已移除 foundation，此处必须清持久网格，不能经只读 OwnerAt 的无基架过滤。
             if (ownerGrid == null || ownerGrid[map.cellIndices.CellToIndex(cell)] == Unassigned)
-            {
-                // Even unowned substructure participates in the collision surface.
-                BumpStructureVersion(map, CellRect.SingleCell(cell));
-                PlanetGlobeRenderer.InvalidateSilhouette(map);
                 return;
-            }
             Assign(cell, Unassigned);
             NotifyOwnershipChanged();
         }
@@ -599,15 +420,15 @@ namespace DeltaV
         private List<IntVec3> CollectUnownedRegion(IntVec3 cell, int owner)
         {
             var region = new List<IntVec3>();
-            var seen = new HashSet<IntVec3>();
-            var component = new List<IntVec3>();
+            var topology = Current.Game?.GetComponent<UniverseManager>()?.FoundationTopology;
+            if (topology == null) return region;
+            var seen = new HashSet<HashSet<IntVec3>>();
             foreach (IntVec3 delta in GenAdj.CardinalDirectionsAround)
             {
                 IntVec3 neighbor = cell + delta;
-                if (seen.Contains(neighbor)) continue;
-                CollectConnected(map, neighbor, component, c => OwnerAt(c) == Unassigned);
-                seen.UnionWith(component);
-                region.AddRange(component);
+                if (!neighbor.InBounds(map) || OwnerAt(neighbor) != Unassigned) continue;
+                if (topology.DomainAt(map, neighbor) is { } domain && seen.Add(domain))
+                    region.AddRange(domain);
             }
             // 争议检查：区域内任一格邻接其他有效归属 → 整片保持未占有。
             foreach (IntVec3 regionCell in region)

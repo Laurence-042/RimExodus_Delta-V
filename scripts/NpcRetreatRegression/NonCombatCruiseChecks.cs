@@ -83,7 +83,7 @@ internal static partial class Program
             universe.objects.Add(own);
             for (int i = 1; i < buildings; i++)
                 AddTestBuilding(map, player, 53010 + i, TestBuildingDef("cruiseHull" + i), new EmptyComp());
-            SubstructureOwnership.BumpStructureVersion(map);
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(map);
             fire = new ShipFireControl(universe, hull.Identity);
             ai.strategy.targetRules.Clear(); ai.strategy.targetRules.Add(new CombatStrategyRule { includeDisarmed = true });
         }
@@ -97,7 +97,7 @@ internal static partial class Program
             Find.World.factionManager = savedFactions;
             Set(Find.TickManager, "ticksGameInt", savedTick);
             Set(universe, "objectById", null); Set(universe, "objectByMap", null);
-            SubstructureOwnership.BumpStructureVersion();
+            Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         }
     }
 
@@ -176,7 +176,7 @@ internal static partial class Program
         universe.objects.Add(nearer);
         Check(Math.Abs(batch.Distance(target) - 10) < .01 && cruiseReferencesBuilt == 2,
             "membership is rebuilt when objects enter the synchronous batch");
-        nearer.playerReference = false; SubstructureOwnership.BumpStructureVersion(f.map);
+        nearer.playerReference = false; Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(f.map);
         Check(Math.Abs(batch.Distance(target) - 60) < .01 && cruiseReferencesBuilt == 3,
             "structure-driven reference eligibility invalidates batch membership");
         universe.objects.Remove(reference);

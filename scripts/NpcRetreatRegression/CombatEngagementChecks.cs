@@ -14,7 +14,7 @@ internal static partial class Program
 {
     static void CheckEngagementBaseline(UniverseManager universe, Faction player, Faction enemy, int scenario = 0)
     {
-        using var patch = new EngagementFixturePatch();
+        using var patch = new EngagementFixturePatch(editTerrain: true);
         bool regression = Environment.GetCommandLineArgs().Contains("--engagement-regression");
         Set(enemy, "relations", new List<FactionRelation> { new FactionRelation { other = player, kind = FactionRelationKind.Hostile } });
         Set(player, "relations", new List<FactionRelation> { new FactionRelation { other = enemy, kind = FactionRelationKind.Hostile } });
@@ -31,22 +31,13 @@ internal static partial class Program
             if (regression && scenario > 0) { console.parent.def.useHitPoints = true; console.parent.def.fillPercent = 1; }
             MoveCombatFixture(console.parent, new IntVec3(10, 0, 10));
             Set(typeof(Thing), console.parent, "hitPointsInt", 300);
-            var hull = new CombatHull(console.Ship);
+            SetEngagementFoundation(item.obj.map, new CellRect(4, 4, 13, 13), EngagementFoundation(), console.shipId);
+            ShipBase hull = console.Vessel;
             hull.Combat.weaponsArmed = true;
-            var foundation = (TerrainDef)Raw(typeof(TerrainDef));
-            foundation.tags = new List<string> { "Substructure" }; foundation.isFoundation = true;
-            var owners = new int[item.obj.map.cellIndices.NumGridCells];
-            Set(SubstructureOwnership.TryGet(item.obj.map), "ownerGrid", owners);
-            for (int x = 4; x <= 16; x++) for (int z = 4; z <= 16; z++)
-            {
-                var cell = new IntVec3(x, 0, z); hull.cells.Add(cell);
-                int index = item.obj.map.cellIndices.CellToIndex(cell);
-                item.obj.map.terrainGrid.foundationGrid[index] = foundation; owners[index] = console.shipId;
-            }
-            item.obj.member = hull; universe.objects.Add(item.obj);
+            item.obj.member = hull;
+            universe.RegisterObject(item.obj);
             universe.Controls.For(hull);
         }
-        Set(universe, "objectById", null); Set(universe, "objectByMap", null);
         var laser = TestBuildingDef("DeltaV_Projectile_Laser");
         laser.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, laserRange = 120, speed = 60 });
         var effectNode = XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceImpactEffects.xml")
@@ -86,7 +77,6 @@ internal static partial class Program
             MoveCombatFixture(wall, new IntVec3(x, 0, z));
             Set(typeof(Thing), wall, "hitPointsInt", thin ? 48 : 180);
         }
-        SubstructureOwnership.BumpStructureVersion();
         var planner = new ShipAutoManeuverControl(universe, own.member.Identity);
         Set(planner, "anchorTarget", CombatTarget.ForShip(target.member.Identity));
         Set(planner, "anchorDistance", 100f); Set(planner, "offenseEnabled", true);
@@ -198,7 +188,6 @@ internal static partial class Program
             enemyGun.coverage.arc = 60;
             enemyGun.coverage.direction = -ShipOrientation.AngleFromRot4(turret.Rotation) * Mathf.Rad2Deg;
         }
-        SubstructureOwnership.BumpStructureVersion();
         var threats = new List<CombatWeaponThreat>();
         CombatWeaponThreat.CaptureRaw(target.member, target, 0f, threats);
         float Rate(float angle)
@@ -245,8 +234,10 @@ internal static partial class Program
             ? scenario == 0 ? "production decisions hold a valid firing position on a symmetric target"
                 : "production decisions and MPC reach and hold the independently verified weak side"
             : "baseline reproduces failure to remain at the independently verified weak side");
-        universe.Autopilot.Cancel(subject); universe.Controls.Reset(); universe.objects.Clear(); Find.Maps.Clear();
-        ShipRegistry.ClearCaches(); ShipPhysics.ClearCache(); SpaceCollision.ClearCaches();
+        universe.Autopilot.Cancel(subject);
+        RemoveEngagementMap(universe, own);
+        RemoveEngagementMap(universe, target);
+        universe.Controls.Reset();
     }
 
     static void CheckEngagementScoreContract(CompSpaceWeapon weapon)
@@ -296,7 +287,7 @@ internal static partial class Program
             Check(Observe().outgoing == 0, "a weapon without base shot energy contributes no output");
             weapon.WeaponProps.shotEnergy = originalEnergy;
             weapon.parent.AllComps.Add(emptyMagazine);
-            SubstructureOwnership.BumpStructureVersion();
+            ShipStructureChanges.Notify(weapon.parent.Map, (Building)weapon.parent, null, weapon.parent.OccupiedRect());
             Check(Observe().outgoing == 0, "an empty required magazine contributes no output");
         }
         finally
@@ -304,7 +295,7 @@ internal static partial class Program
             weapon.WeaponProps.shotEnergy = originalEnergy;
             Set(tuning, "remainingTicks", originalRemaining);
             weapon.parent.AllComps.Remove(emptyMagazine);
-            SubstructureOwnership.BumpStructureVersion();
+            ShipStructureChanges.Notify(weapon.parent.Map, (Building)weapon.parent, null, weapon.parent.OccupiedRect());
         }
     }
 
@@ -338,16 +329,9 @@ internal static partial class Program
         MoveCombatFixture(hidden, target.Anchor.Position);
         MoveCombatFixture(engine, exposedCell);
         target.Map.roofGrid ??= new RoofGrid(target.Map);
-        var roofs = (RoofDef[])typeof(RoofGrid).GetField("roofGrid", Private).GetValue(target.Map.roofGrid);
-        int anchorIndex = target.Map.cellIndices.CellToIndex(target.Anchor.Position);
-        var oldRoof = roofs[anchorIndex];
-        var terrain = target.Map.terrainGrid.foundationGrid;
-        var oldFoundation = terrain[anchorIndex];
-        var foundation = (TerrainDef)Raw(typeof(TerrainDef));
-        foundation.isFoundation = true;
-        foundation.tags = new List<string> { "Substructure" };
-        terrain[anchorIndex] = foundation;
-        roofs[anchorIndex] = new RoofDef { defName = "interiorTargetFixtureRoof" };
+        var anchorCell = target.Anchor.Position;
+        var oldRoof = target.Map.roofGrid.RoofAt(anchorCell);
+        target.Map.roofGrid.SetRoof(anchorCell, new RoofDef { defName = "interiorTargetFixtureRoof" });
         var targets = new ShipFireControl.ExternalTargets(new[] { engine, target.Anchor, weapon, hidden });
         Check(ShipFireControl.ExternalCombatPart(hidden) == null && ShipFireControl.ExternalCombatPart(target.Anchor) == null,
             "a solid roof hides an internal gun and the console never qualifies as an aim point");
@@ -359,14 +343,9 @@ internal static partial class Program
         var hiddenOrder = CombatTarget.ForShip(target.Identity, hidden.thingIDNumber);
         fire.CommandTarget(hiddenOrder, appendPart: true);
         Check(fire.QueueCount == 0, "a roofed weapon is rejected when queued directly");
-        roofs[anchorIndex] = oldRoof;
-        terrain[anchorIndex] = oldFoundation;
-        foreach (Thing part in new Thing[] { weapon, engine, hidden })
-        {
-            target.Map.thingGrid.Deregister(part);
-            target.Map.listerThings.AllThings.Remove(part);
-            ((ThingOwner<Thing>)target.Map.spawnedThings).InnerListForReading.Remove(part);
-        }
+        target.Map.roofGrid.SetRoof(anchorCell, oldRoof);
+        foreach (Building part in new[] { weapon, engine, hidden })
+            RemoveFixtureBuilding(part, target.Map);
         var visited = new List<Thing>();
         bool Select(CombatPart priority, Thing reachable)
         {
@@ -475,9 +454,13 @@ internal static partial class Program
                     curve = new CombatScoreCurve(true, new CombatScorePoint(0, 0), new CombatScorePoint(100, 3)) };
                 rebuilt.engagement.terms.Add(term);
                 var first = Plan(); term.weight = 2; var second = Plan();
-                Check(first.value != null && first.value.outgoing > 0 && second.value.outgoing == first.value.outgoing
-                    && Math.Abs(second.state.selectedScore - 2 * first.state.selectedScore) < .001,
-                    behavior + " reads player engagement weights through the shared candidate evaluator");
+                float raw = first.value?.Raw(term) ?? float.NaN;
+                float weightedDelta = term.curve.Evaluate(float.IsNaN(raw) ? 0 : raw);
+                Check(first.value != null && second.value != null && raw > 0
+                    && second.value.Raw(term) == raw
+                    && Math.Abs(second.state.selectedScore - first.state.selectedScore - weightedDelta) < .001f,
+                    $"{behavior} applies the player weight to candidate damage (raw={raw:R}, "
+                    + $"score={first.state.selectedScore:R}->{second.state.selectedScore:R}, expected delta={weightedDelta:R})");
                 Check(Math.Abs(SpaceTransform.WrapAngle(first.state.phase - 75 * Mathf.Deg2Rad)) < .001
                     && first.reference.targetRadius == 100 && Math.Abs(first.reference.frameAngle + 30 * Mathf.Deg2Rad - own.member.FrameAngle) < .001,
                     behavior + " preserves explicit world bearing, range and relative facing while scoring");
@@ -499,15 +482,67 @@ internal static partial class Program
         finally { strategy.maneuverRules.Clear(); strategy.maneuverRules.Add(savedRule); }
     }
 
+    static void RemoveEngagementMap(UniverseManager universe, SpaceObject frame)
+    {
+        universe.UnregisterObject(frame);
+        SpaceCollision.Forget(frame.map);
+        ShipPhysics.Forget(frame.map);
+        Find.Maps.Remove(frame.map);
+    }
+
+    static TerrainDef EngagementFoundation()
+    {
+        var foundation = (TerrainDef)Raw(typeof(TerrainDef));
+        foundation.defName = "EngagementFoundation";
+        foundation.isFoundation = true;
+        foundation.tags = new List<string> { "Substructure" };
+        return foundation;
+    }
+
+    static void SetEngagementFoundation(Map map, IEnumerable<IntVec3> cells, TerrainDef foundation, int? owner = null)
+    {
+        var ownership = SubstructureOwnership.For(map);
+        if (owner.HasValue) ownership.SetPendingStamp(cells, owner.Value);
+        using var changes = Current.Game.GetComponent<UniverseManager>().ShipStructure.BeginChanges();
+        try
+        {
+            foreach (IntVec3 cell in cells)
+                if (SubstructureOwnership.FoundationAt(map, cell) != foundation)
+                    map.terrainGrid.SetFoundation(cell, foundation);
+        }
+        finally
+        {
+            if (owner.HasValue) ownership.ClearPendingStamp();
+        }
+    }
+
+    static void SetEngagementVacuum(Map map)
+    {
+        var vacuum = (TerrainDef)Raw(typeof(TerrainDef));
+        vacuum.defName = "EngagementVacuum";
+        vacuum.exposesToVacuum = true;
+        using var changes = Current.Game.GetComponent<UniverseManager>().ShipStructure.BeginChanges();
+        foreach (IntVec3 cell in CellRect.WholeMap(map)) map.terrainGrid.SetTerrain(cell, vacuum);
+    }
+
     sealed class EngagementFixturePatch : IDisposable
     {
         readonly Harmony patch = new Harmony("DeltaV.Regression.Engagement");
-        internal EngagementFixturePatch()
+        internal EngagementFixturePatch(bool editTerrain = false)
         {
             patch.Patch(AccessTools.PropertyGetter(typeof(Thing), "MaxHitPoints"),
                 prefix: new HarmonyMethod(typeof(Program), nameof(TestHullMaxHitPoints)));
             patch.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), "IsSubstructure"),
                 prefix: new HarmonyMethod(typeof(Program), nameof(StructureFoundationWithOdyssey)));
+            if (!editTerrain) return;
+            patch.Patch(AccessTools.Method(typeof(TerrainGrid), "DoTerrainChangedEffects"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
+            patch.Patch(AccessTools.Method(typeof(RoofGrid), nameof(RoofGrid.SetRoof)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(BattleRoof)) { priority = Priority.Last });
+            foreach (Type entry in new[] { typeof(Patch_TerrainGrid_SetFoundation_Ownership),
+                typeof(Patch_TerrainGrid_RemoveFoundation_Ownership), typeof(Patch_ShipStructure_Terrain),
+                typeof(Patch_MoonPool_SetRoof) })
+                patch.CreateClassProcessor(entry).Patch();
         }
         public void Dispose() => patch.UnpatchAll(patch.Id);
     }

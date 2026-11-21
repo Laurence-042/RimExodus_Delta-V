@@ -120,30 +120,19 @@ namespace DeltaV
             Map map, Thing thingToIgnore = null, Thing thing = null)
         {
             if (def is not ThingDef magazineDef || map == null) return false;
-            var seen = new HashSet<Thing>();
-            for (int x = center.x - 3; x <= center.x + 3; x++)
-            for (int z = center.z - 3; z <= center.z + 3; z++)
+            bool found = false;
+            var universe = Current.Game?.GetComponent<UniverseManager>();
+            foreach (Thing host in SpaceWeaponAttachmentSlots.ExteriorHosts(magazineDef, center, rot, map))
             {
-                IntVec3 cell = new IntVec3(x, 0, z);
-                if (!cell.InBounds(map)) continue;
-                foreach (Thing candidate in map.thingGrid.ThingsListAt(cell))
-                {
-                    if (!seen.Add(candidate) || candidate == thingToIgnore) continue;
-                    ThingDef launcherDef = candidate.def.IsBlueprint || candidate.def.IsFrame
-                        ? candidate.def.entityDefToBuild as ThingDef : candidate.def;
-                    if (!SpaceMissileMagazineGeometry.Fits(launcherDef, candidate.Position,
-                            candidate.Rotation, magazineDef, center, rot)) continue;
-                    UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-                    if (universe?.FrameOf(map) == null) return AcceptanceReport.WasAccepted;
-                    int owner = SpaceWeaponGeometry.OwnerIdOf(candidate);
-                    SubstructureOwnership ownership = SubstructureOwnership.TryGet(map);
-                    if (owner <= 0 || ownership == null) return "DeltaV_WeaponNeedsSingleOwner".Translate();
-                    foreach (IntVec3 occupied in GenAdj.OccupiedRect(center, rot, magazineDef.Size))
-                        if (!occupied.InBounds(map) || ownership.OwnerAt(occupied) != owner)
-                            return "DeltaV_WeaponNeedsSingleOwner".Translate();
+                if (host == thingToIgnore) continue;
+                found = true;
+                if (universe?.FrameOf(map) == null) return AcceptanceReport.WasAccepted;
+                int owner = SpaceWeaponGeometry.OwnerIdOf(host);
+                if (owner > 0 && ShipStructureIndex.OwnerOfFootprint(SubstructureOwnership.TryGet(map),
+                    GenAdj.OccupiedRect(center, rot, magazineDef.Size)) == owner)
                     return AcceptanceReport.WasAccepted;
-                }
             }
+            if (found) return "DeltaV_WeaponNeedsSingleOwner".Translate();
             return "DeltaV_MissileMagazineNeedsLauncher".Translate();
         }
     }
@@ -154,13 +143,14 @@ namespace DeltaV
             UnityEngine.Color ghostCol, Thing thing = null)
         {
             base.DrawGhost(def, center, rot, ghostCol, thing);
-            CompProperties_MissileAutoloader props = def.GetCompProperties<CompProperties_MissileAutoloader>();
-            if (props == null || props.magazineDefs.NullOrEmpty()) return;
+            var weapon = def.GetCompProperties<CompProperties_SpaceWeapon>();
+            if (weapon == null) return;
             var cells = new List<IntVec3>();
-            ThingDef magazine = props.magazineDefs[0];
-            foreach (IntVec3 offset in props.magazineRootOffsets)
-                foreach (IntVec3 cell in GenAdj.OccupiedRect(center + offset.RotatedBy(rot),
-                    rot, magazine.Size)) cells.Add(cell);
+            foreach (var slot in weapon.attachmentSlots)
+                if (slot.external)
+                    foreach (ThingDef attachment in weapon.allowedAttachmentDefs)
+                        foreach (IntVec3 cell in GenAdj.OccupiedRect(center + slot.cell.RotatedBy(rot), rot, attachment.Size))
+                            cells.Add(cell);
             GenDraw.DrawFieldEdges(cells, UnityEngine.Color.yellow);
         }
     }

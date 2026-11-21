@@ -90,27 +90,12 @@ namespace DeltaV
             return null;
         }
 
-        public IEnumerable<ThingWithComps> AttachedThings()
-        {
-            if (parent.Map == null || RailProps.attachmentSlots.NullOrEmpty()) yield break;
-            int owner = SpaceWeaponGeometry.OwnerIdOf(parent);
-            foreach (SpaceWeaponAttachmentSlot slot in RailProps.attachmentSlots)
-            {
-                IntVec3 cell = SpaceWeaponGeometry.RotatedCell(parent, slot.cell);
-                if (!cell.InBounds(parent.Map) || !parent.OccupiedRect().Contains(cell)) continue;
-                foreach (Thing thing in parent.Map.thingGrid.ThingsListAtFast(cell))
-                {
-                    if (thing is not ThingWithComps attached || thing == parent || thing.Destroyed) continue;
-                    CompSpaceWeaponAttachment attachment = attached.TryGetComp<CompSpaceWeaponAttachment>();
-                    if (attachment == null || attachment.HostRailgun != this
-                        || !attachment.CompatibleWith(parent.def)) continue;
-                    if (!RailProps.allowedAttachmentDefs.NullOrEmpty()
-                        && !RailProps.allowedAttachmentDefs.Contains(thing.def)) continue;
-                    if (owner > 0 && SpaceWeaponGeometry.OwnerIdOf(thing) != owner) continue;
-                    yield return attached;
-                }
-            }
-        }
+        public IEnumerable<ThingWithComps> AttachedThings() => Binding != null
+            && Binding.segmentAttachments.TryGetValue(this, out var attachments) ? attachments : DiscoverAttachments();
+
+        internal IEnumerable<ThingWithComps> DiscoverAttachments(HashSet<IntVec3> dependencies = null)
+            => SpaceWeaponAttachmentSlots.Discover(parent, RailProps.attachmentSlots, RailProps.allowedAttachmentDefs,
+                attachment => attachment.HostRailgun == this, dependencies);
 
         public CompSpaceWeapon ConnectedWeapon()
         {
@@ -133,7 +118,7 @@ namespace DeltaV
         public static SpaceWeaponAccelerationSolution Resolve(CompSpaceWeapon weapon)
             => weapon.Layout.acceleration;
 
-        internal static SpaceWeaponAccelerationSolution TraceConnections(CompSpaceWeapon weapon)
+        internal static SpaceWeaponAccelerationSolution TraceConnections(CompSpaceWeapon weapon, HashSet<IntVec3> dependencies = null)
         {
             var used = new List<CompSpaceRailgun>();
             if (weapon?.parent?.Map == null || weapon.WeaponProps.acceleratorStarts.NullOrEmpty())
@@ -151,7 +136,9 @@ namespace DeltaV
                 int guard = 0;
                 while (guard++ < 64 && root.InBounds(map))
                 {
+                    dependencies?.Add(root);
                     CompSpaceRailgun segment = SegmentAtRoot(map, root, weapon.parent.Rotation);
+                    if (segment != null) dependencies?.UnionWith(segment.parent.OccupiedRect());
                     if (segment == null || !seen.Add(segment.parent.thingIDNumber)) break;
                     if (!weapon.WeaponProps.allowedAcceleratorDefs.NullOrEmpty()
                         && !weapon.WeaponProps.allowedAcceleratorDefs.Contains(segment.parent.def)) break;

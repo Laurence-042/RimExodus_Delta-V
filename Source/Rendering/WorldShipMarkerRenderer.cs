@@ -23,7 +23,7 @@ namespace DeltaV
             public Texture2D texture;
             public Material material;
             public bool initialized;
-            public int version;
+            public System.IDisposable structureChanges;
             public Map map;
             public Rot4 rotation;
         }
@@ -119,7 +119,6 @@ namespace DeltaV
         private static MarkerCache MarkerFor(ShipBase ship)
         {
             if (Cache.TryGetValue(ship.Identity, out MarkerCache marker) && marker.initialized
-                && marker.version == SubstructureOwnership.StructureVersion(ship.Map)
                 && marker.map == ship.Map && marker.rotation == ship.Anchor.Rotation)
             {
                 return marker;
@@ -149,7 +148,9 @@ namespace DeltaV
             }
             Release(marker);
             marker.initialized = true;
-            marker.version = SubstructureOwnership.StructureVersion(ship.Map);
+            marker.structureChanges = ship.StructuralState?.Watch(ShipStructureAspect.Foundation | ShipStructureAspect.Ownership
+                | ShipStructureAspect.Primary | ShipStructureAspect.Footprint | ShipStructureAspect.Membership
+                | ShipStructureAspect.Representation, _ => marker.initialized = false);
             marker.map = ship.Map;
             marker.rotation = ship.Anchor.Rotation;
 
@@ -159,7 +160,8 @@ namespace DeltaV
                 return;
             }
 
-            var liveCells = new HashSet<IntVec3>(ship.HullCells);
+            HashSet<IntVec3> liveCells = ship.GetType() == typeof(FoundationShip) ? ship.StructuralState?.Foundation : null;
+            liveCells ??= new HashSet<IntVec3>(ship.HullCells);
             if (liveCells.Count == 0)
             {
                 return;
@@ -209,6 +211,8 @@ namespace DeltaV
 
         private static void Release(MarkerCache marker)
         {
+            marker.structureChanges?.Dispose();
+            marker.structureChanges = null;
             if (marker.material != null)
             {
                 Object.Destroy(marker.material);

@@ -293,7 +293,7 @@ namespace DeltaV
             float side = 100f;
             if (ship.IsValid)
             {
-                CellRect bounds = CellRect.FromCellList(ship.HullCells.ToList());
+                CellRect bounds = ShipRegistry.HullBounds(ship);
                 side = Mathf.Max(bounds.Width, bounds.Height, 1f);
             }
             return new GlobeView(rect, reference, OrbitSphere.CellsPerRadian, state.Width, side, up, right, ship, center);

@@ -14,6 +14,20 @@ namespace DeltaV
         public abstract Map Map { get; }
         public abstract DriveSubject Identity { get; }
         public abstract Thing Anchor { get; }
+        private ShipStructure structuralState;
+        internal ShipStructure StructureInstance => structuralState ??= new ShipStructure(this);
+
+        internal ShipStructure StructuralState
+        {
+            get
+            {
+                if (!IsValid) return null;
+                ShipStructure state = StructureInstance;
+                if (state.Map != Map)
+                    Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.BindIdentity(this);
+                return state;
+            }
+        }
         public abstract float FrameAngle { get; }
         public abstract Vector2 HullCenter { get; }
         public abstract IEnumerable<IntVec3> HullCells { get; }
@@ -37,11 +51,17 @@ namespace DeltaV
             get
             {
                 if (!IsValid) return System.Array.Empty<CompSpaceWeapon>();
-                if (weaponMap != Map || SubstructureOwnership.CacheNeedsRefresh(weaponVersion, Map))
+                if (GetType() == typeof(FoundationShip) && StructuralState is { } structure)
+                    return structure.InstalledWeapons;
+                if (GetType() == typeof(ShuttleShip)) return CompSpaceWeapon.On(((ShuttleShip)this).Hull.parent);
+                int revision = ShipStructureIndex.ReadRevision(Map, ShipStructureAspect.Membership
+                    | ShipStructureAspect.Footprint | ShipStructureAspect.Foundation | ShipStructureAspect.Primary
+                    | ShipStructureAspect.Ownership | ShipStructureAspect.Representation);
+                if (weaponMap != Map || weaponVersion != revision)
                 {
                     weapons = CollectWeapons().Distinct().ToArray();
                     weaponMap = Map;
-                    weaponVersion = SubstructureOwnership.StructureVersion(Map);
+                    weaponVersion = revision;
                 }
                 return weapons;
             }
@@ -109,15 +129,29 @@ namespace DeltaV
     /// <summary>驾驶台认领的基架域；Ship 仅为现有结构查询快照。</summary>
     public class FoundationShip : ShipBase
     {
-        public readonly Ship Structure;
+        private readonly int ownerId;
+        private CompDeltaVPilotConsole console;
+        public Ship Structure => new Ship(ownerId, console?.parent is { Spawned: true } parent
+            ? parent.Map : null, console);
         private SpaceObject checkedContainer;
         private int hostVersion = -1;
         private bool hasSeparateHost;
-        public FoundationShip(Ship structure) { Structure = structure; }
+        public FoundationShip(Ship structure)
+        {
+            ownerId = structure.ownerId;
+            console = structure.console;
+        }
+
+        internal void Reanchor(CompDeltaVPilotConsole next)
+        {
+            console = next;
+            hostVersion = -1;
+            checkedContainer = null;
+        }
         public override bool IsValid => Structure.IsValid;
         public override Map Map => Structure.map;
-        public override DriveSubject Identity => new DriveSubject(0, Structure.ownerId);
-        public override Thing Anchor => Structure.console?.parent;
+        public override DriveSubject Identity => new DriveSubject(0, ownerId);
+        public override Thing Anchor => console?.parent;
         public override float FrameAngle => ShipRegistry.LocalFrameAngle(Structure);
         public override Vector2 HullCenter => ShipRegistry.HullCenter(Structure);
         public override IEnumerable<IntVec3> HullCells => ShipRegistry.ControlDomain(Structure);
@@ -129,7 +163,9 @@ namespace DeltaV
         public override bool CanDriveIn(SpaceObject container) => IsValid && container?.map == Map;
         internal bool RequiresSeparatePocket(SpaceObject container, FoundationTopologyService topology)
         {
-            int version = SubstructureOwnership.StructureVersion(Map);
+            int version = ShipStructureIndex.ReadRevision(Map, ShipStructureAspect.Foundation | ShipStructureAspect.Ownership
+                | ShipStructureAspect.Membership | ShipStructureAspect.Footprint | ShipStructureAspect.Terrain
+                | ShipStructureAspect.Primary | ShipStructureAspect.Representation);
             if (checkedContainer != container || hostVersion != version)
             {
                 hasSeparateHost = ShipRegistry.HasSeparateHost(Structure, container, topology);
@@ -142,12 +178,12 @@ namespace DeltaV
         public override IEnumerable<ShipPhysics.Thruster> BuildThrusters()
         {
             if (!IsValid) yield break;
-            foreach (Thing thing in Map.listerThings.AllThings)
-                if (ThrusterPower.IsThruster(thing) && Contains(thing))
-                    yield return ShipPhysics.BuildInstalledThruster(thing);
+            ShipStructure state = StructuralState;
+            foreach (Building thing in state.Thrusters)
+                yield return ShipPhysics.InstalledThruster(state, thing);
         }
         protected override IEnumerable<CompSpaceWeapon> CollectWeapons() => IsValid
-            ? SpaceWeaponService.InstalledWeaponsOn(Map).Where(w => w.OwnerShip.Identity == Identity)
+            ? SpaceWeaponService.WeaponsRegisteredOrMapped(Map).Where(w => w.OwnerShip.Identity == Identity)
             : Enumerable.Empty<CompSpaceWeapon>();
         public override IEnumerable<SpaceCollisionCell> CollisionCells =>
             SpaceStructureRules.CollisionCells(Map, HullCells);
@@ -181,10 +217,12 @@ namespace DeltaV
         public override bool CanDriveIn(SpaceObject container)
         {
             if (!IsValid || container?.map != Map || Map.Parent is not ShipPocketParent_DeltaV) return false;
-            if (driveMap != Map || SubstructureOwnership.CacheNeedsRefresh(driveVersion, Map))
+            int revision = ShipStructureIndex.ReadRevision(Map, ShipStructureAspect.Foundation | ShipStructureAspect.Membership
+                | ShipStructureAspect.Footprint | ShipStructureAspect.Terrain | ShipStructureAspect.Representation);
+            if (driveMap != Map || driveVersion != revision)
             {
                 driveMap = Map;
-                driveVersion = SubstructureOwnership.StructureVersion(Map);
+                driveVersion = revision;
                 var topology = Current.Game.GetComponent<UniverseManager>().FoundationTopology;
                 independentHull = topology.DomainCount(Map) == 0
                     && SubstructureOwnership.For(Map).SpawnedBuildingCount == 1
@@ -195,6 +233,12 @@ namespace DeltaV
         }
         public override bool Contains(Thing thing) => IsValid && thing == Anchor;
         public override IEnumerable<ShipPhysics.Thruster> BuildThrusters()
+        {
+            foreach (var thruster in StructuralState?.VirtualThrusters ?? System.Array.Empty<ShipPhysics.Thruster>())
+                yield return thruster.NominalSnapshot();
+        }
+
+        internal IEnumerable<ShipPhysics.Thruster> CreateThrusters()
         {
             if (!IsValid) yield break;
             Vector2 center = HullCenter - SpaceTransform.ShipLocalOrigin(Map);

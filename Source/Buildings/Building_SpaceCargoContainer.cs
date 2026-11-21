@@ -25,7 +25,7 @@ namespace DeltaV
     public class Building_SpaceCargoContainer : ThingClass, ISpaceCargoContainer
     {
         public ThingWithComps Thing => this;
-        private CompSpaceCargo Cargo => GetComp<CompSpaceCargo>();
+        private CompStructureMass Mass => GetComp<CompStructureMass>();
         public bool IsUnlocked => true;
         public IReadOnlyList<Thing> Contents => StoredThings.ToArray();
 
@@ -39,13 +39,23 @@ namespace DeltaV
         protected override void OnSpawn(Map map, SpawnMode spawnMode)
         {
             base.OnSpawn(map, spawnMode);
-            ReceivedThing -= Cargo.NotifyInventoryChanged;
-            LostThing -= Cargo.NotifyInventoryChanged;
-            ItemStackChanged -= Cargo.NotifyInventoryChanged;
-            ReceivedThing += Cargo.NotifyInventoryChanged;
-            LostThing += Cargo.NotifyInventoryChanged;
-            ItemStackChanged += Cargo.NotifyInventoryChanged;
+            // ASF reconstructs StoredThings after the vanilla comp spawn callbacks.
+            Mass.StorageReady();
+            ReceivedThing += GainMass;
+            LostThing += LoseMass;
+            ItemStackChanged += GainMass;
         }
+
+        protected override void OnDeSpawn(DestroyMode destroyMode, SpawnMode deSpawnMode)
+        {
+            ReceivedThing -= GainMass;
+            LostThing -= LoseMass;
+            ItemStackChanged -= GainMass;
+            base.OnDeSpawn(destroyMode, deSpawnMode);
+        }
+
+        private void GainMass(Thing item) => Mass.NotifyItem(item, true);
+        private void LoseMass(Thing item) => Mass.NotifyItem(item, false);
 
         public bool TryStore(Thing thing)
         {
@@ -64,7 +74,6 @@ namespace DeltaV
         {
             if (thing == null || count <= 0 || !StoredThings.Contains(thing)) return null;
             Thing taken = thing.SplitOff(count);
-            Cargo.NotifyInventoryChanged(thing);
             return taken;
         }
 

@@ -163,7 +163,7 @@ namespace DeltaV
 
             var thrusters = (Dictionary<Thing, PositionData>)ThrustersField?.GetValue(gravship);
             var previewThings = (Dictionary<Thing, PositionData>)ThingsField.GetValue(gravship);
-            foreach (Thing thing in map.listerThings.AllThings)
+            foreach (Thing thing in ShipStructureIndex.Read(map).Things)
             {
                 bool selected = thing is Building body && buildings != null
                     ? buildings.Contains(body) : cells.Contains(thing.Position);
@@ -241,7 +241,7 @@ namespace DeltaV
 
             // 设施先行（镜像 ctor 经 engine.GravshipComponents 的加法）：域内全部
             // CompGravshipFacility 建筑。
-            IEnumerable<Thing> facilities = buildings != null ? buildings : map.listerThings.AllThings.ToList();
+            IEnumerable<Thing> facilities = buildings != null ? buildings : ShipStructureIndex.Read(map).Things.ToList();
             foreach (Thing thing in facilities)
             {
                 if (thing is Building facilityBuilding && facilityBuilding.Spawned
@@ -631,6 +631,7 @@ namespace DeltaV
             bool includeTerrain = true)
         {
             if (gravship == null || map == null || cells == null || cells.Count == 0) return;
+            using var changes = Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.BeginChanges();
             IntVec3[] stripCells = new IntVec3[cells.Count];
             int i = 0;
             foreach (IntVec3 cell in cells)
@@ -698,9 +699,6 @@ namespace DeltaV
                 map.pathing.RecalculatePerceivedPathCostAt(cell);
             }
             map.roofGrid.Drawer.SetDirty();
-            // 基架已随剥离移除：失效域名缓存与星球仪剪影，避免读取者拿到已剥空的状态。
-            SubstructureOwnership.BumpStructureVersion(map);
-            PlanetGlobeRenderer.InvalidateSilhouette(map);
         }
 
         internal static void ForceCutsceneTimeZero(WorldComponent_GravshipController controller)
@@ -711,6 +709,7 @@ namespace DeltaV
         internal static void PlaceIntoMap(Gravship gravship, IntVec3 root, Map map, int ownerId,
             Dictionary<IntVec3, int> placedOwners = null)
         {
+            using var changes = Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.BeginChanges();
             var stampCells = new HashSet<IntVec3>(gravship.Foundations.Count);
             foreach (IntVec3 cell in gravship.Foundations.Keys) stampCells.Add(cell + root);
             if (placedOwners != null) SubstructureOwnership.For(map).SetPendingStamp(placedOwners);

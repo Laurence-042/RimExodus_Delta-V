@@ -79,7 +79,6 @@ namespace DeltaV
                 throw new InvalidOperationException("Invalid space object representation replacement");
             current.RepresentationVersion = previous.RepresentationVersion + 1;
             globeDisplay?.Forget(previous.map);
-            foundationTopology?.Forget(previous.map);
             stationTrade?.Forget(previous.map);
             PlanetGlobeRenderer.InvalidateSilhouette(previous.map);
             objects[index] = current;
@@ -92,10 +91,16 @@ namespace DeltaV
             }
             scatter?.Remove(previous);
             if (current.IsScattered) Scatter.Register(current);
-            SubstructureOwnership.BumpStructureVersion(current.map);
+            if (current.map != null && current.baseTag != SpaceObjectTag.Projectile) ShipStructure.For(current.map);
             try { Autopilot.Detach(previous); previous.ClearDrive(); }
             catch (Exception ex) { Log.Error($"[DeltaV] Representation #{current.objectId} changed, but old drive cleanup failed: {ex}"); }
-            finally { if (previous.map != current.map) structures?.Forget(previous.map); }
+            finally
+            {
+                if (previous.map != current.map)
+                {
+                    ForgetFoundationTopology(previous.map);
+                }
+            }
             if (RepresentationChanged == null) return;
             foreach (Action<SpaceObject, SpaceObject> listener in RepresentationChanged.GetInvocationList())
             {
@@ -106,20 +111,25 @@ namespace DeltaV
 
         [NonSerialized] private ShipControlService controls;
 
-        [NonSerialized] private FoundationTopologyService foundationTopology;
-        [NonSerialized] private StructureVersions structures;
+        [NonSerialized] private ShipStructureIndex shipStructure;
+        internal ShipStructureIndex ShipStructure => shipStructure ??= new ShipStructureIndex(
+            new FoundationTopologyService(Performance.Start, Performance.RecordStructureBootstrap,
+                Performance.RecordStructureSplit, Performance.RecordStructureReclaim, Performance.RecordStructureTopologyUpdate),
+            map => combatProtection?.Forget(map), (map, range) => projectiles?.NotifyHullCellsChanged(map, range), Performance);
         [NonSerialized] private CombatProtectionTable combatProtection;
-        internal StructureVersions Structures => structures ?? (structures = new StructureVersions(
-            map => combatProtection?.Forget(map), (map, range) => projectiles?.NotifyHullCellsChanged(map, range)));
         internal CombatProtectionTable Protection => combatProtection ??= new CombatProtectionTable();
         internal CombatProtectionTable.Receiver ProtectionFor(ShipBase ship) =>
-            Protection.For(ship, FrameOf(ship.Map), Structures.For(ship.Map));
-        internal void NotifyProtectionHealth(Map map, Thing thing, int before) =>
-            combatProtection?.HealthChanged(map, thing, before);
-        internal void NotifyProtectionGuard(Map map) => combatProtection?.GuardChanged(map);
+            Protection.For(ship, FrameOf(ship.Map), FoundationTopology);
+        internal void NotifyProtectionHealth(Map map, Thing thing, int before)
+        {
+            if (thing is Building building) shipStructure?.NotifyHealth(map, building, before);
+        }
+        internal void NotifyShield(CompSpaceShield shield)
+        {
+            shipStructure?.NotifyShield(shield);
+        }
         internal void ForgetCombatProtection(Map map) => combatProtection?.Forget(map);
-        internal FoundationTopologyService FoundationTopology => foundationTopology
-            ?? (foundationTopology = new FoundationTopologyService());
+        internal FoundationTopologyService FoundationTopology => ShipStructure.Topology;
 
         public ShipControlService Controls => controls ?? (controls = new ShipControlService(this));
 
@@ -188,8 +198,6 @@ namespace DeltaV
         internal bool SoftDockEnabled;
         [NonSerialized] private StationTradeService stationTrade;
         internal StationTradeService StationTrade => stationTrade ?? (stationTrade = new StationTradeService());
-        [NonSerialized] private SpaceCargoMassUpdates cargoMassUpdates;
-        internal SpaceCargoMassUpdates CargoMassUpdates => cargoMassUpdates ??= new SpaceCargoMassUpdates();
         internal bool ShowThrusterDebugOverlay;
         internal bool ShowCoordinateGrid = true;
         internal bool ConfirmSplitWarnings = true;
@@ -455,7 +463,7 @@ namespace DeltaV
             if (obj.IsScattered) Scatter.Register(obj);
             if (obj.map != null && Find.UIRoot is UIRoot_Play)
                 HostColonistBarVisibility.NotifyDockingStateChanged();
-            if (obj.map != null) SubstructureOwnership.BumpStructureVersion(obj.map);
+            if (obj.map != null && obj.baseTag != SpaceObjectTag.Projectile) ShipStructure.For(obj.map);
             if (obj.objectId >= nextFreeOwnerId) nextFreeOwnerId = obj.objectId + 1;
             if (obj.map != null && obj.HasTag(SpaceObjectTag.Ship) == true)
             {
@@ -495,7 +503,6 @@ namespace DeltaV
             globeDisplay?.Forget(obj.map);
             PlanetGlobeRenderer.InvalidateSilhouette(obj.map);
             Autopilot.Detach(obj);
-            foundationTopology?.Forget(obj.map);
             stationTrade?.Forget(obj.map);
             playerInput?.Clear();
             // 最后一艘船消失后 Ship tag 已移除，释放不能再以当前角色为前提。
@@ -514,7 +521,7 @@ namespace DeltaV
             {
                 Lifecycle.NotifyUnregistered(poi);
             }
-            structures?.Forget(obj.map);
+            ForgetFoundationTopology(obj.map);
         }
 
         // ---- 尺度重标定（星区架构 §8）----
@@ -620,7 +627,6 @@ namespace DeltaV
             ShipPlanner.Forget(map);
             unframedMaps?.Remove(map);
             playerInput?.Clear();
-            foundationTopology?.Forget(map);
             globeDisplay?.Forget(map);
             globeNavigation?.InvalidateEntries();
             PlanetGlobeRenderer.InvalidateSilhouette(map);
@@ -628,13 +634,18 @@ namespace DeltaV
             scatter?.Forget(map);
             softDock?.Forget(map);
             stationTrade?.Forget(map);
-            cargoMassUpdates?.Forget(map);
-            structures?.Forget(map);
+            shipStructure?.Forget(map);
         }
 
-        internal void NotifyFoundationChanged(Map map, IntVec3 cell) => foundationTopology?.NotifyChanged(map, cell);
-        internal void ForgetFoundationTopology(Map map) => foundationTopology?.Forget(map);
-        internal void NotifySupportChanged(Map map, IntVec3 cell) => scatter?.NotifySupportChanged(map, cell);
+        internal void NotifyFoundationChanged(Map map, IntVec3 cell)
+        {
+            shipStructure?.NotifyFoundation(map, cell);
+        }
+        internal void ForgetFoundationTopology(Map map)
+        {
+            shipStructure?.Forget(map);
+        }
+        internal void NotifySupportChanged(Map map, IntVec3 cell) => shipStructure?.NotifySupport(map, cell);
         internal void NotifyCargoRegistered(Map map, Thing thing, IntVec3 cell) =>
             scatter?.NotifyCargoRegistered(map, thing, cell);
         internal void NotifyCargoDeregistered(Map map, Thing thing, IntVec3 cell) =>
@@ -961,6 +972,7 @@ namespace DeltaV
         {
             if (IsResettingScene) return;
             long performanceStart = Performance.BeginTick();
+            shipStructure?.PublishDueMass(Find.TickManager.TicksGame);
             // 原版 TickManager 每次只调用一次；速度单位为格/秒，故单次积分步长为 1/60 秒。
             // 倍速增加调用次数而非放大单次 dt，暂停时本方法不被调用。
             const float dt = 1f / 60f;
@@ -1054,7 +1066,7 @@ namespace DeltaV
                 SectorContentService.TickSectorTracking(this);
             }
             Performance.TickFinished(performanceStart, now, objects.Count,
-                Projectiles.ActiveCount, SubstructureOwnership.GlobalStructureVersion,
+                Projectiles.ActiveCount, ShipStructureIndex.UniverseRevision,
                 thrustingObjects, driftingObjects, archivedObjects);
         }
 
@@ -1333,16 +1345,16 @@ namespace DeltaV
         /// 清理只在当前游戏实例内有效、且可由持久状态重建的服务与缓存。读档和 dev
         /// 场景重建共用这一入口；重建时必须先排空旧流程及其帧动作。
         /// </summary>
+        internal void ResetShipStructures() => shipStructure?.Clear();
+
         private void ResetRuntimeServices()
         {
             ShipPlanner.Reset();
             projectiles?.ResetMotionFeedback();
             mapPool = null;
-            foundationTopology = null;
             scatter = null;
             softDock = null;
             stationTrade = null;
-            cargoMassUpdates = null;
             worksites = null;
             tutorial = null;
             missions = null;
@@ -1362,8 +1374,6 @@ namespace DeltaV
             WeaponArcOverlay.ClearRuntimeCaches();
             WorldShipMarkerRenderer.ClearRuntimeCaches();
             PlanetGlobeRenderer.ClearRuntimeCaches();
-            ShipPhysics.ClearCache();
-            ShipRegistry.ClearCaches();
             ThrusterEffects.ClearRuntimeCaches();
             ThrusterAudio.Reset();
             Lifecycle.Reset();
@@ -1375,7 +1385,7 @@ namespace DeltaV
             PrefabMarkerPreviewCache.ClearRuntimeCaches();
             unframedMaps?.Clear();
             PilotKeyBridge.Reset();
-            structures?.Clear();
+            ResetShipStructures();
             // Loading discards old-runtime callbacks; scene reset reaches here only after draining.
             if (!IsResettingScene) frameActions?.Clear();
         }

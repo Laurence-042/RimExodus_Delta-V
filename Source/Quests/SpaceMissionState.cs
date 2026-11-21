@@ -51,7 +51,7 @@ namespace DeltaV
             foreach (SpaceObject obj in u.objects)
             {
                 if (obj.map == null || obj.map.Disposed) continue;
-                Thing found = obj.map.listerThings.AllThings.FirstOrDefault(t => t.thingIDNumber == thingId);
+                Thing found = u.ShipStructure.For(obj.map).Find(thingId);
                 if (found == null) continue;
                 objectId = obj.objectId;
                 ShipBase ship = ShipRegistry.ShipOf(found);
