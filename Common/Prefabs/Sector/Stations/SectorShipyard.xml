@@ -19572,14 +19572,15 @@
       <pos>(6, 0, 32)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810789</id>
           <pos>(6, 0, 32)</pos>
           <rot>0</rot>
@@ -19590,14 +19591,15 @@
       <pos>(6, 0, 33)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810790</id>
           <pos>(6, 0, 33)</pos>
           <rot>0</rot>
@@ -19608,14 +19610,15 @@
       <pos>(6, 0, 34)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810791</id>
           <pos>(6, 0, 34)</pos>
           <rot>0</rot>
@@ -19626,14 +19629,15 @@
       <pos>(6, 0, 35)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810792</id>
           <pos>(6, 0, 35)</pos>
           <rot>0</rot>
@@ -19661,14 +19665,15 @@
       <pos>(7, 0, 33)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810794</id>
           <pos>(7, 0, 33)</pos>
           <rot>0</rot>
@@ -19679,14 +19684,15 @@
       <pos>(7, 0, 34)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810795</id>
           <pos>(7, 0, 34)</pos>
           <rot>0</rot>
@@ -19697,14 +19703,15 @@
       <pos>(7, 0, 35)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810796</id>
           <pos>(7, 0, 35)</pos>
           <rot>0</rot>
@@ -19715,14 +19722,15 @@
       <pos>(7, 0, 36)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810797</id>
           <pos>(7, 0, 36)</pos>
           <rot>0</rot>
@@ -19750,14 +19758,15 @@
       <pos>(5, 0, 32)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810799</id>
           <pos>(5, 0, 32)</pos>
           <rot>0</rot>
@@ -19768,14 +19777,15 @@
       <pos>(5, 0, 33)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810800</id>
           <pos>(5, 0, 33)</pos>
           <rot>0</rot>
@@ -19786,14 +19796,15 @@
       <pos>(5, 0, 34)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810801</id>
           <pos>(5, 0, 34)</pos>
           <rot>0</rot>
@@ -19804,14 +19815,15 @@
       <pos>(5, 0, 35)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810802</id>
           <pos>(5, 0, 35)</pos>
           <rot>0</rot>
@@ -19839,14 +19851,15 @@
       <pos>(9, 0, 32)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810804</id>
           <pos>(9, 0, 32)</pos>
           <rot>0</rot>
@@ -19857,14 +19870,15 @@
       <pos>(9, 0, 33)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810805</id>
           <pos>(9, 0, 33)</pos>
           <rot>0</rot>
@@ -19875,14 +19889,15 @@
       <pos>(9, 0, 34)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810806</id>
           <pos>(9, 0, 34)</pos>
           <rot>0</rot>
@@ -19893,14 +19908,15 @@
       <pos>(9, 0, 35)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810807</id>
           <pos>(9, 0, 35)</pos>
           <rot>0</rot>
@@ -19928,14 +19944,15 @@
       <pos>(9, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810809</id>
           <pos>(9, 0, 31)</pos>
           <rot>0</rot>
@@ -19946,14 +19963,15 @@
       <pos>(10, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810810</id>
           <pos>(10, 0, 31)</pos>
           <rot>0</rot>
@@ -19964,14 +19982,15 @@
       <pos>(11, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810811</id>
           <pos>(11, 0, 31)</pos>
           <rot>0</rot>
@@ -19982,14 +20001,15 @@
       <pos>(12, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810812</id>
           <pos>(12, 0, 31)</pos>
           <rot>0</rot>
@@ -20017,14 +20037,15 @@
       <pos>(9, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810814</id>
           <pos>(9, 0, 30)</pos>
           <rot>0</rot>
@@ -20035,14 +20056,15 @@
       <pos>(10, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810815</id>
           <pos>(10, 0, 30)</pos>
           <rot>0</rot>
@@ -20053,14 +20075,15 @@
       <pos>(11, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810816</id>
           <pos>(11, 0, 30)</pos>
           <rot>0</rot>
@@ -20071,14 +20094,15 @@
       <pos>(12, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810817</id>
           <pos>(12, 0, 30)</pos>
           <rot>0</rot>
@@ -20106,14 +20130,15 @@
       <pos>(4, 0, 32)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810819</id>
           <pos>(4, 0, 32)</pos>
           <rot>0</rot>
@@ -20124,14 +20149,15 @@
       <pos>(4, 0, 33)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810820</id>
           <pos>(4, 0, 33)</pos>
           <rot>0</rot>
@@ -20142,14 +20168,15 @@
       <pos>(4, 0, 34)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810821</id>
           <pos>(4, 0, 34)</pos>
           <rot>0</rot>
@@ -20160,14 +20187,15 @@
       <pos>(4, 0, 35)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810822</id>
           <pos>(4, 0, 35)</pos>
           <rot>0</rot>
@@ -20195,14 +20223,15 @@
       <pos>(10, 0, 32)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810824</id>
           <pos>(10, 0, 32)</pos>
           <rot>0</rot>
@@ -20213,14 +20242,15 @@
       <pos>(10, 0, 33)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810825</id>
           <pos>(10, 0, 33)</pos>
           <rot>0</rot>
@@ -20231,14 +20261,15 @@
       <pos>(10, 0, 34)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810826</id>
           <pos>(10, 0, 34)</pos>
           <rot>0</rot>
@@ -20249,14 +20280,15 @@
       <pos>(10, 0, 35)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810827</id>
           <pos>(10, 0, 35)</pos>
           <rot>0</rot>
@@ -20284,14 +20316,15 @@
       <pos>(4, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810829</id>
           <pos>(4, 0, 31)</pos>
           <rot>0</rot>
@@ -20302,14 +20335,15 @@
       <pos>(5, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810830</id>
           <pos>(5, 0, 31)</pos>
           <rot>0</rot>
@@ -20320,14 +20354,15 @@
       <pos>(6, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810831</id>
           <pos>(6, 0, 31)</pos>
           <rot>0</rot>
@@ -20338,14 +20373,15 @@
       <pos>(7, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810832</id>
           <pos>(7, 0, 31)</pos>
           <rot>0</rot>
@@ -20373,14 +20409,15 @@
       <pos>(4, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810834</id>
           <pos>(4, 0, 30)</pos>
           <rot>0</rot>
@@ -20391,14 +20428,15 @@
       <pos>(5, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810835</id>
           <pos>(5, 0, 30)</pos>
           <rot>0</rot>
@@ -20409,14 +20447,15 @@
       <pos>(6, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810836</id>
           <pos>(6, 0, 30)</pos>
           <rot>0</rot>
@@ -20427,14 +20466,15 @@
       <pos>(7, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810837</id>
           <pos>(7, 0, 30)</pos>
           <rot>0</rot>
@@ -20462,14 +20502,15 @@
       <pos>(3, 0, 32)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810839</id>
           <pos>(3, 0, 32)</pos>
           <rot>0</rot>
@@ -20480,14 +20521,15 @@
       <pos>(3, 0, 33)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810840</id>
           <pos>(3, 0, 33)</pos>
           <rot>0</rot>
@@ -20498,14 +20540,15 @@
       <pos>(3, 0, 34)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810841</id>
           <pos>(3, 0, 34)</pos>
           <rot>0</rot>
@@ -20516,14 +20559,15 @@
       <pos>(3, 0, 35)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810842</id>
           <pos>(3, 0, 35)</pos>
           <rot>0</rot>
@@ -20551,14 +20595,15 @@
       <pos>(11, 0, 32)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810844</id>
           <pos>(11, 0, 32)</pos>
           <rot>0</rot>
@@ -20569,14 +20614,15 @@
       <pos>(11, 0, 33)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810845</id>
           <pos>(11, 0, 33)</pos>
           <rot>0</rot>
@@ -20587,14 +20633,15 @@
       <pos>(11, 0, 34)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810846</id>
           <pos>(11, 0, 34)</pos>
           <rot>0</rot>
@@ -20605,14 +20652,15 @@
       <pos>(11, 0, 35)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810847</id>
           <pos>(11, 0, 35)</pos>
           <rot>0</rot>
@@ -20640,14 +20688,15 @@
       <pos>(4, 0, 29)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810849</id>
           <pos>(4, 0, 29)</pos>
           <rot>0</rot>
@@ -20658,14 +20707,15 @@
       <pos>(5, 0, 29)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810850</id>
           <pos>(5, 0, 29)</pos>
           <rot>0</rot>
@@ -20676,14 +20726,15 @@
       <pos>(6, 0, 29)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810851</id>
           <pos>(6, 0, 29)</pos>
           <rot>0</rot>
@@ -20694,14 +20745,15 @@
       <pos>(7, 0, 29)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810852</id>
           <pos>(7, 0, 29)</pos>
           <rot>0</rot>
@@ -20729,14 +20781,15 @@
       <pos>(4, 0, 28)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810854</id>
           <pos>(4, 0, 28)</pos>
           <rot>0</rot>
@@ -20747,14 +20800,15 @@
       <pos>(5, 0, 28)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810855</id>
           <pos>(5, 0, 28)</pos>
           <rot>0</rot>
@@ -20765,14 +20819,15 @@
       <pos>(6, 0, 28)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810856</id>
           <pos>(6, 0, 28)</pos>
           <rot>0</rot>
@@ -20783,14 +20838,15 @@
       <pos>(7, 0, 28)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810857</id>
           <pos>(7, 0, 28)</pos>
           <rot>0</rot>
@@ -20908,14 +20964,15 @@
       <pos>(81, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810864</id>
           <pos>(81, 0, 30)</pos>
           <rot>0</rot>
@@ -20926,14 +20983,15 @@
       <pos>(82, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810865</id>
           <pos>(82, 0, 30)</pos>
           <rot>0</rot>
@@ -20944,14 +21002,15 @@
       <pos>(83, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810866</id>
           <pos>(83, 0, 30)</pos>
           <rot>0</rot>
@@ -20962,14 +21021,15 @@
       <pos>(84, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810867</id>
           <pos>(84, 0, 30)</pos>
           <rot>0</rot>
@@ -20997,14 +21057,15 @@
       <pos>(82, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810869</id>
           <pos>(82, 0, 31)</pos>
           <rot>0</rot>
@@ -21015,14 +21076,15 @@
       <pos>(83, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810870</id>
           <pos>(83, 0, 31)</pos>
           <rot>0</rot>
@@ -21033,14 +21095,15 @@
       <pos>(84, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810871</id>
           <pos>(84, 0, 31)</pos>
           <rot>0</rot>
@@ -21051,14 +21114,15 @@
       <pos>(85, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810872</id>
           <pos>(85, 0, 31)</pos>
           <rot>0</rot>
@@ -21086,14 +21150,15 @@
       <pos>(81, 0, 29)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810874</id>
           <pos>(81, 0, 29)</pos>
           <rot>0</rot>
@@ -21104,14 +21169,15 @@
       <pos>(82, 0, 29)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810875</id>
           <pos>(82, 0, 29)</pos>
           <rot>0</rot>
@@ -21122,14 +21188,15 @@
       <pos>(83, 0, 29)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810876</id>
           <pos>(83, 0, 29)</pos>
           <rot>0</rot>
@@ -21140,14 +21207,15 @@
       <pos>(84, 0, 29)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810877</id>
           <pos>(84, 0, 29)</pos>
           <rot>0</rot>
@@ -21175,14 +21243,15 @@
       <pos>(81, 0, 33)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810879</id>
           <pos>(81, 0, 33)</pos>
           <rot>0</rot>
@@ -21193,14 +21262,15 @@
       <pos>(81, 0, 34)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810880</id>
           <pos>(81, 0, 34)</pos>
           <rot>0</rot>
@@ -21211,14 +21281,15 @@
       <pos>(81, 0, 35)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810881</id>
           <pos>(81, 0, 35)</pos>
           <rot>0</rot>
@@ -21229,14 +21300,15 @@
       <pos>(81, 0, 36)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810882</id>
           <pos>(81, 0, 36)</pos>
           <rot>0</rot>
@@ -21264,14 +21336,15 @@
       <pos>(80, 0, 33)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810884</id>
           <pos>(80, 0, 33)</pos>
           <rot>0</rot>
@@ -21282,14 +21355,15 @@
       <pos>(80, 0, 34)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810885</id>
           <pos>(80, 0, 34)</pos>
           <rot>0</rot>
@@ -21300,14 +21374,15 @@
       <pos>(80, 0, 35)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810886</id>
           <pos>(80, 0, 35)</pos>
           <rot>0</rot>
@@ -21318,14 +21393,15 @@
       <pos>(80, 0, 36)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810887</id>
           <pos>(80, 0, 36)</pos>
           <rot>0</rot>
@@ -21353,14 +21429,15 @@
       <pos>(82, 0, 33)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810889</id>
           <pos>(82, 0, 33)</pos>
           <rot>0</rot>
@@ -21371,14 +21448,15 @@
       <pos>(82, 0, 34)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810890</id>
           <pos>(82, 0, 34)</pos>
           <rot>0</rot>
@@ -21389,14 +21467,15 @@
       <pos>(82, 0, 35)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810891</id>
           <pos>(82, 0, 35)</pos>
           <rot>0</rot>
@@ -21407,14 +21486,15 @@
       <pos>(82, 0, 36)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810892</id>
           <pos>(82, 0, 36)</pos>
           <rot>0</rot>
@@ -21442,14 +21522,15 @@
       <pos>(79, 0, 33)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810894</id>
           <pos>(79, 0, 33)</pos>
           <rot>0</rot>
@@ -21460,14 +21541,15 @@
       <pos>(79, 0, 34)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810895</id>
           <pos>(79, 0, 34)</pos>
           <rot>0</rot>
@@ -21478,14 +21560,15 @@
       <pos>(79, 0, 35)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810896</id>
           <pos>(79, 0, 35)</pos>
           <rot>0</rot>
@@ -21496,14 +21579,15 @@
       <pos>(79, 0, 36)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810897</id>
           <pos>(79, 0, 36)</pos>
           <rot>0</rot>
@@ -21531,14 +21615,15 @@
       <pos>(83, 0, 33)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810899</id>
           <pos>(83, 0, 33)</pos>
           <rot>0</rot>
@@ -21549,14 +21634,15 @@
       <pos>(83, 0, 34)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810900</id>
           <pos>(83, 0, 34)</pos>
           <rot>0</rot>
@@ -21567,14 +21653,15 @@
       <pos>(83, 0, 35)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810901</id>
           <pos>(83, 0, 35)</pos>
           <rot>0</rot>
@@ -21585,14 +21672,15 @@
       <pos>(83, 0, 36)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810902</id>
           <pos>(83, 0, 36)</pos>
           <rot>0</rot>
@@ -21620,14 +21708,15 @@
       <pos>(81, 0, 28)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810904</id>
           <pos>(81, 0, 28)</pos>
           <rot>0</rot>
@@ -21638,14 +21727,15 @@
       <pos>(82, 0, 28)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810905</id>
           <pos>(82, 0, 28)</pos>
           <rot>0</rot>
@@ -21656,14 +21746,15 @@
       <pos>(83, 0, 28)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810906</id>
           <pos>(83, 0, 28)</pos>
           <rot>0</rot>
@@ -21674,14 +21765,15 @@
       <pos>(84, 0, 28)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810907</id>
           <pos>(84, 0, 28)</pos>
           <rot>0</rot>
@@ -21709,14 +21801,15 @@
       <pos>(80, 0, 28)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810909</id>
           <pos>(80, 0, 28)</pos>
           <rot>0</rot>
@@ -21727,14 +21820,15 @@
       <pos>(80, 0, 29)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810910</id>
           <pos>(80, 0, 29)</pos>
           <rot>0</rot>
@@ -21745,14 +21839,15 @@
       <pos>(80, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810911</id>
           <pos>(80, 0, 30)</pos>
           <rot>0</rot>
@@ -21763,14 +21858,15 @@
       <pos>(80, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810912</id>
           <pos>(80, 0, 31)</pos>
           <rot>0</rot>
@@ -21798,14 +21894,15 @@
       <pos>(79, 0, 28)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810914</id>
           <pos>(79, 0, 28)</pos>
           <rot>0</rot>
@@ -21816,14 +21913,15 @@
       <pos>(79, 0, 29)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810915</id>
           <pos>(79, 0, 29)</pos>
           <rot>0</rot>
@@ -21834,14 +21932,15 @@
       <pos>(79, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810916</id>
           <pos>(79, 0, 30)</pos>
           <rot>0</rot>
@@ -21852,14 +21951,15 @@
       <pos>(79, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810917</id>
           <pos>(79, 0, 31)</pos>
           <rot>0</rot>
@@ -21887,14 +21987,15 @@
       <pos>(81, 0, 27)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810919</id>
           <pos>(81, 0, 27)</pos>
           <rot>0</rot>
@@ -21905,14 +22006,15 @@
       <pos>(82, 0, 27)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810920</id>
           <pos>(82, 0, 27)</pos>
           <rot>0</rot>
@@ -21923,14 +22025,15 @@
       <pos>(83, 0, 27)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810921</id>
           <pos>(83, 0, 27)</pos>
           <rot>0</rot>
@@ -21941,14 +22044,15 @@
       <pos>(84, 0, 27)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810922</id>
           <pos>(84, 0, 27)</pos>
           <rot>0</rot>
@@ -21976,14 +22080,15 @@
       <pos>(78, 0, 28)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810924</id>
           <pos>(78, 0, 28)</pos>
           <rot>0</rot>
@@ -21994,14 +22099,15 @@
       <pos>(78, 0, 29)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810925</id>
           <pos>(78, 0, 29)</pos>
           <rot>0</rot>
@@ -22012,14 +22118,15 @@
       <pos>(78, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810926</id>
           <pos>(78, 0, 30)</pos>
           <rot>0</rot>
@@ -22030,14 +22137,15 @@
       <pos>(78, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810927</id>
           <pos>(78, 0, 31)</pos>
           <rot>0</rot>
@@ -22065,14 +22173,15 @@
       <pos>(77, 0, 28)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810929</id>
           <pos>(77, 0, 28)</pos>
           <rot>0</rot>
@@ -22083,14 +22192,15 @@
       <pos>(77, 0, 29)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810930</id>
           <pos>(77, 0, 29)</pos>
           <rot>0</rot>
@@ -22101,14 +22211,15 @@
       <pos>(77, 0, 30)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810931</id>
           <pos>(77, 0, 30)</pos>
           <rot>0</rot>
@@ -22119,14 +22230,15 @@
       <pos>(77, 0, 31)</pos>
       <def>Plant_Rice</def>
       <rotation>0</rotation>
-      <hitPoints>-1</hitPoints>
+      <hitPoints>85</hitPoints>
       <stackCount>1</stackCount>
       <state>
         <saveable Class="Plant">
           <def>Plant_Rice</def>
-          <growth>0.55</growth>
+          <growth>1</growth>
           <age>30000</age>
           <sown>True</sown>
+          <health>85</health>
           <id>Plant_Rice810932</id>
           <pos>(77, 0, 31)</pos>
           <rot>0</rot>

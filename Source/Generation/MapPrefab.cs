@@ -65,8 +65,9 @@ namespace DeltaV
 
         /// <summary>
         /// 导出当前聚焦图掩码内的内容（PrefabUtility.CreatePrefab 硬编码当前图）。
-        /// thing 白名单 Building+Item（pawn/filth/blueprint 等丢弃）；多格建筑按 anchor
-        /// 在掩码内判定；terrain 逐格裁剪且 isFoundation 条目丢弃（foundation 走侧车）。
+        /// thing 白名单 Building+Item，并携带已纳入的 Building_PlantGrower 占地内植物及其枯萎病；
+        /// pawn/filth/blueprint 等丢弃。多格建筑按 anchor 在掩码内判定，植物自身格也须在掩码内；
+        /// terrain 逐格裁剪且 isFoundation 条目丢弃（foundation 走侧车）。
         /// 掩码为空抛异常。
         /// </summary>
         public static MapPrefabDocument Export(string name, IEnumerable<IntVec3> cells)

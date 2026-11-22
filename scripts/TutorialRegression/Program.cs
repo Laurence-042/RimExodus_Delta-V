@@ -77,6 +77,7 @@ internal static partial class Program
                     double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture)));
                 return 0;
             }
+            MatureHydroponics(prefabRoot);
             ThrusterThrustChecks(game, harmony, prefabRoot);
             ShieldSettingChecks(prefabRoot);
             string tutorialPrefabs = Path.Combine(prefabRoot, "Tutorial");

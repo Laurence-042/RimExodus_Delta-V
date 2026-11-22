@@ -286,6 +286,7 @@
     <growth>0.55</growth>
     <age>30000</age>
     <sown>True</sown>
+      <health>85</health>
   </saveable>
   <saveable Class="Building">
     <def>DeltaV_CargoTemperatureModule</def>

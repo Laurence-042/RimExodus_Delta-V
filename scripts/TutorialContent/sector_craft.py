@@ -396,7 +396,7 @@ def furnish(name, plan, foundation, roofs, records, occupied, reserved, put, aut
             assert cells <= galley - reserved and all(math.dist(c, lamp['root']) <= 5.5 for c in cells)
             basin = put('HydroponicsBasin', x, z, 1, state={'plantDefToGrow': 'Plant_Rice'})
             for cell in basin['cells']:
-                put('Plant_Rice', *cell, layer='plants')
+                put('Plant_Rice', *cell, layer='plants', state={'growth': 1})
         auto('ChessTable', galley, near=(8, south+1))
         auto('ElectricStove', galley, near=(10, south+1))
         supply(galley, [('RawRice', 75), ('Steel', 75)], near=(13, south+3))

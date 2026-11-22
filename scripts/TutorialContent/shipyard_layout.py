@@ -197,6 +197,7 @@ def yard_furnish(plan, put, auto, prop, foundation, roofs, records, occupied, re
     modules, corridor = plan['modules'], plan['corridor']
     walls, doors, ports = yard_partitions(plan, foundation, put, reserved)
     moon = rectangle((44, 37, 53, 53))
+    pending_plants = []
 
     def furnish_area(area, *names):
         return [auto(thing, area, near=anchor)
@@ -245,6 +246,9 @@ def yard_furnish(plan, put, auto, prop, foundation, roofs, records, occupied, re
             for node, (x, z) in things:
                 name = node.findtext('def')
                 if name in ('GravshipHull', 'Door', 'Vent', 'HiddenConduit'):
+                    continue
+                if name == 'Plant_Rice':
+                    pending_plants.append((x, z))
                     continue
                 rotation = (int(node.findtext('rotation'))+turn) % 4
                 if prop(name, 'rotatable', 'true').lower() == 'false':
@@ -358,6 +362,8 @@ def yard_furnish(plan, put, auto, prop, foundation, roofs, records, occupied, re
 
     yard_power(plan, put, auto, prop, foundation, records)
     ensure_roof_support(roofs, records, occupied, reserved, put)
+    assert len(pending_plants) == len(set(pending_plants)) == 480
+    plan['pendingPlants'] = sorted(pending_plants)
     assert billiards_clearance.isdisjoint(occupied), 'billiards clearance obstructed'
     return walls, doors, ports, (56, 56)
 
@@ -536,7 +542,7 @@ def furnish(name,plan,place,prop,foundation,roofs,records,occupied,*,footprint=N
         for c in moon:plan['foundationDefs'][c]='DeltaV_MoonPool';roofs.discard(c)
         for x in (3,5,7,9,11,13):
             basin=put('HydroponicsBasin',x,3,state={'plantDefToGrow':'Plant_Rice'})
-            for c in basin['cells']:put('Plant_Rice',*c,layer='plants',state={'growth':0.65})
+            for c in basin['cells']:put('Plant_Rice',*c,layer='plants',state={'growth':1})
         put('ElectricStove',5,8,1)
         # Supplies use ordinary on-map stacks in the actual ASF storage cells.
         for n,x,z,count in [('Steel',2,10,75),('ComponentIndustrial',2,11,12),('Chemfuel',5,10,150),
@@ -568,6 +574,8 @@ def furnish(name,plan,place,prop,foundation,roofs,records,occupied,*,footprint=N
     plan['walls']=walls;plan['doors']=doors;plan['ports']=ports
     if name == 'Shipyard':
         yard_conduits(plan, put, prop, foundation, records, occupied)
+        for x, z in plan.pop('pendingPlants'):
+            put('Plant_Rice', x, z, layer='plants', state={'growth': 1})
     else:
         transmitting={tuple(c) for r in records if r['transmitsPower'] for c in r['cells']}
         for x,z in sorted(foundation-transmitting):put('HiddenConduit',x,z,layer='conduit')
@@ -708,7 +716,7 @@ def validate_and_draw(name,plan,records,foundation,roofs,reachable,here,generate
 
 def validate_yard(plan, records, counts, foundation, roofs, reachable):
     expected = {'DeltaV_PrefabPawnMarker': 24, 'Bed': 28, 'HospitalBed': 2,
-                'HydroponicsBasin': 120, 'SunLamp': 0, 'Plant_Rice': 0,
+                'HydroponicsBasin': 120, 'SunLamp': 0, 'Plant_Rice': 480,
                 'DeltaV_CargoStorage': 7, 'DeltaV_CargoContainer': 16, 'DeltaV_TradeTerminal': 1,
                 'TableMachining': 2, 'FabricationBench': 1, 'ElectricTailoringBench': 1,
                 'ElectricSmithy': 1, 'HiTechResearchBench': 2, 'DeltaV_TractorBeam': 1,

@@ -162,6 +162,79 @@ internal static partial class Program
             "asteroid belt cluster marker restores its complete production Scribe state");
     }
 
+    static void MatureHydroponics(string directory)
+    {
+        int totalBasins = 0;
+        int totalRice = 0;
+        IntVec2 basinSize = ParseHelper.FromString<IntVec2>(sourceDefs["HydroponicsBasin"]["size"].InnerText);
+        ThingDef riceDef = DefDatabase<ThingDef>.GetNamedSilentFail("Plant_Rice");
+        if (riceDef == null)
+        {
+            riceDef = Raw<ThingDef>();
+            riceDef.defName = "Plant_Rice";
+            riceDef.category = ThingCategory.Plant;
+            riceDef.thingClass = typeof(Plant);
+            riceDef.stackLimit = 1;
+            riceDef.size = IntVec2.One;
+            riceDef.useHitPoints = true;
+            riceDef.comps = new List<CompProperties>();
+            riceDef.virtualDefs = new List<ThingDef>();
+            riceDef.plant = new PlantProperties();
+            DefDatabase<ThingDef>.Add(riceDef);
+        }
+        foreach (string path in Directory.GetFiles(directory, "*.xml", SearchOption.AllDirectories))
+        {
+            var xml = new XmlDocument();
+            xml.Load(path);
+            var basins = xml.SelectNodes("/MapPrefab/thingStates/li[def='HydroponicsBasin']")
+                .Cast<XmlNode>().ToList();
+            if (basins.Count == 0)
+                continue;
+
+            string label = Path.GetRelativePath(directory, path);
+            var rice = xml.SelectNodes("/MapPrefab/thingStates/li[def='Plant_Rice']")
+                .Cast<XmlNode>().ToList();
+            var riceByCell = rice.GroupBy(node => IntVec3.FromString(node["pos"].InnerText))
+                .ToDictionary(group => group.Key, group => group.ToList());
+            var basinCells = new HashSet<IntVec3>();
+            foreach (XmlNode basin in basins)
+            {
+                Check(basin.SelectSingleNode("state/saveable/plantDefToGrow")?.InnerText == "Plant_Rice",
+                    label + " hydroponics basins retain rice as the selected crop");
+                var root = IntVec3.FromString(basin["pos"].InnerText);
+                var rotation = new Rot4(ParseHelper.FromString<int>(basin["rotation"].InnerText));
+                foreach (IntVec3 cell in GenAdj.OccupiedRect(root, rotation, basinSize))
+                    Check(basinCells.Add(cell), label + " hydroponics footprints do not overlap");
+            }
+
+            Check(basinCells.Count == basins.Count * 4 && rice.Count == basinCells.Count
+                && basinCells.All(cell => riceByCell.TryGetValue(cell, out var plants) && plants.Count == 1),
+                label + " has exactly one rice plant in every hydroponics cell");
+            Check(rice.All(node => node.SelectSingleNode("state/saveable/growth")?.InnerText == "1"
+                    && node.SelectSingleNode("state/saveable/sown")?.InnerText == "True"),
+                label + " hydroponics rice is fully grown and sown");
+            Check(rice.All(node => node["hitPoints"]?.InnerText == "85"
+                    && node.SelectSingleNode("state/saveable/health")?.InnerText == "85"),
+                label + " hydroponics rice stores full health in placement and Scribe state");
+            var riceIds = rice.Select(node => node.SelectSingleNode("state/saveable/id")?.InnerText).ToList();
+            Check(riceIds.All(id => !id.NullOrEmpty()) && riceIds.Distinct().Count() == riceIds.Count,
+                label + " hydroponics rice has unique persistent IDs");
+            int before = errors.Count;
+            var restored = (Plant)MapPrefabThingState.Instantiate(new[] { new MapPrefabThingEntry {
+                def = riceDef, stateXml = rice[0].SelectSingleNode("state/saveable").OuterXml,
+            } }, label + " mature rice", null).Single();
+            Check(errors.Count == before && restored.HitPoints == 85 && restored.Growth == 1f
+                    && restored.Age == 30000 && restored.sown,
+                label + " restores mature rice at full health through native Scribe");
+            Check(xml.SelectNodes("/MapPrefab/thingStates/li[def='PlantPot']/state/saveable[plantDefToGrow='Plant_Rice']").Count == 0,
+                label + " decorative plant pots are not converted to rice");
+            totalBasins += basins.Count;
+            totalRice += rice.Count;
+        }
+        Check(totalBasins == 256 && totalRice == 1024,
+            "shipped prefab catalog has 1024 mature rice plants across all 256 hydroponics basins");
+    }
+
     static void CheckStationSolar(XmlDocument document, string label, string batteryDef, int reserveCount)
     {
         var openDeck = document.SelectNodes("/MapPrefab/noRoof/li").Cast<XmlNode>()

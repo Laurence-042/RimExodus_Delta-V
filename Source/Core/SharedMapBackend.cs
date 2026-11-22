@@ -16,17 +16,44 @@ namespace DeltaV
 
         internal static MapPrefabDocument Export(Map map, string name, IEnumerable<IntVec3> cells, out string path)
         {
-            CommonDocument shared = MapPrefabs.Capture(map, new CellSelection(cells), name,
-                include: t => (t.def.category == ThingCategory.Building || t.def.category == ThingCategory.Item)
-                    && !CompShipPlanner.IsAuthoringMarker(t),
-                order: things => things.OrderBy(t => t.def.building?.isAttachment == true
-                    || t.TryGetComp<CompSpaceWeaponAttachment>() != null ? 1 : 0)
-                    .ThenByDescending(t => t.def.category == ThingCategory.Building)
-                    .ThenByDescending(t => t.TryGetComp<CompDeltaVPilotConsole>()?.isMain == true)
-                    .ThenByDescending(t => t.def.shortHash));
+            var selected = new HashSet<IntVec3>(cells);
+            var growerCells = new HashSet<IntVec3>();
+            foreach (Building_PlantGrower grower in map.listerThings.AllThings.OfType<Building_PlantGrower>())
+            {
+                if (!selected.Contains(grower.Position)) continue;
+                foreach (IntVec3 cell in grower.OccupiedRect())
+                    if (selected.Contains(cell)) growerCells.Add(cell);
+            }
+
+            var plants = map.listerThings.AllThings.OfType<Plant>()
+                .Where(plant => growerCells.Contains(plant.Position)).Cast<Thing>().ToHashSet();
+            var plantCells = plants.Select(plant => plant.Position).ToHashSet();
+            var blights = map.listerThings.AllThings.OfType<Blight>()
+                .Where(blight => plantCells.Contains(blight.Position)).Cast<Thing>().ToHashSet();
+
+            CommonDocument shared = MapPrefabs.Capture(map, new CellSelection(selected), name,
+                include: thing => ShouldExportThing(thing, plants, blights),
+                order: OrderExportThings);
             path = Path.GetFullPath(Path.Combine(MapPrefab.PrefabDirectory, name + ".xml"));
             shared.Save(path);
             return shared;
+        }
+
+        internal static bool ShouldExportThing(Thing thing, ISet<Thing> plants, ISet<Thing> blights)
+        {
+            return !CompShipPlanner.IsAuthoringMarker(thing)
+                && (thing.def.category == ThingCategory.Building || thing.def.category == ThingCategory.Item
+                    || plants.Contains(thing) || blights.Contains(thing));
+        }
+
+        internal static IOrderedEnumerable<Thing> OrderExportThings(IEnumerable<Thing> things)
+        {
+            return things.OrderBy(thing => thing.def.building?.isAttachment == true
+                    || thing.TryGetComp<CompSpaceWeaponAttachment>() != null ? 1 : 0)
+                .ThenBy(thing => thing is Blight ? 2 : thing is Plant ? 1 : 0)
+                .ThenByDescending(thing => thing.def.category == ThingCategory.Building)
+                .ThenByDescending(thing => thing.TryGetComp<CompDeltaVPilotConsole>()?.isMain == true)
+                .ThenByDescending(thing => thing.def.shortHash);
         }
 
         internal static List<Thing> Spawn(MapPrefabDocument doc, Map map, IntVec3 position, Faction faction,

@@ -20,6 +20,7 @@ internal static class Program
     static readonly List<string> errors = new List<string>();
     static int checks;
     static readonly Type state = typeof(MapPrefabThingEntry).Assembly.GetType("RimExodus.Maps.MapPrefabThingState");
+    static readonly Type exportBackend = typeof(MapPrefab).Assembly.GetType("DeltaV.SharedMapBackend");
 
     static int Main(string[] args)
     {
@@ -46,6 +47,7 @@ internal static class Program
         Console.WriteLine("PASS " + name);
     }
     static bool DisableVerboseLogging(ref bool __result) { __result = false; return false; }
+    static bool DisablePlantRenderingInitializer() { return false; }
     static bool CaptureError(string text) { errors.Add(text); Console.WriteLine(text); return false; }
     static void NoErrors(string phase) => Check(errors.Count == 0, phase + ": " + string.Join("\n", errors));
     static object Call(string method, params object[] args) => state.GetMethod(method,
@@ -96,6 +98,8 @@ internal static class Program
                 prefix: new HarmonyMethod(typeof(Program), nameof(CaptureError)));
         harmony.Patch(AccessTools.PropertyGetter(typeof(Prefs), nameof(Prefs.LogVerbose)),
             prefix: new HarmonyMethod(typeof(Program), nameof(DisableVerboseLogging)));
+        harmony.Patch(typeof(Plant).TypeInitializer,
+            prefix: new HarmonyMethod(typeof(Program), nameof(DisablePlantRenderingInitializer)));
         DeepProfiler.enabled = false;
         var game = (Game)RuntimeHelpers.GetUninitializedObject(typeof(Game));
         game.uniqueIDsManager = new UniqueIDsManager();
@@ -234,11 +238,123 @@ internal static class Program
         NoErrors("missing Def import");
     }
 
+    static void PlantGrowerContents()
+    {
+        ThingDef NewDef(string name, ThingCategory category, Type thingClass, bool useHitPoints)
+        {
+            var def = (ThingDef)RuntimeHelpers.GetUninitializedObject(typeof(ThingDef));
+            def.defName = name;
+            def.category = category;
+            def.thingClass = thingClass;
+            def.stackLimit = 1;
+            def.size = IntVec2.One;
+            def.useHitPoints = useHitPoints;
+            def.comps = new List<CompProperties>();
+            def.virtualDefs = new List<ThingDef>();
+            DefDatabase<ThingDef>.Add(def);
+            return def;
+        }
+
+        ThingDef plantDef = NewDef("PrefabRegressionPlant", ThingCategory.Plant, typeof(Plant), true);
+        plantDef.plant = new PlantProperties { neverBlightable = false };
+        ThingDef growerDef = NewDef("PrefabRegressionGrower", ThingCategory.Building,
+            typeof(Building_PlantGrower), true);
+        growerDef.building = new BuildingProperties { defaultPlantToGrow = plantDef };
+        ThingDef blightDef = NewDef("PrefabRegressionBlight", ThingCategory.Ethereal, typeof(Blight), false);
+        ThingDef itemDef = NewDef("PrefabRegressionItem", ThingCategory.Item, typeof(ThingWithComps), false);
+
+        var grower = new Building_PlantGrower
+        {
+            def = growerDef, thingIDNumber = 2100250, Position = new IntVec3(4, 0, 4), HitPoints = 86,
+        };
+        grower.SetPlantDefToGrow(plantDef);
+        var plant = new Plant
+        {
+            def = plantDef, thingIDNumber = 2100251, Position = new IntVec3(4, 0, 4),
+            Growth = 0.63f, Age = 23456, sown = true, HitPoints = 37,
+        };
+        AccessTools.Field(typeof(Plant), "unlitTicks").SetValue(plant, 3456);
+        AccessTools.Field(typeof(Plant), "madeLeaflessTick").SetValue(plant, 4567);
+        var blight = new Blight
+        {
+            def = blightDef, thingIDNumber = 2100252, Position = new IntVec3(4, 0, 4), Severity = 0.58f,
+        };
+        AccessTools.Field(typeof(Blight), "lastPlantHarmTick").SetValue(blight, 5678);
+        var wildPlant = new Plant
+        {
+            def = plantDef, thingIDNumber = 2100253, Position = new IntVec3(7, 0, 7), Growth = 0.31f,
+        };
+        var strayBlight = new Blight
+        {
+            def = blightDef, thingIDNumber = 2100254, Position = new IntVec3(7, 0, 7), Severity = 0.42f,
+        };
+        var item = new ThingWithComps
+        {
+            def = itemDef, thingIDNumber = 2100255, Position = new IntVec3(5, 0, 4),
+        };
+
+        MethodInfo include = exportBackend.GetMethod("ShouldExportThing", BindingFlags.Static | BindingFlags.NonPublic);
+        MethodInfo order = exportBackend.GetMethod("OrderExportThings", BindingFlags.Static | BindingFlags.NonPublic);
+        var plants = new HashSet<Thing> { plant };
+        var blights = new HashSet<Thing> { blight };
+        bool Included(Thing thing) => (bool)include.Invoke(null, new object[] { thing, plants, blights });
+        Check(Included(grower) && Included(item) && Included(plant) && Included(blight),
+            "export policy includes buildings, items and selected grower dependants");
+        Check(!Included(wildPlant) && !Included(strayBlight),
+            "export policy excludes unrelated plants and blight");
+        var ordered = ((IEnumerable<Thing>)order.Invoke(null,
+            new object[] { new Thing[] { blight, plant, grower } })).ToList();
+        Check(ordered.SequenceEqual(new Thing[] { grower, plant, blight }),
+            "export order places grower before plant before blight");
+
+        MapPrefabThingEntry Entry(Thing thing) => new MapPrefabThingEntry
+        {
+            def = thing.def,
+            pos = thing.Position,
+            stateXml = (string)Call("Capture", thing),
+        };
+        var entries = new List<MapPrefabThingEntry> { Entry(grower), Entry(plant), Entry(blight) };
+        string plantState = entries[1].stateXml;
+        Check(plantState.Contains("<growth>"), "plant Scribe state contains growth");
+        Check(plantState.Contains("<age>23456</age>"), "plant Scribe state contains age");
+        Check(plantState.Contains("<unlitTicks>3456</unlitTicks>"), "plant Scribe state contains light timer");
+        Check(plantState.Contains("<madeLeaflessTick>4567</madeLeaflessTick>"),
+            "plant Scribe state contains leafless timer");
+        Check(plantState.Contains("<sown>True</sown>"), "plant Scribe state contains sown flag");
+        Check(plantState.Contains("<health>37</health>"), "plant Scribe state contains health");
+
+        var first = Instantiate(entries);
+        var second = Instantiate(entries);
+        NoErrors("plant grower capture and instantiate twice");
+        void CheckCopy(List<Thing> copy, string label)
+        {
+            var copiedGrower = (Building_PlantGrower)copy[0];
+            var copiedPlant = (Plant)copy[1];
+            var copiedBlight = (Blight)copy[2];
+            Check(copiedGrower.GetPlantDefToGrow() == plantDef && copiedGrower.HitPoints == 86,
+                label + " restores grower selection and health");
+            Check(Math.Abs(copiedPlant.Growth - 0.63f) < 0.0001f && copiedPlant.Age == 23456
+                && copiedPlant.sown && copiedPlant.HitPoints == 37
+                && (int)AccessTools.Field(typeof(Plant), "unlitTicks").GetValue(copiedPlant) == 3456
+                && (int)AccessTools.Field(typeof(Plant), "madeLeaflessTick").GetValue(copiedPlant) == 4567,
+                label + " restores all plant growth state");
+            Check(Math.Abs(copiedBlight.Severity - 0.58f) < 0.0001f
+                && (int)AccessTools.Field(typeof(Blight), "lastPlantHarmTick").GetValue(copiedBlight) == 5678,
+                label + " restores blight state");
+        }
+        CheckCopy(first, "first clone");
+        CheckCopy(second, "second clone");
+        Check(new Thing[] { grower, plant, blight }.Concat(first).Concat(second)
+                .Select(thing => thing.GetUniqueLoadID()).Distinct().Count() == 9,
+            "source and plant grower clones have independent Thing IDs");
+    }
+
     static void Run()
     {
         using var logLock = Log.LockMessages();
         PrepareNativeFixture();
         ImportMissingDefs();
+        PlantGrowerContents();
         // Def constructors preload shaders; only those rendering defaults are bypassed here.
         var gunDef = (ThingDef)RuntimeHelpers.GetUninitializedObject(typeof(ThingDef));
         gunDef.defName = "PrefabRegressionGun";

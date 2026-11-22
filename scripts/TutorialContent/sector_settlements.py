@@ -205,7 +205,7 @@ def furnish(name, plan, foundation, roofs, records, occupied, reserved, put, aut
                 basin = auto('HydroponicsBasin', lit, rotations=(0, 1),
                              near=lamp['root'], state={'plantDefToGrow': 'Plant_Rice'})
                 for x, z in basin['cells']:
-                    put('Plant_Rice', x, z, layer='plants')
+                    put('Plant_Rice', x, z, layer='plants', state={'growth': 1})
             life_support(room, walls, center(room), key)
 
     install('lounge', 'ChessTable', 'HoopstoneRing', 'Bookcase', 'PlantPot', 'PlantPot')
