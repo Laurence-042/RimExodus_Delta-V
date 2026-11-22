@@ -2,9 +2,13 @@
 
 [h1]Overall plan[/h1]
 
-当前状态：alpha测试，比起一个完善mod更接近概念展示demo，以展示功能为主，尚不能提供完整的游玩循环
+当前状态为 alpha测试，比起一个完善mod更接近概念展示demo，以展示功能为主，尚不能提供完整的游玩循环
 
-Current state: alpha testing. This is closer to a proof-of-concept demo than a complete mod. Its current purpose is to demonstrate features, and it does not yet provide a complete gameplay loop.
+The mod is currently in alpha testing. This is closer to a proof-of-concept demo than a complete mod. Its current purpose is to demonstrate features, and it does not yet provide a complete gameplay loop.
+
+计划在接下来的1-2个月内结合玩家反馈，在 0.x.x 的版本中逐渐完善必要的功能以及补充内容，当前足够提供完整的游玩循环时会进入 1.0.0 的正式版本
+
+Over the next 1-2 months, I plan to use player feedback to refine the essential features and add more content through the 0.x.x releases. The mod will move to the full 1.0.0 release once it can provide a complete gameplay loop.
 
 [h1]已知问题[/h1]
 
