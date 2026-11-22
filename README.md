@@ -224,7 +224,7 @@
 - .NET SDK（编译用；游戏运行不需要）
 - Harmony（游戏自带 0Harmony；About.xml 已声明 brrainz.harmony 依赖）
 
-发布包仍提供 RimWorld 1.6 构建。可手动启用，模组列表会显示版本警告。欢迎反馈 1.6 上的问题，会尽量修复，能否解决视具体问题而定。性能优化和取舍优先考虑 1.7。
+发布包同时提供 RimWorld 1.6 与 1.7 构建，About.xml 与 LoadFolders.xml 均声明这两个版本。欢迎反馈 1.6 上的问题，会尽量修复，能否解决视具体问题而定。性能优化和取舍优先考虑 1.7。
 
 ## 构建
 
@@ -240,6 +240,10 @@ Windows 构建和发布入口使用系统自带的 `powershell.exe`，无需安�
 开发目录以 `RimExodus: Delta-V (Dev)` 和 `RimExodus.DeltaV.dev` 加载，依赖 `RimExodus.Framework.dev`。`just release` 分别尝试构建 1.6 和 1.7；缺少某版构建环境时复用不早于源码及 REF DLL 的已有产物，过时则警告并中止。成功后两版一起打包到同级 `RimExodus_Delta-V.release`，去掉名称的 `(Dev)` 并把自身 ID、REF 依赖和加载顺序转换为正式版；正式包通过 `LoadFolders.xml` 为两个游戏版本分别加载对应目录，需要启用 REF 正式包。重复运行会替换发布目录，包内不含源码、文档或编译引用。默认游戏目录为 `RimWorld_1.6`（1.6）和 `RimWorld`（1.7），可通过 `RimWorld16Dir`、`RimWorld17Dir` 或 `RimWorldDir` 覆盖。
 
 `just alpha-release` 使用同一构建流程，生成同级 `RimExodus_Delta-V.alpha.release`，名称为 `RimExodus: Delta-V [ALPHA]`，包 ID 为 `RimExodus.DeltaV.alpha`。Alpha 依赖正式版 `RimExodus.Framework`，发布前须更新工坊上的 REF，使其包含本次构建所使用的接口。首次在游戏内上传后，重新打包会保留 Alpha 目录的 `About/PublishedFileId.txt`。
+
+两种发布命令都会在源文件存在时打包 `About/Preview.png`，供模组列表和工坊使用；`About/Preview.original.png` 原图不打包。
+
+两种发布命令在打包成功后，都会在已配置的 1.6／1.7 游戏 `Mods` 目录中自动创建与发布目录同名的符号链接，指向本次发布包。首次创建需要 Windows 已开启开发者模式或当前进程具有管理员权限。链接路径使用上述游戏目录配置；已有正确链接会直接复用，路径被其他文件、目录或不同目标的链接占用时会报错，不覆盖。游戏 `Mods` 目录不存在时警告并跳过该目录。
 
 Delta-V 现在依赖同级独立 Mod [RimExodus Framework 1.0.0](../RimExodusFramework/README.md)，不再提供实验开关或旧地图后端。请启用与开发版／正式版对应的 REF，加载顺序为 Harmony → REF → Delta-V。
 
@@ -423,6 +427,8 @@ EVA 使用专属黄灰工程外骨骼贴图，单人驾驶舱配合不对称夹�
 ## 鸣谢
 
 飞船断裂检查使用的 **TopologyLab 增量连通算法来自《新边疆》开发组的浪淘沙**，感谢提供这套出色的算法！来源与贡献记录见 [CONTRIBUTOR.md](CONTRIBUTOR.md)；今后的 Steam Workshop 介绍必须保留这项鸣谢。
+
+宣传片配乐为 Peppsen（P-Music）创作的《Rise》，来源：[P-Music](https://steamcommunity.com/sharedfiles/filedetails/?id=725130005)，依 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 许可使用。音乐音轨原样使用，与游戏画面同步并叠加游戏音效。该音乐仍适用其原许可，不属于本项目的 MIT 许可范围。
 
 ## 目录结构
 

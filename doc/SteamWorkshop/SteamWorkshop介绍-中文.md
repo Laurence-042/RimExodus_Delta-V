@@ -2,6 +2,8 @@
 
 [b]⚠ 本mod目前处于alpha版本，存档数据结构基本稳定，核心机制也相对完善，但是各种机制、数据都仍在频繁变更中，各种内容填充也仍然不足，可以预计有一堆bug和兼容性问题。发布本版本的核心目的在于让感兴趣的玩家能提前体验mod内容，并提供相关的平衡性、后续内容建议。暂时没有明确做卸载支持，所以不建议在正式存档中安装。[/b]
 
+[img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/name.jpg[/img]
+
 有没有想象过，也许 RimWorld - Odyssey 的飞船不用像蚱蜢一样跳来跳去？
 
 有没有想象过，也许 RimWorld 里也可以有连续的结构线速度与角速度？
@@ -18,6 +20,8 @@ Delta-V 给《边缘世界：奥德赛》加了连续航行和舰船战斗。
 
 你甚至可以把敌人空间站切下来一块再用牵引光束将其拖走！
 
+[img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/demo.webp[/img]
+
 [h1]它做了什么[/h1]
 
 简单来说，它把飞船地图解释成了“SpaceObject”，一种可以包含一系列共同运动结构的容器。通过在RimExodus里催熟的RimExodusFramework，将不同SpaceObject同时渲染在视野中，来让飞船的运动不再受地图网格的限制。
@@ -29,12 +33,32 @@ Delta-V 给《边缘世界：奥德赛》加了连续航行和舰船战斗。
 
 [*][b]连续的飞船战[/b]：现在你得考虑双方的相对速度、寻找有利射位、攻击敌人防御薄弱处，同时别把自己防御薄弱处暴露给敌人。当然，你有很多特性各不相同的武器、三种机制不同的护盾来应对敌人，其中一些武器还能通过安装插件来显著改变其性能和定位。但不要忘了，每种武器都有自己的优势和劣势，而且入射角也很关键，即使是重型穿甲弹，入射角过于不垂直也会跳弹的。详情请参考《舰炮、护盾与工程设备》
 
+[img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/battle.jpg[/img]
+
+[b]舰体撞击[/b]
+[img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/collision.jpg[/img]
+
 [*][b]靠港、打捞和登舰[/b]：你可以与空间站、友方飞船、失去动力的敌方飞船对接，然后在两者之间转运人员与货物。你甚至能在对接后让两艘飞船地图合并，进而畅通无阻地在两艘船之间走来走去。当然，你也可以让跳帮艇从自己飞船的月池中起飞，向敌舰来一次英勇无畏的跳帮作战，马润们说撞击对接也是一种对接。
+
+[b]靠港对接[/b]
+[img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/docking.jpg[/img]
+
+[b]跳帮战[/b]
+[img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/bording.jpg[/img]
 
 [*][b]贸易和委托[/b]：有些空间站会有交易终端，你可以通过这些终端与空间站交易、从空间站接取委托。或者如果你嫌太贵……你也可以使用英勇的跳帮作战来骇入空间站的货物段来一次零元购，甚至把整个货物段切下来带走。
 
+[b]切割与牵引空间站舱段[/b]
+[img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/drag.jpg[/img]
+
 [*][b]自定义[/b]：星区里能生成的舰船类型、概率全都是可以自定义的，你甚至能让自己做的飞船刷新在星区里。
 [/list]
+
+[b]EVA 舱外拆解[/b]
+[img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/eva.jpg[/img]
+
+[b]舰载采矿[/b]
+[img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/mining.jpg[/img]
 
 [h1]Mod 兼容性[/h1]
 
@@ -61,6 +85,8 @@ Delta-V 给《边缘世界：奥德赛》加了连续航行和舰船战斗。
 [h1]许可与鸣谢[/h1]
 
 飞船断裂检查采用的 TopologyLab 增量连通算法由《新边疆》开发组的浪淘沙提供，特此感谢。
+
+宣传片配乐为 Peppsen（P-Music）创作的《Rise》，来源：[url=https://steamcommunity.com/sharedfiles/filedetails/?id=725130005]P-Music[/url]，依 [url=https://creativecommons.org/licenses/by/4.0/]CC BY 4.0[/url] 许可使用。音乐音轨原样使用，与游戏画面同步并叠加游戏音效。该音乐仍适用其原许可，不属于本项目的 MIT 许可范围。
 
 本项目采用 MIT 许可证。[url=https://github.com/Laurence-042/RimExodus_Delta-V]源码和文档[/url]
 
