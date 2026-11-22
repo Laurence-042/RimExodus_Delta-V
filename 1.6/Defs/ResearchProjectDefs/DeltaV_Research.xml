@@ -26,7 +26,7 @@
   <ResearchProjectDef>
     <defName>DeltaV_ShipArtillery</defName>
     <label>ship artillery</label>
-    <description>Build small and medium heavy cannons and rapid cannons, missile launchers and their ammunition magazines. Manufacture ship propellant, steel and uranium projectile heads, and high-explosive guided missiles at a machining table.</description>
+    <description>Build small and medium heavy cannons and rapid cannons, missile launchers and their ammunition magazines. Manufacture ship propellant, high-explosive and armor-piercing projectile heads, and high-explosive guided missiles at a machining table.</description>
     <baseCost>1600</baseCost>
     <techLevel>Industrial</techLevel>
     <requiredResearchBuilding>HiTechResearchBench</requiredResearchBuilding>

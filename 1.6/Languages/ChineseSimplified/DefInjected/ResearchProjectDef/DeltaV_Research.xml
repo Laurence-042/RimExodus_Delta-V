@@ -3,7 +3,7 @@
   <DeltaV_VacuumBarrier.label>真空屏障</DeltaV_VacuumBarrier.label>
   <DeltaV_VacuumBarrier.description>建造密封对接口和月池甲板。对接口提供飞船之间的气密通道；月池以透光力场维持舱内空气，同时允许穿梭机穿过力场起降。</DeltaV_VacuumBarrier.description>
   <DeltaV_ShipArtillery.label>舰载火炮</DeltaV_ShipArtillery.label>
-  <DeltaV_ShipArtillery.description>建造小型与中型重炮、速射炮、导弹发射架及配套弹仓。在机械加工台制造舰炮装药、钢弹头、铀弹头和高爆制导导弹。</DeltaV_ShipArtillery.description>
+  <DeltaV_ShipArtillery.description>建造小型与中型重炮、速射炮、导弹发射架及配套弹仓。在机械加工台制造舰炮装药、高爆弹头、穿甲弹头和高爆制导导弹。</DeltaV_ShipArtillery.description>
   <DeltaV_ShipLasers.label>舰载激光</DeltaV_ShipLasers.label>
   <DeltaV_ShipLasers.description>建造小型与中型激光炮、点防御激光炮和激光附加电容。这项光束技术也可用于舰载采矿光束，切割结构并回收矿物。</DeltaV_ShipLasers.description>
   <DeltaV_ShipShields.label>舰载护盾</DeltaV_ShipShields.label>

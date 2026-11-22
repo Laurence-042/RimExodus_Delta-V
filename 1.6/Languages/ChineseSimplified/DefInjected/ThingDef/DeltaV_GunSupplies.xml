@@ -2,8 +2,8 @@
 <LanguageData>
   <DeltaV_Propellant.label>舰炮装药</DeltaV_Propellant.label>
   <DeltaV_Propellant.description>由钢铁制成的舰炮装药，与弹头分别装填。重炮可调整每发用量；装药越多，弹速和发热越高。</DeltaV_Propellant.description>
-  <DeltaV_SteelHead.label>钢制弹头</DeltaV_SteelHead.label>
-  <DeltaV_SteelHead.description>速射炮和重炮的高爆弹头。太空中命中结构后起爆，弹头越重，威力和范围越大。相同装药下，更重的炮弹初速较低，也更能抵抗动能线盾偏转。</DeltaV_SteelHead.description>
-  <DeltaV_UraniumHead.label>铀制弹头</DeltaV_UraniumHead.label>
-  <DeltaV_UraniumHead.description>用于铀制附加弹仓和轨道炮装弹机的穿甲弹头。按命中时的相对动能结算穿深。化学炮装药相同时，铀弹头质量较大，初速较低，也更能抵抗动能线盾偏转。</DeltaV_UraniumHead.description>
+  <DeltaV_SteelHead.label>高爆弹头</DeltaV_SteelHead.label>
+  <DeltaV_SteelHead.description>用钢铁制成，供速射炮和重炮使用。太空中命中结构后起爆，弹头越重，威力和范围越大。相同装药下，更重的炮弹初速较低，也更能抵抗动能线盾偏转。</DeltaV_SteelHead.description>
+  <DeltaV_UraniumHead.label>穿甲弹头</DeltaV_UraniumHead.label>
+  <DeltaV_UraniumHead.description>用铀制成，供附加弹仓和轨道炮装弹机使用。按命中时的相对动能结算穿深。化学炮装药相同时，穿甲弹头质量较大，初速较低，也更能抵抗动能线盾偏转。</DeltaV_UraniumHead.description>
 </LanguageData>

@@ -31,5 +31,5 @@
   <DeltaV_Weapon_TutorialRapidMainMedium.label>试验场中型速射炮</DeltaV_Weapon_TutorialRapidMainMedium.label>
   <DeltaV_Weapon_TutorialRapidMainMedium.description>按每发 10 份弹头标定的中型速射炮，用于武器试验场。</DeltaV_Weapon_TutorialRapidMainMedium.description>
   <DeltaV_Weapon_TutorialRailgunLoader.label>试验场轨道炮装弹机</DeltaV_Weapon_TutorialRailgunLoader.label>
-  <DeltaV_Weapon_TutorialRailgunLoader.description>武器试验场的固定轴轨道炮装弹机，每发 45 份铀弹头。加速器获得足够电力时提高炮口速度和穿深。</DeltaV_Weapon_TutorialRailgunLoader.description>
+  <DeltaV_Weapon_TutorialRailgunLoader.description>武器试验场的固定轴轨道炮装弹机，每发 45 份穿甲弹头。加速器获得足够电力时提高炮口速度和穿深。</DeltaV_Weapon_TutorialRailgunLoader.description>
 </LanguageData>

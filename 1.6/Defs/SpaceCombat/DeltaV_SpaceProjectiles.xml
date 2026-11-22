@@ -342,7 +342,7 @@
       <Flammability>0</Flammability>
     </statBases>
     <graphicData>
-      <texPath>Things/Projectile/Bullet_Big</texPath>
+      <texPath>Things/Projectile/DeltaV_RailFragment</texPath>
       <graphicClass>Graphic_Single</graphicClass>
       <drawSize>(0.55,0.55)</drawSize>
       <shaderType>Cutout</shaderType>
@@ -523,9 +523,9 @@
       <Flammability>0</Flammability>
     </statBases>
     <graphicData>
-      <texPath>Things/Projectile/Bullet_Big</texPath>
+      <texPath>Things/Projectile/DeltaV_RailTumbling</texPath>
       <graphicClass>Graphic_Single</graphicClass>
-      <drawSize>(0.55,0.55)</drawSize>
+      <drawSize>(1.6,1.6)</drawSize>
       <shaderType>Cutout</shaderType>
       <damageData>
         <enabled>false</enabled>

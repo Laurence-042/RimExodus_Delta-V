@@ -121,7 +121,7 @@
     <defName>DeltaV_Weapon_TutorialRailgunLoader</defName>
     <uiOrder>-192</uiOrder>
     <label>range railgun loading unit</label>
-    <description>A fixed-axis siege railgun with built-in fire control. Each shot requires 45 uranium projectile heads and a 675 Wd base pulse. Powered accelerators increase speed, penetration and shield-breaking power. Oblique impacts on kinetic line shields can destabilize or shatter the penetrator. Each of the two slots accepts a capacitor or rapid reset module. A charged capacitor can supply one base pulse. The base shot interval is 35 seconds, halved by each enabled rapid reset module.</description>
+    <description>A fixed-axis siege railgun with built-in fire control. Each shot requires 45 armor-piercing projectile heads and a 675 Wd base pulse. Powered accelerators increase speed, penetration and shield-breaking power. Oblique impacts on kinetic line shields can destabilize or shatter the penetrator. Each of the two slots accepts a capacitor or rapid reset module. A charged capacitor can supply one base pulse. The base shot interval is 35 seconds, halved by each enabled rapid reset module.</description>
     <uiIconPath>Things/Building/SpaceWeapons/RailgunLoader_MenuIcon</uiIconPath>
     <useBlueprintGraphicAsGhost>true</useBlueprintGraphicAsGhost>
     <thingClass>Building</thingClass>
