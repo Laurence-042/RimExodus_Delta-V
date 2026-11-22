@@ -1,33 +1,67 @@
 [h1]DeltaV的主要性能消耗[/h1]
 
+[h1]Delta-V's main performance costs[/h1]
+
 主要性能消耗基本在战斗层面上，日常消耗其实本身不多，同时多地图的机制可能会放大一些mod的问题。
+
+Most of the performance cost comes from combat. Day-to-day overhead is fairly low, although the multiple-map system can amplify problems in some other mods.
 
 [b]战斗[/b]
 
+[b]Combat[/b]
+
 成百上千的飞行弹丸状态更新、碰撞检测本身就是非常严重的性能消耗。
+
+Updating the state of hundreds or thousands of flying projectiles and checking their collisions is already very expensive.
 
 除此之外，飞船ai进行战斗决策时也需要评估自己和对方的防护薄弱点以及武器火力、射程配比，以此决定机动目标。
 
+Ship AI also needs to assess its own and its opponent's weak points, firepower, and weapon-range distribution when deciding where to maneuver.
+
 而战斗很容易触发高频的基架损毁，虽然用了比较高效的算法来保证这种情况的性能，但毕竟不是免费的，而且发生大面积断裂时仍然会产生较大的消耗
+
+Combat can destroy substructure at high frequency. A relatively efficient algorithm keeps this work manageable, but it is not free, and large breakups can still be expensive.
 
 这些都导致战斗状态甚至很难维持3倍速
 
+Together, these costs can make it difficult to maintain even triple speed during combat.
+
 [b]日常[/b]
+
+[b]Day-to-day play[/b]
 
 对于非战斗状态，性能主要消耗点在于自动驾驶导航的MPC求解、推进器控制之类的上面
 
+Outside combat, the main costs come from MPC solving for autopilot navigation, thruster control, and related work.
+
 总体来说，除了这些之外，没有添加什么额外的常驻性能消耗点
+
+Beyond that, Delta-V adds little continuous overhead.
 
 当然，严格来说武器的绘制、飞船的绘制、货柜温控插件的耗电之类的也是常驻性能消耗，但是基本都可以忽略不计或者不怎么影响tps
 
+Strictly speaking, rendering weapons and ships, powering cargo-container temperature-control modules, and similar work also runs continuously, but these costs can usually be ignored or have little effect on TPS.
+
 [b]机制[/b]
+
+[b]Mechanics[/b]
 
 因为DeltaV是使用单独的口袋地图维护每一组连续结构的，所以自然会出现大量的口袋地图。有些mod可能会在每张地图生成时进行大量与地图面积、内容复杂度无关的复杂初始化，DeltaV的大量地图可能会导致其问题被显著放大。
 
+Delta-V maintains each group of connected structures on a separate pocket map, which naturally creates a large number of pocket maps. Some mods may perform expensive initialization on every map regardless of its area or content. Delta-V's large number of maps can magnify those problems considerably.
+
 [h1]卡的时候可以先做什么[/h1]
+
+[h1]What to try when the game is slow[/h1]
 
 交火时建议 1 倍速，当前射速、冷却之类的都是按1倍速调的，更高倍速很难反应过来。
 
+I recommend using 1× speed during combat. Current fire rates, cooldowns, and similar values are tuned for 1×, and higher speeds leave very little time to react.
+
 初次接近大型站点时，生成内部地图可能会有段时间较为卡顿（虽然已经尽量用分帧生成的机制避免冻结了……）。
 
+The first approach to a large station may stutter while its internal map is generated, although generation is already spread across frames as much as possible to avoid a complete freeze.
+
 如果您发现确实十分卡顿，可以打开「模组设置 → Delta-V → 日志 → 性能分析」，保持同一视角和倍速，记录至少三个五秒窗口。然后发送 Player.log 里卡顿前后的 [DeltaV:Performance] 行。
+
+If you encounter serious stuttering, enable “Mod settings → Delta-V → Logs → Performance analysis”. Keep the same camera view and speed, and record at least three five-second windows. Then send the [DeltaV:Performance] lines from Player.log immediately before and after the stutter.

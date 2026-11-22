@@ -1,109 +1,218 @@
-﻿[h1]从哪开始[/h1]
+[h1]从哪开始[/h1]
+
+[h1]Where to start[/h1]
 
 第一次玩建议选「轨道殖民者」开局，其提供了这个mod的基础引导——说实话在跳过开局引导的情况下，恐怕会很难理解本mod的一些特性。
 
+For your first game, I recommend choosing the “Orbital colonists” scenario. It provides a basic introduction to the mod. Honestly, some Delta-V features can be hard to understand if you skip the starting tutorial.
+
 值得一提的是备选殖民者也会作为开局殖民者提供，但最开始只有选定的单个殖民者可以活动。
+
+The alternate colonists are also included among your starting colonists, although only the one you selected can move around at first.
 
 醒来后先穿好旁边的真空服，再去气闸外的教练机用通讯台联系「星界边境」，然后跟着引导任务就好。你始终可以通过选中最初的殖民者，通过其能力来追踪引导任务的进度。
 
+After waking up, put on the nearby vacsuit. Then go through the airlock to the trainer craft, use its communications console to contact “Starbound”, and follow the tutorial quest. You can always select your original colonist and use their ability to track the tutorial's progress.
+
 引导任务会包含基础的驾驶、速度管理、推进器布局建议、两种对接方式、武器试射以及武器特性介绍，最后以领取一艘带水培槽的开局飞船结束。考虑到开局基地没有食物来源，十分建议先完成引导领了开局飞船后再开始太空生存。
+
+The tutorial covers basic piloting, velocity management, advice on thruster layout, two forms of docking, weapon tests, and an introduction to weapon characteristics. It ends with you receiving a starter ship equipped with hydroponics basins. Since your starting base has no source of food, I strongly recommend finishing the tutorial and claiming the starter ship before beginning your life in space.
 
 普通开局也可以用自己的逆重飞船起步，但需要注意逆重飞船在地表仍然只能逆重飞行，你仍然需要使用逆重引擎飞上太空后，才能在太空建造不需要逆重引擎的纯太空飞船。
 
+You can also start from an ordinary scenario with your own gravship. Gravships on the surface are still limited to gravflight. You need to use a grav engine to reach space before you can build a space-only ship that does not require one.
+
 [b]下面的内容部分会在引导中提供，但是仍然建议闲的时候看一下下面的内容，毕竟没法把所有内容都塞进引导[/b]
+
+[b]Some of the following material appears in the tutorial, but I still recommend reading it when you have time. There is no way to fit everything into the tutorial.[/b]
 
 [h1]驾驶[/h1]
 
+[h1]Piloting[/h1]
+
 [b]基础操作[/b]
+
+[b]Basic controls[/b]
 
 默认驾驶操作是：进手动驾驶后（默认用小键盘 0 切换驾驶，也可以用侧栏按钮），W/S 前后推进，A/D 横移，Q/E 转向，按住 Ctrl 可以临时使用飞行辅助制动。键位可以在原版控制设置里改。
 
+By default, enter manual piloting with Numpad 0 or the sidebar button. W/S provides forward and reverse thrust, A/D strafes, Q/E turns, and holding Ctrl temporarily applies flight-assist braking. These bindings can be changed in the vanilla control settings.
+
 你也可以在设置里修改是否应用阻力，默认是开启阻力的（牛顿在棺材里代替飞船旋转）。我个人建议让牛顿辛苦点，因为各个poi是不会漂移的，真正无阻力的话可能会无意中飘到海盗的巡洋舰边上，也需要在到达目的地前很早就开始反推……虽说如此，还是留下了这个开关，让喜欢这种的玩家可以自行决定。
+
+You can also choose whether drag applies in the settings. Drag is enabled by default, under the setting “Let Newton keep spinning in his coffin so the ship doesn't have to”. I personally suggest making Newton do the work. POIs do not drift, so without drag you might accidentally coast up to a pirate cruiser, and you also need to begin reverse thrust long before reaching your destination... Even so, the option remains for players who prefer true inertia.
 
 [b]飞船设计[/b]
 
+[b]Ship design[/b]
+
 主驾驶台方向决定船头方向，与其相连的同归属基架决定船体范围。
+
+The primary pilot console's orientation defines the bow. Connected substructure with the same ownership defines the ship's hull.
 
 同一张地图上可以停几艘各有驾驶台的船，也可以在自己的船旁边另造一艘。
 
+Several ships with their own pilot consoles can park on the same map, and you can build a new ship alongside your existing one.
+
 如果要合并两艘船，只需要把其中一艘的所有驾驶台设置为副驾驶台（与主驾驶台同方向副驾驶台会在主台被毁后自动接管，成为新的主驾驶台），然后使用“命令”建筑分区里的“修改归属”功能把两艘船基架归属改成一样的，并使用基架相连即可。
+
+To merge two ships, set every pilot console on one ship to backup status. A backup console facing the same direction as the primary automatically takes over if the primary is destroyed. Then use “Reassign substructure” in the Orders building category to give both ships the same substructure ownership and connect them with substructure.
 
 飞船的质量、重心、推进器位置和 Delta-V 货柜里的载重都会影响操控。货装重了要提早减速，侧推布得不对称，转向时就得靠其他喷口补偿。推进器被打坏或排气被堵住，也会无法工作进而失去对应的推力。通常建议在远离船体中心的方向放置推进器来得到更大的力臂，进而提高转向性能。
 
+Ship mass, center of mass, thruster placement, and cargo in Delta-V containers all affect handling. A heavily loaded ship needs to brake earlier. If lateral thrusters are asymmetric, other nozzles need to compensate while turning. A destroyed thruster or one with blocked exhaust cannot work, and the ship loses the corresponding thrust. Placing thrusters farther from the ship's center usually gives them a longer lever arm and improves turning performance.
+
 值得一提的是，DeltaV引入了一种新的基架“月池”，其特点在于会自动生成力场屋顶来阻止空气流失并保温，但是不会阻止穿梭机起降以及阳光照射。所以除了作为穿梭机起降位置外，把水培槽、太阳能电池板建在上面也是个不错的选择。
+
+Delta-V adds a new substructure called the moon pool. It automatically generates a force-field roof that retains air and heat without blocking shuttle launches, landings, or sunlight. In addition to shuttle operations, it is a good place for hydroponics or solar panels.
 
 而另一种作为结构墙体的“真空屏障场”可以理解为一种连续的真空屏障，会阻止空气流失但不会阻止人员通过，也没有任何防护能力，通常只作为轨道炮等要求炮口暴露在外但炮口没有气密性的设备的末端使用。
 
+The vacuum barrier field is a structural wall that acts as a continuous pressure barrier. It prevents air loss without blocking people and provides no protection. It is generally used at the muzzle end of equipment such as railguns, which needs to remain exposed but is not airtight by itself.
+
 [b]自动驾驶[/b]
+
+[b]Autopilot[/b]
 
 自动驾驶会在关闭手动驾驶后接管飞船控制。其模式与操作如下：
 
+Autopilot takes over ship control after manual piloting is disabled. Its modes and controls are as follows:
+
 - 无：字面意思，不会干任何事
+  None: Exactly what it says. It does nothing.
 - 速度同步：选中一个目标后（如果周围只有一个目标就会自动选择这个目标），自动按照最小转动角度的原则将自己与目标的网格方向对齐，并同步两张的线速度。完成速度同步后才能进行硬对接（相关描述请参考下面的“对接”一节）。对于无法停止转动的目标，可能无法正常速度同步，此时需要建筑里的“杂项”分类里的“惯性耦合器”来让发射飞船和命中目标的线速度、角速度逐渐趋同。两边分别改变多少，取决于各自的质量和转动惯量，配合自己飞船的推进器就可以逐渐消除对方的自旋。
+  Match drift: Select a target. If there is only one target nearby, it is selected automatically. The ship aligns its grid with the target using the smallest rotation and matches the two maps' linear velocities. Drift matching must stabilize before hard docking can begin. A target that cannot stop rotating may be impossible to match normally. In that case, use an inertia coupler from the Misc building category to make the firing ship's and target's linear and angular velocities converge. How much each one changes depends on its mass and moment of inertia. Use your own thrusters together with the coupler to gradually eliminate the target's spin.
 - 软对接：自动将两艘飞船的对接口对齐，并建立软对接的人员、货物转移通道（相关描述请参考下面的“对接”一节）
+  Soft docking: Automatically aligns docking ports and establishes a soft-dock passage for transferring people and cargo. See “Docking” below.
 - 战斗机动：自动根据自己和敌方的武器、防护配置进行机动来抢占优势方位
+  Combat maneuver: Maneuvers automatically to gain a favorable position based on your ship's weapons and defenses and those of the enemy.
 - 定点定角：点击后，在预期的移动目标位置按下鼠标左键不松开，并向预期的船头朝向拖动后松开鼠标左键，就可以自动飞向目标位置并以目标角度停下，通常作为软对接和硬对接的手动辅助。当按下alt键时，会在松开鼠标左键时提示选择的参考系（不按alt时相当于以世界坐标为参考系），比如对当一艘向东航行的飞船做alt+定点定角，就能让自己的飞船靠近对方并与对方保持相同的速度向东行驶。
+  Go to pose: After selecting this mode, press and hold the left mouse button at the desired destination, drag toward the desired bow direction, and release. The ship flies to that position and stops at the chosen angle. This is usually used as a manual aid for soft or hard docking. Holding Alt when you release prompts you to choose a reference frame. Without Alt, the command uses world coordinates. For example, Alt + Go to pose with a ship traveling east as the reference lets your ship approach it and continue east at the same velocity.
 
 除了这些之外，也可以用星图的“自动导航”功能来向远处的目标下达定点定角的自动驾驶命令，以此自动驶向目标。
 
+The sector map's “Autopilot” action can also issue a long-distance Go to pose order toward a remote target.
+
 [b]逆重飞行[/b]
+
+[b]Gravflight[/b]
 
 虽然你现在真的能用推进器周游轨道设施，但你依然可以用逆重发射来快速在不同星区之间移动。每个六边形被视为一个星区，而星区原本的轨道设施会作为星区内的一个SpaceObject出现。
 
+Although you can now use thrusters to travel among orbital facilities, gravlaunch remains available for rapid travel between sectors. Each world hex is treated as a sector, and the orbital facilities originally present there appear as SpaceObjects within that sector.
+
 值得一提的是，DeltaV的大部分地图其实都是口袋地图，只有这些原本POI形成的SpaceObject是WorldTile地图，也只有这些地图才能正常刷新事件和袭击。
+
+Most Delta-V maps are pocket maps. Only SpaceObjects formed from those original POIs are world-tile maps, and only those maps receive events and raids normally.
 
 [h1]对接[/h1]
 
+[h1]Docking[/h1]
+
 对接分为软对接和硬对接两种。
+
+There are two kinds of docking: soft docking and hard docking.
 
 [b]软对接：简单来说就是一种不会导致地图合并的对接方式[/b]
 
+[b]Soft docking keeps the two maps separate.[/b]
+
 只想登站、搬几箱货或换乘员，可以用软对接。
+
+Use soft docking when you only want to board a station, move a few crates, or transfer crew.
 
 打开右下角的软对接开关，在侧栏选择软对接的自动驾驶任务，指定软对接目标，接下来交给飞控就好了。当然，觉得飞控不好使的话也可以手飞（虽然飞控做过不同外形不同大小飞船验证，应该不会出啥问题），只需要把两边对接口的菱形标记对上，就能开始延伸对接通道并完成软对接。
 
+Enable the soft-docking indicator in the lower-right corner, choose the Soft docking autopilot task in the sidebar, select a target, and leave the rest to flight control. You can also fly manually if you think the autopilot is not doing a good job, although it has been tested on ships of different shapes and sizes and should normally work. Align the diamond markers outside the two docking ports to begin extending the passage and complete the soft dock.
+
 接通后，在接口上用「组织转移」批量安排人员和货物，或选中殖民者直接右键通行。敌对接口需要先骇入才能通行。
+
+Once connected, use “Organize transfer” on the port to arrange a group transfer of people and cargo, or select a colonist and right-click to cross directly. A hostile port must be hacked before it can be used.
 
 [b]硬对接：简单来说就是一种会导致地图合并的对接方式[/b]
 
+[b]Hard docking merges the two maps.[/b]
+
 想让两艘船共用一张地图（比如搬运大宗货物），或整船停到站点上（比如和原版一样停在小行星上），或者干脆目标没有对接口的时候（比如目标是个对接口被炸烂的飞船残骸），可以使用硬对接。
+
+Use hard docking when you want two ships to share a map, such as when moving cargo in bulk, when you want to park the whole ship on a site as in vanilla asteroid landings, or when the target has no docking port at all, such as a wreck whose ports have been destroyed.
 
 先在侧栏选择速度同步的自动驾驶任务，稳定后选开始舱外作业就可以了，对接口会自动延伸一段距离的气密通道来与目标建立连接，所以没必要紧贴目标。
 
+First choose Match drift in the sidebar. Once the match is stable, select “Begin extravehicular work”. Docking ports automatically extend an airtight passage far enough to connect with the target, so the ships do not need to touch.
+
 但硬对接因为涉及地图变更，其机制比较复杂：
+
+Hard docking is more complicated because it changes maps:
 
 如果整船能完整停进目标地图，就会把飞船从飞船地图里挪到目标地图里。
 
+If the entire ship can fit on the target map, the ship moves from its own map onto the target map.
+
 如果整船不能完整停进目标地图，就需要检查目标的“重力区域”标记。“重力区域”标记本质上用来标识目标地图是否包含“改变地图后会失效且无法恢复的数据”的。
+
+If the entire ship cannot fit, the game checks for the target's “Gravity Area” marker. This marker identifies a target map that contains data that would become invalid and could not be restored after moving the map's structures elsewhere.
 
 对于有“重力区域”标记的地图，就无法停靠，此时建议使用软对接，或者使用穿梭机、小飞船来完整停进去。
 
+A map with a Gravity Area marker cannot accept this kind of docking. Use soft docking instead, or use a shuttle or small ship that can fit completely on the map.
+
 对于没有“重力区域”标记的地图，会把两张地图里的结构搬到一个更大的新地图里。
+
+If there is no Gravity Area marker, structures from both maps are moved to a new, larger map.
 
 硬对接后，船只要出力就会脱离硬对接地图（不论是主动让推进器出力，还是被牵引光束拖走）进入新的独占地图。镜头跟随当前选中的结构；如果你选的是离开的那艘船，就会跟过去，选的是留下的那艘就留在原图。
 
+After hard docking, any thrust from a ship makes it leave the shared map for a new private map. Being pulled away by a tractor beam does the same thing. The camera follows the currently selected structure. If the departing ship is selected, the camera follows it. If the ship staying behind is selected, the camera remains on the original map.
+
 值得一提的是，当飞船被打断时，继续出力就会把没有主驾驶台的部分抛下，这其实也是从硬对接地图脱离的逻辑。
+
+When a ship breaks apart, applying thrust leaves the sections without a primary pilot console behind. This uses the same underlying process as leaving a hard-docking map.
 
 但是不同于常规情况下把出力的飞船从硬对接地图搬出并自动切换聚焦地图，这种情况下会把不含主驾驶台的残片搬出且不切换聚焦，以此避免频繁战损时频繁切换聚焦地图导致的画面闪烁。
 
+Unlike ordinary separation, which moves the powered ship out of the shared map and changes focus automatically, breakup separation moves the fragments without a primary pilot console to new maps and keeps the current focus. This prevents repeated screen flashes from constant focus changes during combat damage.
+
 [b]扩建模式[/b]
+
+[b]Expansion mode[/b]
 
 在没有速度同步目标的时候选择开始舱外作业，就会进入扩建模式。从实现上讲，扩建模式本质上也是一种硬对接，会把飞船搬到一张更大的地图里方便扩建。也是飞船推进器出力后就会脱离。
 
+Choose “Begin extravehicular work” without a Match drift target to enter expansion mode. Internally, expansion mode is also a form of hard docking. It moves the ship onto a larger map to provide room for construction, and the ship leaves that map when its thrusters produce force.
+
 这个的背景是，为了性能考虑，每艘船的地图实际上只比其实际大小大几圈。但玩家的飞船显然需要扩建，因此需要这种模式来让飞船临时“停靠”进一个大地图来方便扩建。然后在扩建后再重新生成一个比新的大飞船再大几圈的地图。
+
+For performance reasons, each ship map is normally only a few tiles larger than the ship itself. Player ships obviously need room to grow, so expansion mode temporarily parks the ship on a larger map. After construction, leaving the worksite creates a new map only a few tiles larger than the expanded ship.
 
 [h1]星图[/h1]
 
+[h1]Sector map[/h1]
+
 侧边栏的默认缩略星图负责看附近，你可以用滚轮缩放。打开详细星图后就可以拖动、搜索、筛选和加书签。
+
+The default minimap in the sidebar shows nearby space, and the mouse wheel changes its scale. Open the detailed sector map to pan, search, filter, and add bookmarks.
 
 选中目标后，就可以在右侧扩展操作里看到一些有用的操作。「查看」切到地点内部，「聚焦目标」则让镜头跟着已加载的外部目标，当然还有最重要的自动驾驶导航。只是确保你没有关闭碰撞规避，否则会和《星际拓荒》里哈斯人那个会导航到太阳里的自动驾驶一样，让你的飞船撞上途中的小行星或者空间站。
 
+After selecting a target, useful actions appear in the extended controls on the right. “View” switches to the location's interior. “Focus target” makes the camera follow a loaded external target. Most importantly, “Autopilot” navigates to the target. Just make sure collision avoidance is enabled, or your ship may do to an asteroid or station along the way what the Hearthian autopilot in Outer Wilds does to the Sun.
+
 生成的远处站点先以标记显示，靠近后才加载内部地图，远离后会自动归档或者删除（通常取决于大小和类型）。
+
+Distant generated sites initially appear as markers. Their internal maps load only when you approach. After you move away, they are archived or deleted automatically, usually depending on their size and type.
 
 Mod 随附十二类星区模板。要让某一类在之后探索的星区出现，可以在「生成」页给它设置保底数量或随机追加量。已经生成过的星区会保留原结果。
 
+The mod includes twelve types of sector templates. To make a type appear in sectors explored later, give it a guaranteed count or random additional count on the Generation settings page. Sectors that have already been generated keep their existing results.
+
 开发者模式下可以用debug action可以把居住区导出成模板，再把自制舰船和站点加入对应生成池。
+
+In developer mode, a debug action can export the home area as a prefab. You can then add your own ships and stations to the corresponding generation pools.
 
 开启god mode后可以使用新的建筑tab里的人员标记来指定生成船员的位置。也能通过精确 Prefab 标记来在指定位置生成对应prefab的独立SpaceObject，或者使用批量 Prefab 标记来生成随机散开一片小行星或者飞船坟场。
 
+God Mode adds pawn markers to the new construction tab, letting you specify where crew spawn. A Precise Prefab marker can create an independent SpaceObject from a chosen prefab at an exact position. A Batch Prefab marker can scatter a field of asteroids or generate a ship graveyard.
+
 值得一提的是，当前开发调试设置里打开对应开关后，将会出现自动试装船舱的功能以及对应的标记，其可以使用内置的独立舱室模板自动生成符合基架外形的飞船。但这玩意目前性能和效果都不忍直视，所以目前仍属于实验功能，不建议使用。
+
+Enabling the relevant option in the developer settings also exposes experimental automatic room fitting and its markers. It uses built-in standalone room templates to generate a ship that fits a substructure outline. Its performance and results are currently painful to look at, so it remains experimental and is not recommended.

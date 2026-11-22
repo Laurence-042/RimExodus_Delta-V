@@ -1,86 +1,215 @@
 [h1]武器[/h1]
 
+[h1]Weapons[/h1]
+
 新船默认解除武装。在战斗栏启用武装后，对应武器组启用、有电、有弹药且有炮手或有效自瞄插件的舰炮才会工作。
 
+New ships start disarmed. After you select “Arm weapons” in the combat panel, a ship weapon only operates if its weapon group is active, it has power and ammunition, and it has either a gunner or a working auto-aim module.
+
 总体有三种火控模式：
+
+There are three fire-control modes:
 - 自动：会让武器自动瞄准敌舰开火，在配合战斗机动的自动驾驶时，也会自动考虑相对速度、射界和遮挡来指示自动驾驶，比如把轨道炮等同轴武器对准敌人之类的。
+  Automatic: Weapons automatically aim at hostile ships and fire. When used together with the Combat maneuver autopilot task, it also considers relative velocity, firing arcs, and obstructions when guiding the autopilot. This includes pointing fixed weapons such as railguns toward the enemy.
 - 手动集火：用左键控制主组武器开火、右键控制副组武器开火。
+  Manual focus fire: The left mouse button fires primary weapon groups, and the right mouse button fires secondary weapon groups.
 - 停火：字面意思。值得一提的是，停火也会停掉点防和牵引光束等纯自动武器，想留着近防时，可以关掉进攻武器所在的组。
+  Hold fire: Exactly what it says. Hold fire also stops point defense, tractor beams, and other fully automatic weapons. If you want point defense to keep working, disable the groups containing your offensive weapons instead.
 
 总体而言有如下几种武器：
 
+The main weapon types are:
+
 [list]
 [*][b]速射炮[/b]：DPS极高，可以调射速。但射速越快也会越快过热，过热后要停下来冷却。内置钢弹在太空中命中结构后起爆，装铀附加弹仓后可以改用穿甲弹。总的来说适合快速消耗守卫护盾的盾容、在破甲后快速摧毁内部设备，但不适合应对厚甲和动能护盾。
+[b]Rapid cannon[/b]: Extremely high DPS with an adjustable rate of fire. A higher rate also causes faster overheating. Once overheated, the weapon must stop and cool down. Its built-in steel rounds explode when they hit a structure in space. Installing a uranium auxiliary magazine lets it switch to armor-piercing rounds. Overall, it is good for rapidly draining guard shield capacity and destroying internal equipment after the armor has been breached, but poor against thick armor and kinetic shields.
 [*][b]重炮[/b]：因为是单发而且要频繁冷却，DPS较低，可以分别调装药和弹头重量。钢弹在太空中是高爆弹，弹头越重，爆炸威力和范围越大，适合大面积破坏轻甲；换成铀弹后则是穿甲弹，装药越多，初速和穿深越高，适合贯穿重甲。更重的弹头在相同装药下会飞得更慢，但也更不容易被弱动能盾打得翻滚。总的来说适合用来击穿厚甲和特定情况下应对动能护盾，但不适合应对守卫护盾。
+[b]Heavy cannon[/b]: Lower DPS because it fires single shots and needs frequent cooling. Propellant charge and projectile-head mass can be adjusted separately. Steel rounds are high explosive in space. A heavier projectile head produces a stronger, wider explosion and is good for damaging a broad area of light armor. Uranium rounds are armor-piercing. More propellant raises muzzle velocity and penetration, making them suitable for piercing heavy armor. With the same propellant charge, a heavier projectile head travels more slowly but is also less likely to tumble when struck by a weak kinetic shield. Overall, it is good for penetrating thick armor and dealing with kinetic shields in some circumstances, but poor against guard shields.
 [*][b]激光炮[/b]：DPS适中，可以调功率，功率越高，每发取的电也越多。适合持续打暴露设备或快速机动的目标，但不适合应对厚甲和电磁护盾。
+[b]Laser turret[/b]: Moderate DPS with adjustable power. Higher power also draws more energy per shot. It is good for sustained fire against exposed equipment or highly mobile targets, but poor against thick armor and electromagnetic shields.
 [*][b]导弹架[/b]：发射实体导弹，可以自动从相邻的弹仓补弹。导弹通常25hp，能穿过动能和电磁护盾，会被守卫护盾和近防火力拦截。因为伤害很高可以说是适合所有场合，但是可以被近防以相对低的消耗拦截，且导弹造价不低，适合开战时烧钱爆发输出，不适合持久战。
+[b]Missile launcher[/b]: Fires physical missiles and can reload automatically from adjacent magazines. A missile usually has 25 HP. It passes through kinetic and electromagnetic shields but can be intercepted by guard shields and point-defense fire. Its high damage makes it useful in nearly any situation, but point defense can counter it at relatively low cost, while missiles themselves are expensive. It is best for spending money on a burst of damage at the start of a battle and poorly suited to a prolonged fight.
 [*][b]轨道炮[/b]：可以用加速段加长，内置弹仓直接装铀弹。其定位是超级武器，在适当用加速段延长后，其穿深和耗电都十分恐怖。很容易一发贯穿守卫护盾和多层厚甲并摧毁其后的设备，但是因为使用长杆弹药，很容易被动能护盾拦截导致碎裂，进而失去几乎所有穿深。而且其高耗电和高冷却也不适合多次发射，是一个一发定乾坤的武器。
+[b]Railgun[/b]: Can be extended with accelerator segments and loads uranium rounds into its built-in magazine. It is a superweapon. With enough accelerator segments, its penetration and energy consumption are both terrifying. A shot can easily pierce a guard shield and several layers of heavy armor before destroying the equipment behind them. Because it uses a long-rod projectile, however, a kinetic shield can easily destabilize and shatter it, removing almost all of its penetration. Its immense energy cost and long cooldown also make repeated firing impractical. It is a weapon for deciding the fight with one shot.
 [*][b]近防激光[/b]：可用于拦导弹和穿梭机，伤害10，射击间隔110tick。没了，就这么简单。通常导弹是25hp，3次命中就会被打掉。
+[b]Point-defense laser[/b]: Intercepts missiles and shuttles. It deals 10 damage with a 110-tick firing interval. That is all there is to it. A missile usually has 25 HP and is destroyed after three hits.
 [*][b]炮廓近防炮[/b]：可用于拦导弹和穿梭机，而且实际上DPS比速射炮还高。但是作为嵌墙武器，其射界和距离都比一般炮位更受限制。而且虽然切换为普通射击后可以以恐怖的速度消耗对方护盾，但是其较低的穿深使其不适合应对厚甲，其较短的射程也使其大部分时候不适合作为主要武器。
+[b]Casemate close-in cannon[/b]: Intercepts missiles and shuttles and actually has even higher DPS than a rapid cannon. As a weapon built into a wall, however, its firing arc and range are more restricted than those of an ordinary turret. In normal fire mode, its terrifying rate of fire can drain enemy shields quickly, but its low penetration makes it poor against thick armor. Its short range also keeps it from serving as a main weapon in most situations.
 [/list]
 
 大部分武器都可以通过安装插件来改变性能，比如铀附加弹仓可以让速射炮和重炮改用穿甲铀弹，降低其受动能护盾的影响、将后效从面积广但穿深较低的爆炸换成纯贯穿并得到额外弹容，电容可以被视为一个优先供应安装武器的高效电池，自动瞄准插件可以让本身需要炮手的武器不需要炮手。
 
+Attachments can change the performance of most weapons. For example, a uranium auxiliary magazine lets rapid and heavy cannons use armor-piercing uranium rounds. These rounds are less affected by kinetic shields, replace a wide but shallow explosion with direct penetration, and provide additional ammunition capacity. A capacitor acts as an efficient battery that supplies its host weapon first. An auto-aim module lets a weapon that would otherwise require a gunner operate without one.
+
 部分舰炮还可切换到地面模式以攻击同图目标，但这种状态下其射界会受自己的舱壁限制。
+
+Some ship turrets can switch to ground mode to attack targets on the same map. In this mode, their firing arcs are blocked by the ship's own bulkheads.
 
 （顺带一提，当前地面模式的数值还没有来得及经过详细调整，地面模式大概率会表现得过于弱鸡——20261117）
 
+(As an aside, ground-mode balance has not received detailed tuning yet. It will probably feel far too weak. — 2026-11-17)
+
 [h1]护盾[/h1]
+
+[h1]Shields[/h1]
 
 除了 Rimworld 常见的基于盾容的守卫模式泡泡护盾外，还提供了动能和电磁专精的线段护盾
 
+Alongside the capacity-based guard bubble shields familiar from RimWorld, Delta-V provides specialized kinetic and electromagnetic line shields.
+
 动能线盾和电磁线盾的长度、距离和角度都可以调。
+
+The length, projection distance, and angle of both line-shield types can be adjusted.
 
 动能线盾会改变实弹速度和方向，斜着打进来的弹丸还可能翻滚或裂开进而失去穿深。
 
+Kinetic line shields alter the velocity and direction of physical projectiles. A projectile entering at an angle may tumble or split apart and lose penetration.
+
 电磁线盾可以偏折激光，强度足够时会反射激光。
+
+Electromagnetic line shields deflect lasers. At sufficient strength, they reflect them.
 
 两种盾都要付维持和拦截的电费，遇到从侧翼绕过盾面的射击，就得转船、调整盾位，或靠装甲扛。值得一提的是，目前这两种盾在地面战中都毫无作用。
 
+Both shield types consume power for maintenance and for each interception. If shots pass around a shield's flank, you need to turn the ship, adjust the shield's position, or let the armor take the hit. At present, neither type has any effect in ground combat.
+
 守卫圆盾消耗盾容。虽然标准守卫盾只有750盾容，比饱受诟病的Odyssey飞船护盾没大多少，但是同一船上处于常规模式的标准守卫盾可以分担伤害，而且常规盾容连续3秒没有被消耗后，有电就会开始再生，所以即使面对电荷蜈蚣也有一战之力。应急盾挨打不会重置这段等待。
+
+Guard bubble shields consume shield capacity. A standard guard has only 750 regular capacity, not much more than the much-maligned Odyssey ship shield. However, standard guards in regular mode on the same ship share incoming damage. Regular capacity also begins regenerating when power is available after three continuous seconds without being consumed, so it can even hold its own against a charge centipede. Damage absorbed by emergency capacity does not reset that delay.
 
 当守卫盾的常规盾容耗尽后，就会自动切到应急盾容。应急盾容要用白银补，而且会失去伤害分摊的能力。
 
+When a guard's regular capacity is depleted, it switches automatically to emergency capacity. Emergency capacity must be replenished with silver and cannot share incoming damage with other shields.
+
 小型护盾发生器用守卫模式时只有应急盾容，它以很小的占地面积给了小船使用护盾的能力，单靠应急盾容顶多能救小船一次命，小船的发电能力也很难支撑可以反弹的线盾强度，但是也许你可以合理布局并利用折射来在较低耗电的情况下把攻击全偏折走。
+
+A small shield generator in guard mode has emergency capacity only. Its small footprint gives small ships access to shielding. Emergency capacity alone may save a small ship once, at most, and a small ship's power generation may struggle to sustain a line shield strong enough to reflect attacks. With careful placement, however, you may be able to use deflection to turn every shot aside at a lower power cost.
 
 [h1]工程设备[/h1]
 
+[h1]Engineering equipment[/h1]
+
 采矿光束：
+
+Mining beam:
+
 不同于武器分类的激光炮塔，其输出非常高，但是无法穿透守卫盾，也会被电磁盾折射，而且射程还短。
+
+Unlike the laser turrets in the weapon category, the mining beam has extremely high output, but it cannot pass through guard shields, can be deflected by electromagnetic shields, and has short range.
+
 采矿时，受采矿效率影响的矿物按正常产量的50%回收；基架、舱壁、舰内设备则回收正常拆除返料的50%（也就是通常造价的25%）。产物放在炮塔附近，通常用于快速回收残骸、在细碎小行星带采矿。需要避免堵死采矿光束炮塔，以免产物没能被及时搬走而又没有空地可以继续放置产物导致产物浪费。
 
+When mining, it recovers 50% of normal mineral yield after mining efficiency. Substructure, bulkheads, and shipboard equipment return 50% of their normal deconstruction yield, which is usually 25% of their build cost. Output is placed near the emitter. This is generally used for quickly salvaging wrecks or mining fields of small asteroids. Avoid blocking the mining-beam emitter. If materials are not hauled away in time and no open space remains for new output, that output is lost.
+
 牵引光束：
+
+Tractor beam:
+
 其有两种用法，“收集物品”可以按筛选自动将散落物品和人员牵引到其所在的月池上，“牵引结构”可以用于拖拽残骸之类的结构
+
+It has two uses. “Collect items” automatically pulls drifting items and people onto its moon pool according to its filters. “Pull structures” is used to tow wreckage and other structures.
+
 牵引结构时，双方都会受力，而且牵引时命中位置不同施力的位置也不同，可以用这一点来快速旋转目标结构。
 
+Both sides experience force while a structure is being towed. The point where the beam hits determines where that force is applied, so you can use an off-center hit to rotate the target quickly.
+
 惯性耦合器：
+
+Inertia coupler:
+
 用于匹配两艘船的平移和旋转。在和牵引光束一起使用时，可以减弱结构的旋转，但也会让牵引速度减缓。
 
+Matches the translation and rotation of two ships. When used together with a tractor beam, it reduces structural rotation but also slows the tow.
+
 货柜：
+
+Cargo container:
+
 一种占地6格，存储密度单格8堆、整柜48堆的储物设备。
+
+A six-tile storage building that holds eight stacks per tile and 48 stacks in total.
+
 因为主体是飞船顶部的外挂货仓，其温度默认随外界温度变化，而不会被室内温度影响，这使其十分适合在太空中当自带冷库的通用存储用。
+
+Its main body is an external cargo bay mounted above the ship, so its temperature follows the outside environment instead of the room beneath it. This makes it particularly useful as general-purpose storage with natural refrigeration in space.
+
 同时，如果因故需要对其升温，或者在地面上为其降温，也可以安装温控插件来得到主动的温控能力。
+
+If you need to warm it for some reason, or cool it while on the surface, you can install a temperature-control module to give it active temperature control.
+
 除了在默认的仓储模式下作为常规储物设备外，其还可以进入封存模式。封存模式的货柜内容不会被殖民者自动搬运、取用，而且可以快速将内容全部倾泻到地上或者弹射到太空。
+
+In addition to ordinary storage mode, it can enter sealed mode. Colonists do not haul or use the contents of a sealed container automatically, and the entire inventory can be dumped onto the deck or ejected into space quickly.
+
 空间站通常会使用多个封存模式的货柜存放他们售卖的货物，并将多个封存货柜和单个仓储货柜关联。访客通过空间站贸易终端进行买卖时，支付的货物会自动通过轨道交易信标送往其封存的货柜中，并将购买的商品送入其关联的仓储货柜供访客取货。
+
+Stations commonly use several sealed containers to hold goods for sale and link them to a single container in storage mode. When a visitor trades at a station trade terminal, goods paid to the station are sent automatically from orbital trade beacons into its sealed containers, while purchased goods are placed in the linked storage container for collection.
+
 当然，你也可以骇入其他派系的封存货柜后，直接将内容倒到甲板上，或者弹到太空里再回收。
+
+Of course, you can hack another faction's sealed container and dump its contents onto the deck, or eject them into space and recover them there.
+
 你也可以直接用对舰武器打碎货柜，但这会摧毁其中大部分货物，所以如果想要完整回收还是要骇入。
 
+You can also destroy a container directly with anti-ship weapons, but this destroys most of the cargo. Hacking is the better option if you want to recover everything intact.
+
 舰载裂变反应堆：
+
+Shipboard fission reactor:
+
 没啥可说的，就是个烧铀的大发电机，用于平衡本mod添加的各种飞船武装和防护需求带来的额外耗电和空间占用。
 
+There is not much to say. It is a large uranium-burning generator intended to balance the extra power and space demands created by the ship weapons and defenses added by this mod.
+
 安全储备电池：
+
+Safe reserve battery:
+
 不会触发短路，其他地方短路后不会抽走其储能。
+
+It cannot short-circuit, and a short circuit elsewhere cannot drain its stored energy.
+
 充能效率很高，储能密度是电池双倍，还可以主动隔离电网来避免战时无电可用。
+
+It charges very efficiently, stores twice as much energy per tile as a battery, and can be disconnected from the grid to preserve power for combat.
+
 但是相应的，这块电池占地6格，造价是6个电池的总和，还得加30玻璃钢
 
+In exchange, it occupies six tiles, costs as much as six batteries combined, and requires another 30 plasteel.
+
 EVA：
+
+EVA:
+
 基本上可以视为一个单人的、没有远距离飞行能力的穿梭机。
+
+It can basically be treated as a one-person shuttle without long-distance flight capability.
+
 EVA 有一个单人版本的切割器作为主武器1，采矿能拿到当前难度下的完整产量，拆基架、舱壁和设备则按正常拆除量全额返料，可以用于精准拆解残骸。切下来的材料和矿物会从命中点飞入太空，得用其副武器2牵引光束收回来。
+
+The EVA has a one-person cutter in primary group 1. It receives the full mineral yield for the current difficulty and the full normal deconstruction return from substructure, bulkheads, and equipment, making it useful for precise salvage. Cut materials and mined minerals fly into space from the point of impact and need to be recovered with the tractor beam in secondary group 2.
+
 EVA 也有一个单人版本的牵引光束作为副武器2，其可以把货物回收到自己的背包里。但说实话其背包不算大，所以一般EVA只是作为工程设备使用，回收一些高价值设备零件，或者单纯作为单人穿梭机运一个马润去较大的小行星上探路。
+
+The EVA's compact tractor beam is in secondary group 2 and pulls cargo into its backpack. The backpack is not very large, so an EVA is generally used as an engineering craft, to recover a few high-value equipment parts, or simply as a one-person shuttle that carries a marine to scout a larger asteroid.
+
 EVA 也能用焊枪作为副武器1，可以用来船体外壳，但说实话比较麻烦，所以能留维修通道的话还是要留的。
 
+The EVA also has a welder in secondary group 1 for repairing the hull, but using it is rather inconvenient. Leave maintenance passages wherever possible.
+
 跳帮艇：
+
+Boarding shuttle:
+
 基本上可以视为一个强化版本的穿梭机。
+
+It can basically be treated as an upgraded shuttle.
+
 穿梭机能干的事都能干，但是有850hp，比常规穿梭机的600hp多四成多一点，在太空中机动性显著优于穿梭机，而且还能使用撞击侵入敌舰进行跳帮。
+
+It can do everything an ordinary shuttle can, but has 850 HP instead of 600 HP, giving it a little over 40% more durability. It is significantly more maneuverable in space and can ram an enemy ship to board it.
+
 但需要注意，即使其能抗单个点防激光85次射击，但也终究只是个穿梭机。一旦暴露在可以快速摧毁420hp的舱壁的对舰火力下（比如速射炮和炮廓近防炮的弹幕），就十分容易带着其中的马润暴毙。
+
+Keep in mind that even if it can withstand 85 shots from a single point-defense laser, it is still only a shuttle. If it is exposed to anti-ship fire capable of rapidly destroying a 420 HP bulkhead, such as a rapid-cannon or casemate close-in cannon barrage, it can very easily die along with all the marines inside.
 

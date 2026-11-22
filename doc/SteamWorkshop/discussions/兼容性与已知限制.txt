@@ -1,59 +1,109 @@
 [h1]各个依赖的作用[/h1]
 
+[h1]What each dependency does[/h1]
+
 - Harmony：大家都认识，我就不说了
+  Harmony: Everyone knows this one, so I will leave it at that.
 - RimExodus Framework：用于提供同屏绘制多个其他地图、跨地图坐标映射、地图归档、prefab等底层能力的框架
+  RimExodus Framework: Provides the underlying support for rendering multiple maps in the same view, mapping coordinates across maps, archiving maps, prefabs, and related features.
 - Adaptive Storage Framework：提供太空货柜所用的仓储功能
+  Adaptive Storage Framework: Provides the storage functionality used by station cargo containers.
 - Launch into empty space让原版逆重飞船可以选择空白轨道地块
+  Launch into empty space: Lets vanilla gravships select empty orbit tiles.
 
 [h1]1.6？[/h1]
 
+[h1]RimWorld 1.6?[/h1]
+
 仅正式支持 RimWorld 1.7。
+
+Only RimWorld 1.7 is officially supported.
 
 虽然模组列表会显示版本警告，但实际上发布包仍提供 1.6 构建，无视警告也能使用。
 
+The release package still includes a 1.6 build despite the version warning in the mod list, and you can use it by ignoring that warning.
+
 可以反馈 1.6 上的问题，我会尽量修复，但能否解决视具体问题而定。性能优化和取舍都会优先考虑 1.7，问题解决也会优先处理 1.7。
+
+You are welcome to report problems on 1.6. I will try to fix them, but whether a particular problem can be solved depends on the problem itself. Performance work and design tradeoffs prioritize 1.7, and reported problems will also be handled on 1.7 first.
 
 [h1]和 RimExodus的关系？[/h1]
 
+[h1]How does this relate to RimExodus?[/h1]
+
 RimExodus: Delta-V 是 RimExodus 同系列、同设计思想的扩展mod，其连续航行和交火作用在轨道地图和飞船口袋图，用于实现跳过了轨道地图的和口袋图的RimExodus所没有实现的太空部分的Seamless化。
+
+RimExodus: Delta-V is an expansion in the same family as RimExodus and shares its design philosophy. Its continuous flight and combat take place on orbit maps and ship pocket maps, bringing seamless play to the space layer that RimExodus skips.
 
 但它们彼此之间并没有依赖关系，负责的内容也没有重叠，所以可以各自独立启用，也可以共同使用。
 
+The two mods do not depend on each other and their features do not overlap. Either can be enabled on its own, or both can be used together.
+
 但实际上，我个人建议只开一个，因为一般来说游玩体验不会一边在地表长途跋涉，一边在太空里到处飞——这也太割裂了。
+
+In practice, I personally recommend choosing one. A campaign usually will not involve long overland journeys on the surface while also flying all around space. That would feel rather disjointed.
 
 [h1]理论兼容但大概很多人会问的模组[/h1]
 
+[h1]Mods that should be compatible in principle, but people will probably ask about[/h1]
+
 [list]
 [*]CombatExtended：大概兼容，毕竟DeltaV没有真正改变地图连通性，也没改变地图内机制，只是别指望用其地面武器打太空战。之后做原版武器的自动太空战支持时可能会涉及，但大概率不会在作为太空战武器时完整支持其所有特性
+Combat Extended: Probably compatible. Delta-V does not actually change map connectivity or mechanics within a map. Just do not expect to use its ground weapons in space combat. Planned automatic space-combat support for vanilla weapons may touch CE later, but it probably will not support every CE feature when treating those weapons as space weapons.
 [*]其他加逆重飞船设备的模组：大概兼容，DeltaV对驾驶台、推进器使用时都按原版comp或者其子类识别，所以单纯继承它们或者单纯改def，通常都能兼容。
+Other mods that add gravship equipment: Probably compatible. Delta-V recognizes pilot consoles and thrusters through the vanilla comps or their subclasses, so mods that merely inherit from them or edit their Defs will usually work.
 [/list]
 
 [h1]有具体适配记录的模组[/h1]
 
+[h1]Mods with specific compatibility work[/h1]
+
 [list]
 [*]Simple Camera Setting：缩放上限已接入。轨道视角和普通地图可以使用各自的缩放范围。
+Simple Camera Setting: Its zoom limit is integrated. Orbit views and ordinary maps can use separate zoom ranges.
 [/list]
 
 [h1]有兼容性风险模组[/h1]
 
+[h1]Mods with compatibility risks[/h1]
+
 [list]
 [*]其他主打太空战或者跨图炮击的模组：比如SOS2、Vanilla Gravship Expanded，其太空战机制可能和本mod的太空战机制有冲突（比如SOS2飞船的刷新我记得似乎依赖非口袋地图，但是DeltaV的飞船地图全是口袋地图），而且它们的武器机制也和DeltaV不同没法通用
+Other mods focused on space combat or cross-map bombardment, such as SOS2 and Vanilla Gravship Expanded: Their space-combat mechanics may conflict with Delta-V's. For example, if I remember correctly, SOS2 ship spawning appears to depend on non-pocket maps, while every Delta-V ship map is a pocket map. Their weapon mechanics also differ from Delta-V's and cannot be used interchangeably.
 [*]Vanilla Gravship Expanded：其扩展基架、燃料机制和舰载武器机制都没有进行额外适配，也没专门验过其可能会产生各种各样的问题。
+Vanilla Gravship Expanded: Its extended substructure, fuel mechanics, and ship weapons have not received additional compatibility work, and their possible interactions have not been specifically tested. They may cause various problems.
 [*]高度依赖“按照名称选择地图”的模组，本DeltaV虽然已经在尽可能用口袋图来避免其进入WorldTile地图扫描了，但是不排除有些mod连口袋图也会列出来——显然，DeltaV会因为舰船断裂、小行星带等各种原因搞出一大堆口袋图
+Mods that rely heavily on selecting maps by name: Delta-V uses pocket maps wherever possible to keep them out of world-tile map scans, but some mods may list pocket maps too. Delta-V can create a great many of them through ship breakups, asteroid belts, and similar features.
 [*]会在地图上创建自己的数据，且数据不随着逆重飞船起飞而随着逆重飞船迁移的模组：本质上硬对接就是把飞船在地图上搬来搬去
+Mods that create their own map-bound data and do not move that data when a gravship launches: Hard docking essentially moves a ship from one map to another.
 [*]某些会在每个地图无条件创建某些事件的模组：实际上，DeltaV的所有口袋图都挂在一个不存在的WorldTile地图上，这个地图不同于正常WorldTile地图，其没有一个对应的WorldTile。虽然正常叙事者不会管它、也没有任务会发到它上面、甚至这地图就不会tick，完全就是一个公共占位地图，但是不排除有些mod会折腾出往它里面塞需要访问WorldTile的玩意进而导致问题……
+Some mods that unconditionally create events on every map: All Delta-V pocket maps use a placeholder map that has no corresponding world tile. The normal storyteller ignores it, quests are not sent there, and the map does not even tick. It exists only as a shared placeholder, but a mod might still put something there that tries to access a world tile and then run into trouble...
 [/list]
 
 [h1]存档与当前边界[/h1]
 
+[h1]Saves and current limitations[/h1]
+
 建议使用新档，且不要指望其十分稳定，当前只是alpha测试。
+
+Use a new save, and do not expect complete stability. This is only an alpha test.
 
 虽然目前存档结构基本稳定，就算要大改也是在切到正式版的时候改了，但考虑到仍有很多内容需要开发，目前我还没法打包票说不会有不兼容更新。
 
+The save structure is now mostly stable. If it needs a major overhaul, that will probably happen when the mod reaches full release. Still, there is a lot left to develop, so I cannot promise there will be no save-breaking updates.
+
 手动飞行和自动任务执行期间可以存档，飞船位置和速度会保留。但目前自动驾驶相关指令因为尚不稳定，还没有进入存档，所以读档后要重新下达自动驾驶、对接或撞击侵入命令。
+
+You can save during manual flight and while an automatic task is running. Ship position and velocity are preserved. Autopilot commands are not saved yet because that system is still unstable, so you need to issue autopilot, docking, or ramming-boarding orders again after loading.
 
 自动战斗的算法仍在调试，甚至其可供玩家自定义的可配置战斗AI的数据结构也不一定稳定，暂时不建议在这上面投入太多精力。
 
+The automated combat algorithms are still being tuned. Even the data structure for player-configurable combat AI may not be stable, so I do not recommend investing much effort in custom AI for now.
+
 后续计划让常规推进按油门消耗船上的化合燃料，但目前只有原版逆重发射会正常耗油，跳帮艇的加力油箱有自己的燃料规则。
 
+Regular propulsion is planned to consume shipboard chemfuel according to throttle. At present, only vanilla gravlaunch consumes fuel normally, while the boarding shuttle's afterburner tank uses its own fuel rules.
+
 当前的预设各级别敌舰、空间站、小行星全都是占位，之后得慢慢补……当然如果您愿意贡献一些设计的话那就再好不过了。
+
+The current preset enemy ships of every class, stations, and asteroids are all placeholders that will need to be filled out over time... Of course, contributions of ship or station designs would be very welcome.

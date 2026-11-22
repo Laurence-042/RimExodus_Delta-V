@@ -1,67 +1,162 @@
 [h1]整体计划[/h1]
 
+[h1]Overall plan[/h1]
+
 当前状态：alpha测试，比起一个完善mod更接近概念展示demo，以展示功能为主，尚不能提供完整的游玩循环
+
+Current state: alpha testing. This is closer to a proof-of-concept demo than a complete mod. Its current purpose is to demonstrate features, and it does not yet provide a complete gameplay loop.
+
+[h1]已知问题[/h1]
+
+[h1]Known issues[/h1]
+
+目前玩家未停靠在worldtile地图的飞船不会被敌人主动攻击，除非飞到敌人附近。但还不确定要不要加随机遇敌
+
+At present, enemies do not proactively attack player ships that are not docked on world-tile maps unless those ships fly near the enemy. I still have not decided whether to add random encounters.
+
+无人的地图有点难在大地图上找到（宇宙地图可以一定程度上改善这一点，但是我觉得在原版大地图上也该易用）
+
+Maps without people are somewhat difficult to find on the world map. The sector map helps to some extent, but I think they should also be easy to locate on the vanilla world map.
+
+当前常规飞行不会消耗化合燃料，我有在考虑添加相关消耗机制，但是总不能让玩家一不小心变太空垃圾还无法挽回，所以需要先开发救援机制，但具体咋做还没想好，想不好的话我没准就不做化合燃料消耗了
+
+Regular flight currently consumes no chemfuel. I am considering adding fuel consumption, but I cannot simply let players accidentally become irrecoverable space debris. A rescue system needs to be developed first. I still have no concrete design for it, and if I cannot work one out, I may simply leave regular flight without chemfuel consumption.
+
+非聚焦视图上只有墙体类型建筑才会被绘制，这导致大部分建筑都不会在非聚焦地图上绘制（比如商会的那个轨道炮），准备近期看看能不能渲染的同时避免fps下降
+
+Only wall-type buildings are rendered in the non-focused view. As a result, most buildings do not appear on non-focused maps, including the Trade Guild's orbital cannon. I plan to look soon at whether those buildings can be rendered without reducing FPS.
+
+跳帮艇被击毁后没有人员死亡提示，准备近期修复
+
+There is no death notification when a boarding shuttle is destroyed. I plan to fix this soon.
 
 [h1]当前高风险功能[/h1]
 
-任务系统、地图归档与恢复尚未得到充分验证
+[h1]Current high-risk features[/h1]
+
+Prefab、任务系统、地图归档与恢复尚未得到充分验证
+
+Prefabs, the mission system, and map archiving and restoration have not been tested thoroughly.
+
 程序化舰船生成目前表现无法实用化
+
+Procedural ship generation is not currently practical.
+
 整体内容过于贫瘠，质量可接受的舰船只有手工制作的几个
+
+The mod is far too short on content, and only a few hand-built ships meet an acceptable quality level.
 
 [h1]剩余待施工[/h1]
 
+[h1]Remaining work[/h1]
+
 顺序一定程度上可以表现优先级，但是不保证一定按照顺序进行，也不保证全会做
 
+The order roughly reflects priority, but work is not guaranteed to follow it, and not every item is guaranteed to be implemented.
+
 - 问题修复（长期）
+  Bug fixes (ongoing)
 - 性能优化（长期）
+  Performance optimization (ongoing)
 - 数值优化（长期）
+  Balance tuning (ongoing)
 - 原版武器、炮塔的自动太空战支持
+  Automatic space-combat support for vanilla weapons and turrets
 - 让特定装备的人员可以像当前的eva一样在太空移动
+  Let pawns with suitable equipment move through space like the current EVA craft
 - 无人机母舰
+  Drone carriers
   - 无人机机制
+    Drone mechanics
     - 自动战斗AI优化
+      Improve automated combat AI
     - ai协同行动能力（持续跟随目标、命令集火、包抄、规避等战术动作）
+      AI coordination, including continuously following a target, focus-fire orders, flanking, evasion, and other tactical actions
     - 自动无人机任务
+      Automated drone missions
     - 让eva可以作为无人机使用？
+      Perhaps allow EVA craft to serve as drones?
   - 各种无人机
+    Different drone types
     - 维修
+      Repair
     - 大量货物回收
+      Bulk cargo recovery
     - 智能绕后/绕侧自爆
+      Smart flanking or side approaches for suicide attacks
 - 归档的基础架构没啥问题，但尚未得到充分验证
+  The archiving infrastructure itself seems sound, but has not been tested thoroughly
 - 更多的prefab
+  More prefabs
   - 探索程序化生成是否可行
+    Explore whether procedural generation is practical
     - 按基架边界部署预制舱室路线
+      Place prefab rooms along the substructure boundary
     - 按照船型生成走廊后沿走廊挂接舱室路线
+      Generate corridors from the hull shape and attach rooms along them
   - 补充手工prefab（目前只有special分区的是手工的）
+    Add more hand-built prefabs (currently only those in the Special section are handmade)
     - 以速射轨道炮为主武器的飞船等特色配装
+      Distinctive loadouts, such as ships built around rapid-fire railguns
 - 更多的任务（虽然当前的任务系统也没有经过非常充分的测试……下面这些也不一定会全做）
+  More missions (the current mission system has not been tested thoroughly either, and not all of the following will necessarily be implemented)
   - 剧情
+    Story missions
   - 护航
+    Escort
   - 科研探索
+    Scientific exploration
   - 维修
+    Repair
   - 回收
+    Salvage
   - 清空据点内敌对人员/生物
+    Clear hostile people or creatures from a site
 - 进入beta/正式版本
+  Enter beta and full release
 - 更多武器机制（但弹体机制应该不会改了，基本上核心就是当前的动能弹体、激光弹体、导弹弹体三种）
+  More weapon mechanics. The projectile system itself should remain largely unchanged, with kinetic projectiles, laser projectiles, and missile projectiles as its three basic types.
   - 参考cosmoteer的链炮、超大甲板炮、激光汇集之类的？
+    Perhaps take inspiration from Cosmoteer's chainguns, huge deck guns, laser combiners, and similar systems?
 - 轨道轰炸
+  Orbital bombardment
 - 太阳系飞行
+  Travel within a solar system
 - VGE的相关适配？（暂不确定能不能使用DeltaV的战斗机制同时使用VGE的燃料、武装）
+  Compatibility work for VGE? It is not yet clear whether Delta-V combat can be used together with VGE fuel and armaments.
 
 [h1]目前不稳定的功能[/h1]
 
+[h1]Features that are currently unstable[/h1]
+
 自动驾驶的存档结构尚未完全敲定，需要等到无人机机制完成后才能彻底敲定，所以目前自动驾驶状态没进存档，存档读档后自动驾驶状态会丢失。
+
+The autopilot save-data structure cannot be finalized until the drone system is complete. Autopilot state is therefore not saved at present and is lost when a save is loaded.
+
 自动战斗AI目前的自定义能力尚没有得到充分测试，不排除之后大改成其他编辑模式的可能，所以目前不建议在AI自定义上投入太多精力。
 
+The customization available for automated combat AI has not been tested thoroughly. Its editor may still be redesigned completely, so I do not recommend investing too much time in AI customization yet.
 
 [h1]更新记录[/h1]
 
+[h1]Changelog[/h1]
+
 0.1.0（alpha初次发布）
+
+0.1.0 (initial alpha release)
 - 飞船宇宙飞行（包括非基架飞船）
+  Spaceflight, including ships without substructure
 - 飞船交战
+  Ship combat
 - 飞船的软硬对接与分离（包括跳帮）
+  Soft docking, hard docking, and separation, including boarding
 - 可按照距离自动归档的宇宙poi
+  Space POIs that can be archived automatically according to distance
 - prefab机制
+  Prefab system
 - 空间站贸易
+  Station trade
 - 空间站委托
+  Station contracts
 - 基础太空poi prefab
+  Basic space POI prefabs
