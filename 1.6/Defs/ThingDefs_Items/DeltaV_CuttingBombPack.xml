@@ -8,7 +8,7 @@
     <tickerType>Normal</tickerType>
     <mergeVerbGizmos>false</mergeVerbGizmos>
     <graphicData>
-      <texPath>Things/Pawn/Humanlike/Apparel/SmokepopPack/SmokepopPack</texPath>
+      <texPath>Things/Pawn/Humanlike/Apparel/DeltaV_CuttingBombPack/DeltaV_CuttingBombPack</texPath>
       <graphicClass>Graphic_Single</graphicClass>
       <drawSize>(0.75,0.75)</drawSize>
     </graphicData>
@@ -56,18 +56,18 @@
       <layers>
         <li>Belt</li>
       </layers>
-      <wornGraphicPath>Things/Pawn/Humanlike/Apparel/SmokepopPack/SmokepopPack</wornGraphicPath>
+      <wornGraphicPath>Things/Pawn/Humanlike/Apparel/DeltaV_CuttingBombPack/DeltaV_CuttingBombPack</wornGraphicPath>
       <wornGraphicData>
         <renderUtilityAsPack>true</renderUtilityAsPack>
-        <north><offset>(0,-0.15)</offset></north>
+        <north><offset>(0,-0.05)</offset></north>
         <east>
-          <offset>(-0.35,-0.05)</offset>
+          <offset>(-0.31,-0.05)</offset>
           <thin><offset>(0.05,0)</offset></thin>
           <hulk><offset>(-0.1,0)</offset></hulk>
           <fat><offset>(-0.15,0)</offset></fat>
         </east>
         <west>
-          <offset>(0.35,-0.05)</offset>
+          <offset>(0.31,-0.05)</offset>
           <thin><offset>(-0.05,0)</offset></thin>
           <hulk><offset>(0.1,0)</offset></hulk>
           <fat><offset>(0.15,0)</offset></fat>
@@ -128,7 +128,7 @@
     <label>cutting bomb</label>
     <thingClass>DeltaV.Projectile_CuttingBomb</thingClass>
     <graphicData>
-      <texPath>Things/Projectile/Grenade</texPath>
+      <texPath>Things/Projectile/DeltaV_CuttingBomb</texPath>
       <graphicClass>Graphic_Single</graphicClass>
     </graphicData>
     <projectile>

@@ -1,0 +1,115 @@
+{
+  "tool": "Built-in ImageGen",
+  "transparent_background": true,
+  "concepts": {
+    "accepted_pack": "exec-b8c24430-9114-4f97-9306-42da4ceaf156.png",
+    "accepted_projectile": "exec-e2c7ed09-508b-4729-9e4f-5e29b1937b81.png"
+  },
+  "reference_images": {
+    "item": "exec-b8c24430-9114-4f97-9306-42da4ceaf156.png",
+    "north": "exec-b8c24430-9114-4f97-9306-42da4ceaf156.png",
+    "east": "exec-b8c24430-9114-4f97-9306-42da4ceaf156.png",
+    "south": "exec-b8c24430-9114-4f97-9306-42da4ceaf156.png",
+    "projectile": "exec-e2c7ed09-508b-4729-9e4f-5e29b1937b81.png"
+  },
+  "source_prompts": {
+    "item": "Extract ONLY the approved left-hand industrial utility backpack from this two-icon comparison as one isolated transparent PNG asset. Preserve the exact original design: one closed broad-shouldered squared slate-gray shell, stepped shoulder corners, narrowing to a flat blunt base, dark nearly black contour, two dark side harness loops partly visible and exactly one broad matte amber slash from lower left to upper right painted over the shell. Use the same straight-on orthographic two-dimensional view and the same proportions, colors and large planar shapes. Match the source closely; the purpose is to isolate the approved artwork for a game inventory sprite. Center the whole item with generous clear padding on every side. Output true clean alpha, including between straps and the shell. No shadow, other object, ambient halo, background or redesign. Exclude the smaller right-hand item completely.",
+    "north": "Make one true-alpha transparent wearable overlay sprite for a fictional colony-sim pawn facing north (pawn's back towards the player). The supplied left item is the exact design, shown from the back. Show only the backpack, directly facing the camera with flat orthographic foreshortening near zero. Maintain the same distinctive stepped broad shoulders, tapered flat lower shell, charcoal outline, muted slate-gray face and single broad amber slash rising from lower left to upper right, in the same orientation as reference. Compact back-mounted form, with only the dark edges of the straps visible at the sides and a clear unobstructed rear shell. Low detail density of a small colony-sim apparel overlay. Center it squarely, isolated with generous transparent padding and no person, garment, text, ground, drop shadow, visual effects or small right-side object. Do not add pockets, contents, charge markers or hardware.",
+    "east": "Create the EAST-FACING side-view wearable overlay of only the approved utility backpack at the left of the reference. It is an original sprite for a fictional colony-sim game. Flat simple orthographic profile as seen from the side, for a pawn facing right. Backpack bulk projects to the LEFT (behind the pawn), with the slightly concave close-fitting wearer side and dark shoulder harness on its RIGHT. No body is shown. The silhouette is a fairly narrow solid vertical wedge with a broader squared shoulder cap above its narrower blunt lower shell. Show one recognizable partial amber slash on the left rear-facing thickness, a short broad amber segment angled in the same visual direction as on the main face, against two slate-gray planes and one thick charcoal outline. Low detail, one object, no perspective view of the whole face, no accessories, lights, slots or markings for charges. True alpha transparency, no background, no halo or shadows, generous blank canvas around the centered object. Do not include the smaller icon from the reference.",
+    "south": "Create the SOUTH-FACING, front-view wearable apparel overlay belonging to the left-hand approved fictional utility backpack. The pawn is facing the viewer, so this is what is visible over the torso from the front, from a simple flat orthographic colony-sim camera. Draw exactly ONE unified centered overlay sprite on true alpha. Show a pair of broad short charcoal-gray shoulder harness straps descending symmetrically, with the compact light slate-gray shoulder corners of that same hard pack just visible on either side. Join the straps with a short low-profile dark gray chest band so it reads as a single wearable shape. Keep the central chest space visually open, preserving transparent areas and allowing the underlying pawn to show through. The solid front-facing elements are charcoal and slate gray; a very small amber accent on the side strap is okay, but the large diagonal back panel is on the far side of the pawn. Reproduce the reference's stepped shoulders, muted tones, and black outlines in the parts visible from the front. Keep the silhouette stout and clear at 32px. No pawn, face, torso, mannequin, clothing, frame, background, shadow, glow, accessories, extra buckles or right-hand object. Leave generous transparent margins around the sprite.",
+    "projectile": "Isolate ONLY the smaller clipped-corner gray and amber game token from the right side of this reference sheet as a single original 2D inventory-size PNG sprite. Preserve that exact accepted shape and palette. A flat roughly square puck with four generous clipped corners, a strong charcoal outline, two simple slate-gray ends, and one broad horizontal matte amber band across its center. No new lines or details. Strict overhead orthographic view, centered on its geometric center so it rotates evenly in the fictional game. True alpha transparent background around the entire object, including the corners, with generous padding. No glow, shadow, lettering, background, realistic hardware or left-hand backpack. This is only a fictional geometric game-art icon. Match the supplied right-hand artwork closely."
+  },
+  "preparation": {
+    "pack": "Remove nearly transparent residue. Preserve each directional sprite’s proportions while fitting the visible bounds and anchor of the corresponding vanilla utility-pack canvas.",
+    "west": "The game mirrors the east-facing material. Only the comparison sheet contains its own preview mirror.",
+    "projectile": "Match the visible alpha area of the native grenade and center the clipped-corner silhouette on the projectile rotation pivot."
+  },
+  "alignment": {
+    "item": {
+      "canvas": [
+        64,
+        64
+      ],
+      "vanilla_visible_bounds": [
+        1,
+        10,
+        63,
+        54
+      ],
+      "visible_bounds": [
+        4,
+        10,
+        59,
+        54
+      ]
+    },
+    "north": {
+      "canvas": [
+        128,
+        128
+      ],
+      "vanilla_visible_bounds": [
+        27,
+        37,
+        104,
+        94
+      ],
+      "visible_bounds": [
+        29,
+        37,
+        102,
+        94
+      ]
+    },
+    "east": {
+      "canvas": [
+        128,
+        128
+      ],
+      "vanilla_visible_bounds": [
+        35,
+        29,
+        82,
+        96
+      ],
+      "visible_bounds": [
+        39,
+        29,
+        78,
+        96
+      ]
+    },
+    "south": {
+      "canvas": [
+        128,
+        128
+      ],
+      "vanilla_visible_bounds": [
+        25,
+        37,
+        103,
+        94
+      ],
+      "visible_bounds": [
+        25,
+        38,
+        103,
+        92
+      ]
+    },
+    "projectile": {
+      "canvas": [
+        64,
+        64
+      ],
+      "visible_bounds": [
+        24,
+        24,
+        40,
+        40
+      ],
+      "opaque_pixels": 242,
+      "vanilla_opaque_pixels": 246
+    }
+  }
+}
