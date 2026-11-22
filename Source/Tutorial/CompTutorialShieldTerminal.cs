@@ -19,7 +19,6 @@ namespace DeltaV
         public TutorialShieldPreset preset;
         public float angleDeg;
         public int strengthPercent;
-        public string lessonAppendixKey;
         public CompProperties_TutorialShieldTerminal() { compClass = typeof(CompTutorialShieldTerminal); }
     }
 
@@ -57,8 +56,6 @@ namespace DeltaV
                 || usedBy.Position != parent.InteractionCell) return;
             ApplyTo(TargetShields());
             var lesson = ("DeltaV_Range_Lesson_" + Preset).Translate(Mathf.Abs(Settings.angleDeg), Settings.strengthPercent);
-            if (!string.IsNullOrEmpty(Settings.lessonAppendixKey))
-                lesson = lesson.RawText + "\n\n" + Settings.lessonAppendixKey.Translate().RawText;
             var expectedMap = parent.Map;
             Universe.QueueFrameAction(() =>
             {

@@ -6223,7 +6223,7 @@
           <rot>1</rot>
           <groupNumber>3</groupNumber>
           <salvoSet>Secondary</salvoSet>
-          <pulsePower>3</pulsePower>
+          <pulsePower>6</pulsePower>
           <combatCoverage>
             <arc>90</arc>
             <range>150</range>

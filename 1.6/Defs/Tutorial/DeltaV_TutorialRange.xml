@@ -58,7 +58,6 @@
         <preset>Kinetic</preset>
         <angleDeg>-45</angleDeg>
         <strengthPercent>35</strengthPercent>
-        <lessonAppendixKey>DeltaV_Range_Lesson_KineticComparison</lessonAppendixKey>
       </li>
     </comps>
   </ThingDef>

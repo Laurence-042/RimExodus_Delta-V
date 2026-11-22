@@ -661,7 +661,7 @@
       </li>
       <li Class="DeltaV.CompProperties_WeaponTuning">
         <heatPerShot>0</heatPerShot>
-        <maxPower>4</maxPower>
+        <maxPower>6</maxPower>
       </li>
     </comps>
     <modExtensions>

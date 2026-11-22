@@ -96,7 +96,7 @@ def furnish(name, plan, place, prop, foundation, roofs, records, occupied):
                 settings={'groupNumber':str(group),'salvoSet':'Secondary' if secondary else 'Main'}
                 if group==1: settings.update(firingInterval='10',headUnits='10')
                 elif group==2: settings.update(propellantCharge='48',headUnits='48')
-                else: settings.update(pulsePower='3')
+                else: settings.update(pulsePower='6' if secondary else '3')
                 if group in (1,2):
                     settings['_selectedHead'] = URANIUM_HEAD if secondary else STEEL_HEAD
                 gun=place(weapon,x,z,1,state=settings)

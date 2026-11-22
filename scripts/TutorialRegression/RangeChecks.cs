@@ -675,7 +675,7 @@ internal static partial class Program
             var config=sourceDefs[name];
             var comps=config["comps"];
             var weaponConfig=comps.SelectSingleNode("li[@Class='DeltaV.CompProperties_SpaceWeapon']");
-            var settings=group<=2 ? DirectXmlToObject.ObjectFromXml<CompProperties_WeaponTuning>(
+            var settings=group<=3 ? DirectXmlToObject.ObjectFromXml<CompProperties_WeaponTuning>(
                 comps.SelectSingleNode("li[@Class='DeltaV.CompProperties_WeaponTuning']"),false) : null;
             var heads=RangeSupply(comps,GunSupplyKind.Heads);
             var charge=RangeSupply(comps,GunSupplyKind.Propellant);
@@ -704,7 +704,8 @@ internal static partial class Program
                     range=XmlFloat(weaponConfig,"range"), fireArcDeg=XmlFloat(weaponConfig,"fireArcDeg"),
                     lockArcDeg=XmlFloat(weaponConfig,"lockArcDeg",-1f),
                     defaultFireDeviationDeg=XmlFloat(weaponConfig,"defaultFireDeviationDeg",1f),
-                    defaultManualFireDeviationDeg=XmlFloat(weaponConfig,"defaultManualFireDeviationDeg",-1f) };
+                    defaultManualFireDeviationDeg=XmlFloat(weaponConfig,"defaultManualFireDeviationDeg",-1f),
+                    shotEnergy=XmlFloat(weaponConfig,"shotEnergy") };
                 Scribe.loader.InitLoading(file); Scribe_Deep.Look(ref savedWeapon,"weapon",building,settings,heads,charge,weaponProps);
                 Scribe.loader.FinalizeLoading();
                 var weapon=savedWeapon.weapon;
@@ -724,7 +725,15 @@ internal static partial class Program
                     && savedWeapon.supply.TargetFuelLevel==heads.fuelCapacity,"full head stock and loading target survive native Scribe");
                 if (charge!=null) Check(savedWeapon.propellant.Fuel==charge.fuelCapacity
                     && savedWeapon.propellant.TargetFuelLevel==charge.fuelCapacity,"full propellant stock and loading target survive native Scribe");
-                if (settings!=null)
+                if (group == 3)
+                {
+                    Set(building, "comps", new List<ThingComp> { weapon, savedWeapon.tuning });
+                    int expectedPower = expectedBank == SpaceWeaponSalvoSet.Main ? 3 : 6;
+                    Check(settings.maxPower == 6 && savedWeapon.tuning.power == expectedPower
+                        && weapon.ShotEnergy == expectedPower * 2f,
+                        "the stock medium laser restores main power 3 or secondary power 6 and spends 2 Wd per power");
+                }
+                if (group<=2)
                 {
                     weapon.WeaponProps.projectileDef=Raw<ThingDef>();
                     weapon.WeaponProps.projectileDef.defName=weaponConfig["projectileDef"].InnerText;
