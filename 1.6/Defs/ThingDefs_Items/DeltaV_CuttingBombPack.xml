@@ -3,7 +3,7 @@
   <ThingDef ParentName="ApparelNoQualityBase">
     <defName>DeltaV_CuttingBombPack</defName>
     <label>cutting bomb pack</label>
-    <description>A utility pack that throws a delayed cutting bomb on a space map. Breach walls and doors along a five-cell line perpendicular to the throw, or switch modes to cut through the substructure as well. Reload the pack with chemfuel after each throw.</description>
+    <description>A utility pack that throws a delayed cutting bomb on a space map. Breach walls and doors along a five-cell line perpendicular to the throw, or switch modes to cut through the substructure as well. Reload the pack with chemfuel.</description>
     <techLevel>Industrial</techLevel>
     <tickerType>Normal</tickerType>
     <mergeVerbGizmos>false</mergeVerbGizmos>
@@ -84,9 +84,9 @@
         <hotKey>Misc4</hotKey>
         <soundReload>Standard_Reload</soundReload>
         <displayGizmoWhileUndrafted>false</displayGizmoWhileUndrafted>
-        <maxCharges>1</maxCharges>
+        <maxCharges>2</maxCharges>
         <ammoDef>Chemfuel</ammoDef>
-        <ammoCountPerCharge>20</ammoCountPerCharge>
+        <ammoCountPerCharge>35</ammoCountPerCharge>
         <baseReloadTicks>60</baseReloadTicks>
         <chargeNoun>cutting bomb</chargeNoun>
       </li>
