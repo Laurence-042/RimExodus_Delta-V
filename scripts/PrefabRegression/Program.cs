@@ -45,6 +45,7 @@ internal static class Program
         checks++;
         Console.WriteLine("PASS " + name);
     }
+    static bool DisableVerboseLogging(ref bool __result) { __result = false; return false; }
     static bool CaptureError(string text) { errors.Add(text); Console.WriteLine(text); return false; }
     static void NoErrors(string phase) => Check(errors.Count == 0, phase + ": " + string.Join("\n", errors));
     static object Call(string method, params object[] args) => state.GetMethod(method,
@@ -93,6 +94,8 @@ internal static class Program
         foreach (string method in new[] { "Error", "Warning" })
             harmony.Patch(AccessTools.Method(typeof(Log), method, new[] { typeof(string) }),
                 prefix: new HarmonyMethod(typeof(Program), nameof(CaptureError)));
+        harmony.Patch(AccessTools.PropertyGetter(typeof(Prefs), nameof(Prefs.LogVerbose)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(DisableVerboseLogging)));
         DeepProfiler.enabled = false;
         var game = (Game)RuntimeHelpers.GetUninitializedObject(typeof(Game));
         game.uniqueIDsManager = new UniqueIDsManager();
@@ -106,10 +109,136 @@ internal static class Program
         LoadedModManager.RunningModsListForReading.Add(pack);
     }
 
+    static void ImportMissingDefs()
+    {
+        ThingDef NewDef(string name)
+        {
+            var def = (ThingDef)RuntimeHelpers.GetUninitializedObject(typeof(ThingDef));
+            def.defName = name;
+            def.category = ThingCategory.Item;
+            def.thingClass = typeof(ThingWithComps);
+            def.stackLimit = 1;
+            def.virtualDefs = new List<ThingDef>();
+            DefDatabase<ThingDef>.Add(def);
+            return def;
+        }
+
+        var category = new StuffCategoryDef { defName = "PrefabFixtureMaterialCategory" };
+        ThingDef validStuff = NewDef("PrefabFixtureMaterial");
+        validStuff.stuffProps = new StuffProperties { categories = new List<StuffCategoryDef> { category } };
+        ThingDef otherStuff = NewDef("PrefabFixtureOtherMaterial");
+        otherStuff.stuffProps = new StuffProperties { categories = new List<StuffCategoryDef>() };
+        ThingDef validItem = NewDef("PrefabFixtureAllowed");
+        var special = new SpecialThingFilterDef { defName = "PrefabFixtureSpecial" };
+        DefDatabase<SpecialThingFilterDef>.Add(special);
+
+        ThingDef holder = NewDef("PrefabFixtureFilterHolder");
+        holder.stuffCategories = new List<StuffCategoryDef> { category };
+        holder.defaultStuff = validStuff;
+        holder.comps = new List<CompProperties> { new CompProperties(typeof(CompPrefabRegressionFilter)) };
+
+        MapPrefabThingEntry Entry(int offset)
+        {
+            var thing = new ThingWithComps { def = holder, thingIDNumber = 2100240 + offset };
+            thing.SetStuffDirect(validStuff);
+            thing.InitializeComps();
+            var filter = thing.GetComp<CompPrefabRegressionFilter>().filter;
+            filter.SetAllow(validItem, true);
+            filter.SetAllow(special, false);
+            return new MapPrefabThingEntry { def = holder, stuff = validStuff, pos = new IntVec3(offset, 0, 0),
+                stateXml = (string)Call("Capture", thing) };
+        }
+        const string missingThing = "PrefabFixtureMissingThing", missingStuff = "PrefabFixtureMissingStuff";
+        const string missingAllowed = "PrefabFixtureMissingAllowed", missingSpecial = "PrefabFixtureMissingSpecial";
+        var source = new MapPrefabDocument { name = "missing-def regression", size = new IntVec2(4, 4) };
+        source.thingEntries.Add(Entry(1));
+        source.thingEntries.Add(Entry(2));
+        string intact = source.ToXml();
+        string WithMissingFilters(string filterState, string name, string missing, bool keepOriginal)
+        {
+            string element = $"<li>{name}</li>";
+            return filterState.Replace(element, (keepOriginal ? element : "") + $"<li>{missing}</li>");
+        }
+        var first = source.thingEntries[0];
+        first.stateXml = WithMissingFilters(first.stateXml, validItem.defName, missingAllowed, true);
+        first.stateXml = WithMissingFilters(first.stateXml, special.defName, missingSpecial, true);
+        var second = source.thingEntries[1];
+        second.stateXml = WithMissingFilters(second.stateXml, validItem.defName, missingAllowed, false);
+        second.stateXml = WithMissingFilters(second.stateXml, special.defName, missingSpecial, false);
+        var deleted = (ThingDef)RuntimeHelpers.GetUninitializedObject(typeof(ThingDef));
+        deleted.defName = missingThing;
+        source.thingEntries.Insert(1, new MapPrefabThingEntry { def = deleted, pos = IntVec3.Zero });
+        string missing = source.ToXml().Replace(">" + validStuff.defName + "<", ">" + missingStuff + "<");
+        string fixturePath = Path.Combine(AppContext.BaseDirectory, "missing-def-prefab.xml");
+
+        MapPrefabDocument Read(string xml, PrefabImportOptions options)
+        {
+            File.WriteAllText(fixturePath, xml);
+            return MapPrefabDocument.Load(fixturePath, options);
+        }
+
+        var decoder = state.GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
+            .Single(method => method.Name == "Instantiate");
+        var importChanges = typeof(MapPrefabDocument).GetField("ImportChanges", BindingFlags.Instance | BindingFlags.NonPublic);
+        List<ThingWithComps> Decode(MapPrefabDocument doc)
+            => ((List<Thing>)decoder.Invoke(null, new[] { (object)doc.thingEntries, doc.name, null, true, false,
+                true, importChanges.GetValue(doc) })).Cast<ThingWithComps>().ToList();
+
+        bool strictRejected = false;
+        try { Read(missing, null); }
+        catch (InvalidDataException) { strictRejected = true; }
+        Check(strictRejected, "strict load rejects missing stuff");
+        strictRejected = false;
+        try { Read(missing.Replace(missingStuff, validStuff.defName), null); }
+        catch (InvalidDataException ex) when (ex.Message.Contains(missingThing)) { strictRejected = true; }
+        Check(strictRejected, "strict load rejects missing ThingDef");
+
+        var options = new PrefabImportOptions
+        {
+            SkipMissingThings = true, SkipMissingFilterDefs = true, MissingStuff = MissingPrefabDef.Replace,
+            DefaultStuff = validStuff,
+        };
+        var resolved = Read(missing, options);
+        Check(resolved.thingEntries.Select(entry => entry.pos.x).SequenceEqual(new[] { 1, 2 }),
+            "surviving Thing states retain their order and coordinates");
+        Check(resolved.thingEntries.All(entry => entry.stuff == validStuff && entry.stateXml.Contains($"<stuff>{validStuff.defName}</stuff>")),
+            "replacement stuff updates placement and Scribe state");
+        var decoded = Decode(resolved);
+        Check(decoded.All(thing => thing.Stuff == validStuff), "native Scribe reads replacement stuff");
+        var keptFilter = decoded[0].GetComp<CompPrefabRegressionFilter>().filter;
+        var emptyFilter = decoded[1].GetComp<CompPrefabRegressionFilter>().filter;
+        Check(keptFilter.Allows(validItem) && !keptFilter.Allows(special),
+            "native Scribe keeps the working Def and special filter settings");
+        Check(emptyFilter.AllowedDefCount == 0 && !emptyFilter.IsAlwaysDisallowedDueToSpecialFilters(validItem),
+            "fully pruned lists are usable empty native lists");
+        Check(resolved.thingEntries[0].stateXml.Contains(missingSpecial),
+            "Scribe filter sanitation operates on a per-import copy");
+
+        options.DefaultStuff = otherStuff;
+        Check(Read(missing, options).ThingCellCount == 0, "incompatible configured stuff skips the affected entities");
+        options.UseVanillaDefaultStuff = true;
+        var vanillaDefaulted = Decode(Read(missing, options));
+        Check(vanillaDefaulted.Count == 2 && vanillaDefaulted.All(thing => thing.Stuff == validStuff),
+            "vanilla default stuff is tried if explicitly enabled");
+        options.MissingStuff = MissingPrefabDef.Skip;
+        Check(Read(missing, options).ThingCellCount == 0, "skip policy is independent of the configured default stuff");
+        var allAvailable = Decode(Read(intact, options));
+        Check(allAvailable.Count == 2 && allAvailable.All(thing => thing.Stuff == validStuff
+            && thing.GetComp<CompPrefabRegressionFilter>().filter.Allows(validItem)
+            && !thing.GetComp<CompPrefabRegressionFilter>().filter.Allows(special)),
+            "available Defs and materials survive with the tolerant policy enabled");
+        holder.defaultStuff = null;
+        holder.stuffCategories = new List<StuffCategoryDef> { new StuffCategoryDef { defName = "PrefabFixtureUnavailableCategory" } };
+        options.MissingStuff = MissingPrefabDef.Replace;
+        Check(Read(missing, options).ThingCellCount == 0, "no compatible installed material safely skips the affected entities");
+        NoErrors("missing Def import");
+    }
+
     static void Run()
     {
         using var logLock = Log.LockMessages();
         PrepareNativeFixture();
+        ImportMissingDefs();
         // Def constructors preload shaders; only those rendering defaults are bypassed here.
         var gunDef = (ThingDef)RuntimeHelpers.GetUninitializedObject(typeof(ThingDef));
         gunDef.defName = "PrefabRegressionGun";
@@ -267,6 +396,12 @@ internal static class Program
                 && ReferenceEquals(copy.GetComp<CompPrefabRegressionReference>().verb, copy.GunCompEq.PrimaryVerb)
                 && copy.GunCompEq.PrimaryVerb.LastShotTick == 123, "ordinary reload preserves each turret's own graph and Verb state");
     }
+}
+
+public sealed class CompPrefabRegressionFilter : ThingComp
+{
+    public ThingFilter filter = new ThingFilter();
+    public override void PostExposeData() => Scribe_Deep.Look(ref filter, "fixtureFilter");
 }
 
 public sealed class CompPrefabRegressionReference : ThingComp

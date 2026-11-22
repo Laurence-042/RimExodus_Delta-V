@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using RimExodus.Maps;
 using RimWorld;
 using Verse;
 
@@ -89,7 +90,7 @@ namespace DeltaV
             {
                 throw new FileNotFoundException($"No exported map prefab found in {dir}.");
             }
-            return MapPrefabDocument.Load(latest);
+            return LoadTemplate(latest);
         }
 
         /// <summary>
@@ -98,8 +99,22 @@ namespace DeltaV
         /// </summary>
         public static MapPrefabDocument LoadRelative(string relativePath)
         {
-            return MapPrefabDocument.Load(ResolveRelativePath(relativePath));
+            return LoadTemplate(ResolveRelativePath(relativePath));
         }
+
+        private static MapPrefabDocument LoadTemplate(string path) => MapPrefabDocument.Load(path, new PrefabImportOptions
+        {
+            SkipMissingThings = true,
+            SkipMissingFilterDefs = true,
+            SkipThingsOutOfBounds = true,
+            SkipMissingTerrainColors = true,
+            MissingStuff = MissingPrefabDef.Replace,
+            UseVanillaDefaultStuff = true,
+            MissingTerrain = MissingPrefabDef.Skip,
+            MissingFoundation = MissingPrefabDef.Replace,
+            DefaultFoundation = TerrainDefOf.Substructure,
+            MissingRoof = MissingPrefabDef.Skip,
+        });
 
         // User exports override the single shipped catalog. Version folders do not carry prefab copies.
         private static IEnumerable<string> CatalogDirectories => new[]
