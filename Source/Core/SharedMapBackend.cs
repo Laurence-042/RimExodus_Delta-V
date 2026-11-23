@@ -34,8 +34,8 @@ namespace DeltaV
             CommonDocument shared = MapPrefabs.Capture(map, new CellSelection(selected), name,
                 include: thing => ShouldExportThing(thing, plants, blights),
                 order: OrderExportThings);
-            path = Path.GetFullPath(Path.Combine(MapPrefab.PrefabDirectory, name + ".xml"));
-            shared.Save(path);
+            string target = Path.Combine(MapPrefab.PrefabDirectory, name + ".xml");
+            path = ExportFileService.Write("map prefab", target, shared.Save, UniverseManager.MapTag(map));
             return shared;
         }
 

@@ -45,7 +45,7 @@ namespace DeltaV
             bool Valid(SpaceObject candidate)
             {
                 if (candidate == null || candidate == own || faction == null
-                    || candidate.contentTypeId != "Shipyard") return false;
+                    || !IsRetreatFacility(candidate)) return false;
                 return ShipyardFaction(candidate) == faction;
             }
             SpaceObject home = universe.ObjectById(own.npcHomeObjectId);
@@ -55,6 +55,13 @@ namespace DeltaV
                 .ThenBy(o => o.objectId).FirstOrDefault();
             own.npcHomeObjectId = home?.objectId ?? 0;
             return home;
+        }
+
+        private static bool IsRetreatFacility(SpaceObject candidate)
+        {
+            string path = candidate?.sourcePrefabPath?.Replace('\\', '/');
+            return string.Equals(path, "Sector/Stations/SectorShipyard.xml", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(path, "Tutorial/Shipyard.xml", StringComparison.OrdinalIgnoreCase);
         }
 
         internal static Faction ShipyardFaction(SpaceObject candidate)

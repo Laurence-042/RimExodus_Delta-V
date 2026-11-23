@@ -87,8 +87,8 @@ namespace DeltaV
                 && f.HostileTo(terminal.Faction)).ToList();
             var craft = new List<(int tier, string path)>();
             if (enemies.Count > 0)
-                for (int i = 0; i <= limits.craft && i < settings.craftTypes.Count; i++)
-                    foreach (string path in DeltaVMod.CurrentSettings.EffectiveSectorRule(SectorContentTypes.ById(settings.craftTypes[i])).prefabPaths)
+                for (int i = 0; i <= limits.craft && i < settings.combatCraft.Count; i++)
+                    foreach (string path in settings.combatCraft[i].prefabs)
                     {
                         try
                         {
@@ -102,7 +102,7 @@ namespace DeltaV
                 var selected = craft.RandomElement();
                 SpaceMission m = Offer(board, tier, SpaceMissionKind.Combat);
                 m.quantity = 1; m.rewardEach = settings.combatRewards[selected.tier]; m.enemy = enemies.RandomElement();
-                m.craftType = settings.craftTypes[selected.tier]; m.prefab = selected.path;
+                m.prefab = selected.path;
                 board.offers.Add(m);
             }
             return board;

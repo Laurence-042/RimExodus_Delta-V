@@ -121,44 +121,18 @@ namespace DeltaV
 
         // ---- 星区内容生成（「生成」页；全局设置，只影响尚未首次生成的星区）----
 
-        /// <summary>按类型的星区生成规则（SectorContentTypes 键；缺条目时读注册表默认）。</summary>
-        public List<SectorTypeRule> sectorRules = new List<SectorTypeRule>();
+        /// <summary>Pure generation recipes. They never classify runtime SpaceObjects.</summary>
+        public List<SectorGenerationNode> sectorGenerationRoots = new List<SectorGenerationNode>();
+        public SectorGenerationPreset sectorGenerationPreset = SectorGenerationPresets.Default;
 
-        /// <summary>
-        /// 该叶子类型的生效规则：设置有条目用条目，否则用注册表默认（读路径不静默改写设置）。
-        /// </summary>
-        public SectorTypeRule EffectiveSectorRule(SectorContentType leaf)
+        public void EnsureSectorGenerationTable()
         {
-            SectorTypeRule existing = sectorRules?.FirstOrDefault(r => r.typeId == leaf.id);
-            if (existing != null) return existing;
-            return DefaultSectorRule(leaf);
-        }
-
-        private static SectorTypeRule DefaultSectorRule(SectorContentType leaf)
-        {
-            var rule = new SectorTypeRule { typeId = leaf.id, minCount = leaf.defaultMin };
-            if (!leaf.defaultPrefabPath.NullOrEmpty()) rule.prefabPaths.Add(leaf.defaultPrefabPath);
-            return rule;
-        }
-
-        /// <summary>
-        /// 为每个叶子补齐设置及至少一份可用内置 prefab。自定义非空池保持原值；
-        /// 禁用类型应把数量设为 0，而不是依赖空物化池。
-        /// </summary>
-        public void EnsureSectorRulesSeeded()
-        {
-            if (sectorRules == null) sectorRules = new List<SectorTypeRule>();
-            foreach (SectorContentType leaf in SectorContentTypes.AllLeaves())
+            if (sectorGenerationRoots == null || sectorGenerationRoots.Count == 0)
+                sectorGenerationRoots = SectorGenerationTable.Defaults();
+            if (!SectorGenerationTable.Validate(sectorGenerationRoots, out string error))
             {
-                SectorTypeRule existing = sectorRules.FirstOrDefault(r => r.typeId == leaf.id);
-                if (existing == null)
-                {
-                    sectorRules.Add(DefaultSectorRule(leaf));
-                    continue;
-                }
-                if (existing.prefabPaths == null) existing.prefabPaths = new List<string>();
-                if (existing.prefabPaths.Count == 0 && !leaf.defaultPrefabPath.NullOrEmpty())
-                    existing.prefabPaths.Add(leaf.defaultPrefabPath);
+                Log.Warning("[DeltaV] Invalid sector generation table was replaced with defaults: " + error);
+                sectorGenerationRoots = SectorGenerationTable.Defaults();
             }
         }
 
@@ -201,7 +175,8 @@ namespace DeltaV
             Scribe_Values.Look(ref logDevelopment, "logDevelopment", false);
             Scribe_Values.Look(ref showShipPlanner, "showShipPlanner", false);
             Scribe_Values.Look(ref logPerformance, "logPerformance", false);
-            Scribe_Collections.Look(ref sectorRules, "sectorRules", LookMode.Deep);
+            Scribe_Collections.Look(ref sectorGenerationRoots, "sectorGenerationRoots", LookMode.Deep);
+            Scribe_Values.Look(ref sectorGenerationPreset, "sectorGenerationPreset", SectorGenerationPresets.Default);
             base.ExposeData();
         }
     }

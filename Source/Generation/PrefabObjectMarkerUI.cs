@@ -10,7 +10,6 @@ namespace DeltaV
     internal sealed class PrefabObjectMarkerDraft
     {
         internal string prefabPath;
-        internal string contentTypeId;
         internal float distance;
         internal float bearingDegrees;
         internal float relativeAngleDegrees;
@@ -20,7 +19,6 @@ namespace DeltaV
     internal sealed class PrefabClusterMarkerDraft
     {
         internal List<PrefabClusterEntry> entries = new List<PrefabClusterEntry>();
-        internal string contentTypeId;
         internal float innerRadius;
         internal float outerRadius;
         internal float densityPerTenThousand;
@@ -31,22 +29,6 @@ namespace DeltaV
 
     internal static class PrefabMarkerDialogUtility
     {
-        internal static void ChooseContentType(string current, Action<string> selected)
-        {
-            var options = new List<FloatMenuOption>
-            {
-                new FloatMenuOption((current.NullOrEmpty() ? "✓ " : "")
-                    + "DeltaV_PrefabMarkerNoType".Translate(), () => selected(null))
-            };
-            foreach (SectorContentType type in SectorContentTypes.AllLeaves())
-            {
-                SectorContentType captured = type;
-                options.Add(new FloatMenuOption((current == type.id ? "✓ " : "") + type.Label,
-                    () => selected(captured.id)));
-            }
-            Find.WindowStack.Add(new FloatMenu(options));
-        }
-
         internal static void NumericRow(Rect rect, string label, ref float value, ref string buffer,
             float min, float max)
         {
@@ -103,22 +85,18 @@ namespace DeltaV
                     draft.prefabPath = path;
                     PrefabMarkerPreviewCache.Refresh(path);
                 });
-            if (Widgets.ButtonText(new Rect(0f, 134f, rect.width, 34f),
-                "DeltaV_PrefabMarkerContentType".Translate(TypeLabel(draft.contentTypeId))))
-                PrefabMarkerDialogUtility.ChooseContentType(draft.contentTypeId, id => draft.contentTypeId = id);
-
-            PrefabMarkerDialogUtility.NumericRow(new Rect(0f, 184f, rect.width, 30f),
+            PrefabMarkerDialogUtility.NumericRow(new Rect(0f, 142f, rect.width, 30f),
                 "DeltaV_PrefabMarkerDistance".Translate(), ref draft.distance, ref distanceBuffer,
                 0f, PrefabObjectMarkerUtility.MaxRadius);
-            PrefabMarkerDialogUtility.NumericRow(new Rect(0f, 220f, rect.width, 30f),
+            PrefabMarkerDialogUtility.NumericRow(new Rect(0f, 178f, rect.width, 30f),
                 "DeltaV_PrefabMarkerBearing".Translate(), ref draft.bearingDegrees, ref bearingBuffer,
                 -3600f, 3600f);
-            PrefabMarkerDialogUtility.NumericRow(new Rect(0f, 256f, rect.width, 30f),
+            PrefabMarkerDialogUtility.NumericRow(new Rect(0f, 214f, rect.width, 30f),
                 "DeltaV_PrefabMarkerFacing".Translate(), ref draft.relativeAngleDegrees, ref facingBuffer,
                 -3600f, 3600f);
-            Widgets.CheckboxLabeled(new Rect(0f, 300f, rect.width, 30f),
+            Widgets.CheckboxLabeled(new Rect(0f, 258f, rect.width, 30f),
                 "DeltaV_PrefabMarkerInheritFaction".Translate(), ref draft.inheritFaction);
-            Widgets.Label(new Rect(0f, 336f, rect.width, 38f), "DeltaV_PrefabMarkerPreviewHelp".Translate());
+            Widgets.Label(new Rect(0f, 294f, rect.width, 38f), "DeltaV_PrefabMarkerPreviewHelp".Translate());
 
             PrefabMarkerDialogUtility.BottomButtons(rect, () =>
             {
@@ -126,9 +104,6 @@ namespace DeltaV
                 Close();
             }, () => Close());
         }
-
-        private static string TypeLabel(string id)
-            => SectorContentTypes.ById(id)?.Label ?? "DeltaV_PrefabMarkerNoType".Translate();
 
         public override void PreClose()
         {
@@ -170,50 +145,46 @@ namespace DeltaV
             Text.Font = GameFont.Small;
             Widgets.Label(new Rect(0f, 36f, rect.width, 42f), "DeltaV_PrefabClusterHelp".Translate());
 
-            if (Widgets.ButtonText(new Rect(0f, 82f, rect.width, 32f),
-                "DeltaV_PrefabMarkerContentType".Translate(TypeLabel(draft.contentTypeId))))
-                PrefabMarkerDialogUtility.ChooseContentType(draft.contentTypeId, id => draft.contentTypeId = id);
-
             float half = (rect.width - 16f) * 0.5f;
-            PrefabMarkerDialogUtility.NumericRow(new Rect(0f, 122f, half, 28f),
+            PrefabMarkerDialogUtility.NumericRow(new Rect(0f, 88f, half, 28f),
                 "DeltaV_PrefabClusterInner".Translate(), ref draft.innerRadius, ref innerBuffer,
                 0f, PrefabObjectMarkerUtility.MaxRadius);
-            PrefabMarkerDialogUtility.NumericRow(new Rect(half + 16f, 122f, half, 28f),
+            PrefabMarkerDialogUtility.NumericRow(new Rect(half + 16f, 88f, half, 28f),
                 "DeltaV_PrefabClusterOuter".Translate(), ref draft.outerRadius, ref outerBuffer,
                 0f, PrefabObjectMarkerUtility.MaxRadius);
-            PrefabMarkerDialogUtility.NumericRow(new Rect(0f, 156f, half, 28f),
+            PrefabMarkerDialogUtility.NumericRow(new Rect(0f, 122f, half, 28f),
                 "DeltaV_PrefabClusterDensity".Translate(), ref draft.densityPerTenThousand,
                 ref densityBuffer, 0f, PrefabObjectMarkerUtility.MaxDensity);
-            PrefabMarkerDialogUtility.NumericRow(new Rect(half + 16f, 156f, half, 28f),
+            PrefabMarkerDialogUtility.NumericRow(new Rect(half + 16f, 122f, half, 28f),
                 "DeltaV_PrefabClusterSpacing".Translate(), ref draft.minimumSpacing, ref spacingBuffer,
                 0f, PrefabObjectMarkerUtility.MaxRadius);
             int seed = draft.seed;
-            Widgets.Label(new Rect(0f, 190f, half * .57f, 28f), "DeltaV_PrefabClusterSeed".Translate());
-            Widgets.TextFieldNumeric(new Rect(half * .6f, 190f, half * .4f, 28f), ref seed,
+            Widgets.Label(new Rect(0f, 156f, half * .57f, 28f), "DeltaV_PrefabClusterSeed".Translate());
+            Widgets.TextFieldNumeric(new Rect(half * .6f, 156f, half * .4f, 28f), ref seed,
                 ref seedBuffer, 1, int.MaxValue);
             draft.seed = seed;
-            if (Widgets.ButtonText(new Rect(half + 16f, 190f, half, 28f),
+            if (Widgets.ButtonText(new Rect(half + 16f, 156f, half, 28f),
                 "DeltaV_PrefabClusterReroll".Translate()))
             {
                 draft.seed = Rand.Int & int.MaxValue;
                 if (draft.seed == 0) draft.seed = 1;
                 seedBuffer = draft.seed.ToString();
             }
-            Widgets.CheckboxLabeled(new Rect(0f, 224f, rect.width, 28f),
+            Widgets.CheckboxLabeled(new Rect(0f, 190f, rect.width, 28f),
                 "DeltaV_PrefabMarkerInheritFaction".Translate(), ref draft.inheritFaction);
 
             int count = PrefabObjectMarkerUtility.ClusterCount(draft.innerRadius, draft.outerRadius,
                 draft.densityPerTenThousand, 128);
-            Widgets.Label(new Rect(0f, 254f, rect.width, 30f),
+            Widgets.Label(new Rect(0f, 220f, rect.width, 30f),
                 "DeltaV_PrefabClusterCount".Translate(count));
-            Widgets.Label(new Rect(0f, 286f, rect.width - 150f, 28f),
+            Widgets.Label(new Rect(0f, 252f, rect.width - 150f, 28f),
                 "DeltaV_PrefabClusterPool".Translate());
-            if (Widgets.ButtonText(new Rect(rect.width - 140f, 282f, 140f, 30f),
+            if (Widgets.ButtonText(new Rect(rect.width - 140f, 248f, 140f, 30f),
                 "DeltaV_PrefabClusterAdd".Translate()))
                 Dialog_PrefabSelector.OpenSingle("DeltaV_PrefabSelectorTitle".Translate(), null,
                     path => draft.entries.Add(new PrefabClusterEntry(path)));
 
-            Rect viewport = new Rect(0f, 318f, rect.width, rect.height - 414f);
+            Rect viewport = new Rect(0f, 284f, rect.width, rect.height - 380f);
             Rect view = new Rect(0f, 0f, viewport.width - 18f,
                 Mathf.Max(viewport.height, draft.entries.Count * 42f));
             Widgets.BeginScrollView(viewport, ref scroll, view);
@@ -250,9 +221,6 @@ namespace DeltaV
                 Close();
             }, () => Close());
         }
-
-        private static string TypeLabel(string id)
-            => SectorContentTypes.ById(id)?.Label ?? "DeltaV_PrefabMarkerNoType".Translate();
 
         public override void PreClose()
         {

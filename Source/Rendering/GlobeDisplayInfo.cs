@@ -35,7 +35,6 @@ namespace DeltaV
     {
         public int key;
         public bool shuttle, station;
-        public string contentType;
         public GlobeArmament armament = GlobeArmament.Unknown;
         public string label;
         public Faction faction;
@@ -47,7 +46,6 @@ namespace DeltaV
             Scribe_Values.Look(ref key, "key");
             Scribe_Values.Look(ref shuttle, "shuttle");
             Scribe_Values.Look(ref station, "station");
-            Scribe_Values.Look(ref contentType, "contentType");
             Scribe_Values.Look(ref armament, "armament", GlobeArmament.Unknown);
             Scribe_Values.Look(ref label, "label");
             Scribe_References.Look(ref faction, "faction");
@@ -69,10 +67,8 @@ namespace DeltaV
         internal bool wreck, native, craft, station;
         internal bool natural;
         internal GlobeArmament armament = GlobeArmament.Unknown;
-        internal string contentType;
         internal GlobeProjectileVisual projectile;
         internal bool Minimal => projectile != null || owner.IsScattered;
-        internal string ContentType => ship != null ? ship.contentType : contentType ?? owner.contentTypeId;
         internal GlobeArmament Armament => ship?.armament ?? armament;
         internal string Label => projectile?.Def.label ?? ship?.label ?? owner.label;
         internal Faction Faction => ship != null ? ship.faction : owner.faction;
@@ -319,7 +315,6 @@ namespace DeltaV
                 facts.localCenter = SpaceTransform.MapToShipLocal(map, anchor);
                 facts.localAngle = ship.FrameAngle;
                 facts.station = member.entry.station = false;
-                facts.contentType = null;
                 info.entries.Add(member.entry);
                 summary.ships.Add(facts);
             }
@@ -344,16 +339,6 @@ namespace DeltaV
             environmentEntry.station = native && obj is PoiState nativePoi && nativePoi.nativeParent?.def?.defName == "SpaceSettlement";
             if (info.environment.Count > 0 || summary.ships.Count == 0 || native)
                 info.entries.Add(environmentEntry);
-            // The generated class and its location marker belong to the principal structure.
-            GlobeDisplayEntry principal = null;
-            foreach (var entry in info.entries)
-                if (principal == null || entry.area > principal.area) principal = entry;
-            if (principal?.ship != null) principal.ship.contentType = obj.contentTypeId;
-            if (principal != null && IsStationType(obj.contentTypeId))
-            {
-                principal.station = true;
-                if (principal.ship != null) principal.ship.station = true;
-            }
             if (info.populationDirty)
                 summary.wreck = GlobeDisplayRules.IsWreck(map.mapPawns.AllPawns.Any(pawn => !pawn.Dead), structure.All.HasGlobeEquipment);
             environmentEntry.wreck = summary.wreck;
@@ -391,8 +376,7 @@ namespace DeltaV
                 if (archived.globe.environmentArea > 0 || archived.globe.ships.Count == 0)
                     yield return new GlobeDisplayEntry { owner = obj, area = archived.globe.environmentArea,
                         localCenter = archived.globe.environmentCenter,
-                        wreck = archived.globe.wreck, natural = archived.globe.natural, armament = archived.globe.armament,
-                        station = IsStationType(obj.contentTypeId) && !archived.globe.ships.Any(s => s.station) };
+                        wreck = archived.globe.wreck, natural = archived.globe.natural, armament = archived.globe.armament };
                 yield break;
             }
             if (obj is PoiState poiState && poiState.kind == PoiKind.NativeParent)
@@ -405,14 +389,12 @@ namespace DeltaV
             if (obj is PoiState snapshot && snapshot.snapshot != null)
             {
                 yield return new GlobeDisplayEntry { owner = obj, area = snapshot.snapshot.GlobeArea,
-                    wreck = snapshot.snapshot.GlobeWreck, station = IsStationType(obj.contentTypeId),
-                    craft = GlobeFilters.IsCraftType(obj.contentTypeId) };
+                    wreck = snapshot.snapshot.GlobeWreck };
                 yield break;
             }
-            float area = PrefabGlobeMeasurements.AverageArea(obj.contentTypeId);
-            SectorContentType type = SectorContentTypes.ById(obj.contentTypeId);
-            bool craft = type != null && IsUnder(SectorContentTypes.ById("Craft"), type);
-            yield return new GlobeDisplayEntry { owner = obj, area = area, craft = craft, station = IsStationType(obj.contentTypeId) };
+            yield return new GlobeDisplayEntry { owner = obj,
+                area = PrefabGlobeMeasurements.Area(obj.sourcePrefabPath),
+                natural = PrefabGlobeMeasurements.Natural(obj.sourcePrefabPath) };
         }
 
         /// <summary>
@@ -447,10 +429,6 @@ namespace DeltaV
             return Mathf.Max(32f, DeltaVMod.CurrentSettings?.poiActiveRadius ?? 300f);
         }
 
-        internal static bool IsStationType(string typeId) => typeId != "Asteroid"
-            && IsUnder(SectorContentTypes.ById("Station"), SectorContentTypes.ById(typeId));
-        private static bool IsUnder(SectorContentType root, SectorContentType type) => root != null
-            && (root == type || root.children.Any(child => IsUnder(child, type)));
     }
 
     /// <summary>Process-lifetime asset measurements. Replacing files never refreshes this table.</summary>
@@ -459,6 +437,7 @@ namespace DeltaV
     {
         private static readonly Dictionary<string, int> areas = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, float> navigationRadii = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+        private static readonly HashSet<string> natural = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         static PrefabGlobeMeasurements()
         {
             List<string> paths;
@@ -476,25 +455,14 @@ namespace DeltaV
                     string key = path.Replace('\\', '/');
                     areas[key] = GlobeDisplayRules.Measure(doc);
                     navigationRadii[key] = new Vector2(doc.size.x, doc.size.z).magnitude * .5f + .71f;
+                    if (SectorContentService.PrefabHasNaturalBody(doc)) natural.Add(key);
                 }
                 catch (Exception ex) { Log.Warning($"[DeltaV] Cannot measure prefab '{path}' for globe: {ex.Message}"); }
             }
         }
-        internal static float AverageArea(string typeId)
-        {
-            SectorContentType type = SectorContentTypes.ById(typeId);
-            var paths = type == null ? null : DeltaVMod.CurrentSettings?.EffectiveSectorRule(type)?.prefabPaths;
-            if (paths == null || paths.Count == 0) return -1f;
-            float sum = 0f;
-            var unique = paths.Select(path => path?.Replace('\\', '/'))
-                .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            foreach (string path in unique)
-            {
-                if (path == null || !areas.TryGetValue(path, out int area)) return -1f;
-                sum += area;
-            }
-            return sum / unique.Count;
-        }
+        internal static float Area(string path) => !path.NullOrEmpty()
+            && areas.TryGetValue(path.Replace('\\', '/'), out int area) ? area : -1f;
+        internal static bool Natural(string path) => !path.NullOrEmpty() && natural.Contains(path.Replace('\\', '/'));
 
         internal static float NavigationRadius(SpaceObject obj)
         {
@@ -502,16 +470,7 @@ namespace DeltaV
             string exact = obj.sourcePrefabPath?.Replace('\\', '/');
             if (!exact.NullOrEmpty() && navigationRadii.TryGetValue(exact, out float radius))
                 return radius;
-            SectorContentType type = SectorContentTypes.ById(obj.contentTypeId);
-            var paths = type == null ? null : DeltaVMod.CurrentSettings?.EffectiveSectorRule(type)?.prefabPaths;
-            if (paths == null || paths.Count == 0) return -1f;
-            float maximum = -1f;
-            foreach (string path in paths.Select(p => p?.Replace('\\', '/')).Distinct(StringComparer.OrdinalIgnoreCase))
-            {
-                if (path == null || !navigationRadii.TryGetValue(path, out radius)) return -1f;
-                maximum = Mathf.Max(maximum, radius);
-            }
-            return maximum;
+            return -1f;
         }
     }
 }

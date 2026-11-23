@@ -79,7 +79,6 @@ namespace DeltaV
                 return;
             }
 
-            Log.Message($"[DeltaV] Exported home area on {UniverseManager.MapTag(map)} to {path}");
             Messages.Message("DeltaV_PrefabExportSaved".Translate(path), MessageTypeDefOf.PositiveEvent);
         }
 

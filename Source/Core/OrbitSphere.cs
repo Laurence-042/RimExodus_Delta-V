@@ -61,6 +61,7 @@ namespace DeltaV
         private static PlanetLayer cachedLayer;
         private static readonly Dictionary<PlanetLayer, float> RadiusByLayer = new Dictionary<PlanetLayer, float>();
         private static readonly Dictionary<PlanetLayer, float> WorldPerCellByLayer = new Dictionary<PlanetLayer, float>();
+        private static readonly Dictionary<PlanetTile, double> SolidAngleByTile = new Dictionary<PlanetTile, double>();
         private static readonly List<PlanetTile> NeighborBuffer = new List<PlanetTile>(6);
 
         /// <summary>当前游戏的轨道层（Def.isSpace 的第一层）。无则 null；按 World 实例缓存。</summary>
@@ -137,6 +138,43 @@ namespace DeltaV
         /// <summary>1 弧度弧长对应的宇宙格数（球面上量距的换算系数）。</summary>
         public static float CellsPerRadian => CellsPerRadianOf(Layer);
 
+        /// <summary>
+        /// 指定 worldtile 的真实球面面积（平方宇宙格）。面积来自原版 tile 多边形顶点，
+        /// 不是以 CellsPerTile 为半径的圆盘近似；缓存只保存与尺度无关的立体角。
+        /// </summary>
+        public static double TileAreaCellsSquared(PlanetTile tile)
+        {
+            if (!tile.Valid || !LayerUsable(tile.Layer)) return 0d;
+            if (!SolidAngleByTile.TryGetValue(tile, out double solidAngle))
+            {
+                var vertices = new List<Vector3>(6);
+                tile.Layer.GetTileVertices(tile, vertices);
+                if (vertices.Count < 3) return 0d;
+                Direction center = new Direction(tile.Layer.GetTileCenter(tile)).Normalized;
+                solidAngle = 0d;
+                for (int i = 0; i < vertices.Count; i++)
+                {
+                    Direction a = new Direction(vertices[i]).Normalized;
+                    Direction b = new Direction(vertices[(i + 1) % vertices.Count]).Normalized;
+                    double numerator = Math.Abs(Direction.Dot(center, Direction.Cross(a, b)));
+                    double denominator = 1d + Direction.Dot(center, a)
+                        + Direction.Dot(a, b) + Direction.Dot(b, center);
+                    solidAngle += 2d * Math.Atan2(numerator, denominator);
+                }
+                SolidAngleByTile[tile] = solidAngle;
+            }
+            double cellsPerRadian = CellsPerRadianOf(tile.Layer);
+            return solidAngle * cellsPerRadian * cellsPerRadian;
+        }
+
+        /// <summary>指定层的平均 tile 面积（平方宇宙格），用于设置页给出当前尺度参考值。</summary>
+        public static double AverageTileAreaCellsSquared(PlanetLayer layer)
+        {
+            if (!LayerUsable(layer)) return 0d;
+            double cellsPerRadian = CellsPerRadianOf(layer);
+            return 4d * Math.PI * cellsPerRadian * cellsPerRadian / layer.TilesCount;
+        }
+
         internal static void GridAngles(Vector3 point, out double latitude, out double longitude)
         {
             Direction d = new Direction(point).Normalized;
@@ -157,6 +195,7 @@ namespace DeltaV
             cachedLayer = null;
             RadiusByLayer.Clear();
             WorldPerCellByLayer.Clear();
+            SolidAngleByTile.Clear();
         }
 
         // ---- 切空间基与球面移动 ----

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <!-- EN:
-    <li>r_name(p=2)->The [narrative_name] [poi_type]</li>
-    <li>r_name(p=1)->[narrative_name] [poi_type]</li>
-    <li>r_name(p=0.5)->[storyname] [poi_type]</li>
-    <li>r_name(p=0.2)->[Color] [greekmyth_noun] [poi_type]</li>
+    <li>r_name(p=2)->The [narrative_name] [generation_suffix]</li>
+    <li>r_name(p=1)->[narrative_name] [generation_suffix]</li>
+    <li>r_name(p=0.5)->[storyname] [generation_suffix]</li>
+    <li>r_name(p=0.2)->[Color] [greekmyth_noun] [generation_suffix]</li>
     <li>narrative_name->[AdjectiveNatural] [thing_badass]</li>
     <li>narrative_name->[AdjectiveLarge] [thing_badass]</li>
     <li>narrative_name->[Direction] [thing_badass]</li>
@@ -69,11 +69,11 @@
     <li>greekmyth_noun->deneb</li>
   -->
   <DeltaV_NamerSpacePoi.rulePack.rulesStrings>
-    <!-- 中文衔接：词干与类型名直接拼接（无空格），第二条用「之」连接出「苦痛之护卫舰」式主干。 -->
-    <li>r_name(p=2)->[narrative_name][poi_type]</li>
-    <li>r_name(p=1)->[thing_badass]之[poi_type]</li>
-    <li>r_name(p=0.5)->[storyname][poi_type]</li>
-    <li>r_name(p=0.2)->[Color][greekmyth_noun][poi_type]</li>
+    <!-- 中文衔接：词干与生成项名称后缀直接拼接（无空格），第二条用「之」连接出「苦痛之护卫舰」式主干。 -->
+    <li>r_name(p=2)->[narrative_name][generation_suffix]</li>
+    <li>r_name(p=1)->[thing_badass]之[generation_suffix]</li>
+    <li>r_name(p=0.5)->[storyname][generation_suffix]</li>
+    <li>r_name(p=0.2)->[Color][greekmyth_noun][generation_suffix]</li>
 
     <li>narrative_name->[AdjectiveNatural][thing_badass]</li>
     <li>narrative_name->[AdjectiveLarge][thing_badass]</li>

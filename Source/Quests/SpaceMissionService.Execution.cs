@@ -63,7 +63,7 @@ namespace DeltaV
                 ShipBase ship = ShipRegistry.AllShipsOnMap(map).OfType<FoundationShip>().FirstOrDefault(s => s.IsValid && s.Faction == m.enemy);
                 if (ship == null) throw new InvalidOperationException("Mission ship has no main console.");
                 m.enemyTarget = MissionTarget.Of(universe, ship.Anchor);
-                obj.contentTypeId = m.craftType;
+                obj.sourcePrefabPath = m.prefab;
                 universe.NoteStructureName(ship.Identity.key, m.Title);
                 return map;
             }

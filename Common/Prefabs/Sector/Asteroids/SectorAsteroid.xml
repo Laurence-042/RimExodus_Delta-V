@@ -282,7 +282,6 @@
               <weight>0.75</weight>
             </li>
           </prefabs>
-          <contentTypeId>Asteroid</contentTypeId>
           <innerRadius>70</innerRadius>
           <outerRadius>260</outerRadius>
           <densityPerTenThousand>0.6</densityPerTenThousand>

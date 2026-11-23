@@ -1,221 +1,104 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using RimWorld;
 using UnityEngine;
 using Verse;
 
 namespace DeltaV
 {
-    /// <summary>
-    /// Mod 设置「生成」页：按 SectorContentTypes 类型树逐叶子配置保底数、分段概率
-    /// 额外量与物化 prefab 池（写入 DeltaVSettings.sectorRules；分支节点只是分组标题）。
-    ///
-    /// - 递归绘制（任意深度），每层缩进 IndentPerDepth；行高全部用本类常量（自绘控件
-    ///   而非 Listing 的字体相关行高），滚动内容总高可在绘制前精确递归算出；
-    /// - prefab 池在叶子区只显示一个选择按钮。按下时重新扫描合并目录，
-    ///   并交由 Dialog_PrefabSelector 展示可折叠勾选树；
-    /// - TextFieldNumeric 缓冲按 (leafId, 字段) 键惰性建立；段的增删会使后续段错位，
-    ///   增删时清该叶子的全部段缓冲重建（值本身在规则对象上，不丢失）。
-    /// </summary>
     internal static class SectorSettingsUI
     {
-        private const float RowHeight = 30f;
-        private const float SectionGap = 22f;
-        private const float IndentPerDepth = 18f;
-
+        private const float RowHeight = 30f, SectionGap = 18f, IndentPerDepth = 18f;
         private static Vector2 scrollPosition;
         private static readonly Dictionary<string, string> Buffers = new Dictionary<string, string>();
 
         public static void Draw(Rect rect, DeltaVSettings settings)
         {
-            settings.EnsureSectorRulesSeeded();
-
-            // 说明画在滚动区外；prefab 扫描在选择窗口每次打开时执行。
-            Text.Font = GameFont.Tiny;
-            GUI.color = new Color(1f, 1f, 1f, 0.6f);
-            Rect introRect = new Rect(rect.x, rect.y, rect.width, Text.LineHeight * 2f + 4f);
-            Widgets.Label(introRect, "DeltaV_SettingsSectorIntro".Translate());
-            GUI.color = Color.white;
-            Text.Font = GameFont.Small;
-
-            var scrollRect = new Rect(rect.x, rect.y + introRect.height, rect.width,
-                rect.height - introRect.height);
-            Rect view = new Rect(0f, 0f, scrollRect.width - 16f, ComputeContentHeight(settings));
-            Widgets.BeginScrollView(scrollRect, ref scrollPosition, view);
-            var list = new Listing_Standard();
-            list.Begin(view);
-            foreach (SectorContentType root in SectorContentTypes.All)
+            settings.EnsureSectorGenerationTable();
+            Text.Font = GameFont.Tiny; GUI.color = new Color(1, 1, 1, .6f);
+            Rect intro = new Rect(rect.x, rect.y, rect.width, Text.LineHeight * 2 + 4);
+            Widgets.Label(intro, "DeltaV_SettingsSectorIntro".Translate());
+            GUI.color = Color.white; Text.Font = GameFont.Small;
+            Rect controls = new Rect(rect.x, intro.yMax + 4, rect.width, RowHeight);
+            float button = (controls.width - 24) / 4f;
+            if (Widgets.ButtonText(new Rect(controls.x, controls.y, button, RowHeight), "DeltaV_SectorEditorButton".Translate()))
+                Find.WindowStack.Add(new Dialog_SectorGenerationEditor(settings));
+            if (Widgets.ButtonText(new Rect(controls.x + button + 8, controls.y, button, RowHeight), "DeltaV_SectorExport".Translate()))
             {
-                DrawNode(list, settings, root, 0);
-                list.Gap(SectionGap);
+                try { string path = SectorGenerationJson.Export(settings); Messages.Message("DeltaV_SectorExported".Translate(path), MessageTypeDefOf.TaskCompletion, false); }
+                catch (System.Exception ex) { Messages.Message("DeltaV_SectorJsonFailed".Translate(ex.Message), MessageTypeDefOf.RejectInput, false); }
             }
-            list.End();
-            Widgets.EndScrollView();
+            if (Widgets.ButtonText(new Rect(controls.x + (button + 8) * 2, controls.y, button, RowHeight), "DeltaV_SectorImport".Translate())) Import(settings);
+            if (Widgets.ButtonText(new Rect(controls.x + (button + 8) * 3, controls.y, button, RowHeight), "DeltaV_SectorReset".Translate()))
+                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation("DeltaV_SectorResetConfirm".Translate(), () =>
+                { settings.sectorGenerationRoots = SectorGenerationTable.Defaults(); settings.sectorGenerationPreset = SectorGenerationPreset.Standard; Buffers.Clear(); }));
+
+            Rect preset = new Rect(rect.x, controls.yMax + 4, rect.width, RowHeight);
+            Widgets.Label(preset.LeftPart(.55f), "DeltaV_SettingsSectorPreset".Translate());
+            if (Widgets.ButtonText(preset.RightPart(.45f), SectorGenerationPresets.LabelKey(settings.sectorGenerationPreset).Translate()))
+                Find.WindowStack.Add(new FloatMenu(SectorGenerationPresets.All.Select(value =>
+                { SectorGenerationPreset captured = value; return new FloatMenuOption(SectorGenerationPresets.LabelKey(captured).Translate(), () => settings.sectorGenerationPreset = captured); }).ToList()));
+            TooltipHandler.TipRegion(preset, "DeltaV_SettingsSectorPresetTip".Translate());
+            Rect expected = new Rect(rect.x, preset.yMax, rect.width, RowHeight);
+            double area = SectorGenerationPresets.ReferenceSectorAreaCellsSquared();
+            Text.Font = GameFont.Tiny; GUI.color = new Color(1, 1, 1, .7f);
+            Widgets.Label(expected, "DeltaV_SettingsSectorExpectedCount".Translate(
+                (area / SectorGenerationPresets.DensityAreaUnitCellsSquared).ToString("0.##"),
+                SectorGenerationPresets.ExpectedObjectCount(settings, area).ToString("0.##")));
+            GUI.color = Color.white; Text.Font = GameFont.Small;
+            Rect viewport = new Rect(rect.x, expected.yMax, rect.width, rect.yMax - expected.yMax);
+            Rect view = new Rect(0, 0, viewport.width - 16, ContentHeight(settings.sectorGenerationRoots));
+            Widgets.BeginScrollView(viewport, ref scrollPosition, view);
+            var list = new Listing_Standard(); list.Begin(view);
+            foreach (SectorGenerationNode root in settings.sectorGenerationRoots) { DrawNode(list, root, 0); list.Gap(SectionGap); }
+            list.End(); Widgets.EndScrollView();
         }
 
-        // ---- 布局 ----
-
-        private static float ComputeContentHeight(DeltaVSettings settings)
-        {
-            float height = 0f;
-            foreach (SectorContentType root in SectorContentTypes.All)
-            {
-                height += ComputeNodeHeight(settings, root) + SectionGap;
-            }
-            return height;
-        }
-
-        private static float ComputeNodeHeight(DeltaVSettings settings, SectorContentType node)
-        {
-            if (!node.IsLeaf)
-            {
-                float height = RowHeight; // 分组标题行
-                foreach (SectorContentType child in node.children)
-                {
-                    height += ComputeNodeHeight(settings, child);
-                }
-                return height;
-            }
-            SectorTypeRule rule = settings.EffectiveSectorRule(node);
-            float leafHeight = RowHeight;                                       // 类型标题
-            leafHeight += RowHeight;                                            // 保底数
-            leafHeight += RowHeight;                                            // 分段标题 + 添加按钮
-            leafHeight += rule.segments.Count * RowHeight;                      // 各段
-            leafHeight += RowHeight;                                            // prefab 选择按钮
-            return leafHeight;
-        }
-
-        private static void DrawNode(Listing_Standard list, DeltaVSettings settings,
-            SectorContentType node, int depth)
+        private static float ContentHeight(IEnumerable<SectorGenerationNode> nodes)
+            => nodes.Sum(node => node.group ? RowHeight + ContentHeight(node.children) : RowHeight * 3) + SectionGap;
+        private static void DrawNode(Listing_Standard list, SectorGenerationNode node, int depth)
         {
             float indent = depth * IndentPerDepth;
-            if (!node.IsLeaf)
+            if (node.group)
             {
-                // 分支：仅分组标题（子级递归绘制）。
-                Rect headerRect = list.GetRect(RowHeight);
-                Text.Font = GameFont.Medium;
-                GUI.color = new Color(0.72f, 0.78f, 0.95f);
-                Widgets.Label(Indented(headerRect, indent), node.Label);
-                GUI.color = Color.white;
-                Text.Font = GameFont.Small;
-                foreach (SectorContentType child in node.children)
-                {
-                    DrawNode(list, settings, child, depth + 1);
-                }
+                Rect row = Indented(list.GetRect(RowHeight), indent);
+                Text.Font = GameFont.Medium; GUI.color = new Color(.72f, .78f, .95f); Widgets.Label(row, node.label);
+                GUI.color = Color.white; Text.Font = GameFont.Small;
+                foreach (SectorGenerationNode child in node.children) DrawNode(list, child, depth + 1);
                 return;
             }
-            DrawLeafSection(list, settings, node, indent);
+            Rect header = Indented(list.GetRect(RowHeight), indent);
+            Text.Font = GameFont.Medium; GUI.color = new Color(.9f, .85f, .6f); Widgets.Label(header, node.label);
+            Text.Font = GameFont.Small; GUI.color = Color.white;
+            NumericRow(list, indent, node.id + ":density", "DeltaV_SettingsSectorDensity".Translate(),
+                "DeltaV_SettingsSectorDensityTip".Translate(), ref node.standardDensityPer100MCells2, 0, SectorGenerationTable.MaxStandardDensity);
+            Rect prefabs = Indented(list.GetRect(RowHeight), indent);
+            if (Widgets.ButtonText(prefabs, "DeltaV_SettingsSelectGenerationPrefabs".Translate()))
+                Dialog_PrefabSelector.OpenMultiple("DeltaV_SettingsPrefabTreeTitle".Translate(node.label), node.prefabPaths);
+            TooltipHandler.TipRegion(prefabs, "DeltaV_SettingsSectorPrefabPoolTip".Translate() + "\n\n"
+                + "DeltaV_SettingsPrefabTreeCurrentCount".Translate(node.prefabPaths.Count));
         }
-
-        private static void DrawLeafSection(Listing_Standard list, DeltaVSettings settings,
-            SectorContentType type, float indent)
+        private static void NumericRow(Listing_Standard list, float indent, string key, string label, string tip,
+            ref float value, float min, float max)
         {
-            SectorTypeRule rule = settings.EffectiveSectorRule(type);
-
-            // 类型标题行。
-            Rect headerRect = Indented(list.GetRect(RowHeight), indent);
-            GUI.color = new Color(0.9f, 0.85f, 0.6f);
-            Text.Font = GameFont.Medium;
-            Widgets.Label(headerRect, type.Label);
-            Text.Font = GameFont.Small;
-            GUI.color = Color.white;
-
-            // 保底数。
-            NumericRow(list, indent, $"{type.id}:min", "DeltaV_SettingsSectorMinCount".Translate(),
-                "DeltaV_SettingsSectorMinCountTip".Translate(), ref rule.minCount, 0, 100);
-
-            // 分段标题 + 添加按钮。
-            Rect segHeaderRect = list.GetRect(RowHeight);
-            Widgets.Label(Indented(segHeaderRect, indent).LeftPart(0.72f),
-                "DeltaV_SettingsSectorSegments".Translate());
-            TooltipHandler.TipRegion(segHeaderRect, "DeltaV_SettingsSectorSegmentsTip".Translate());
-            if (Widgets.ButtonText(RightPart(segHeaderRect, 120f), "DeltaV_SettingsSectorAddSegment".Translate()))
+            Rect row = Indented(list.GetRect(RowHeight), indent); Widgets.Label(row.LeftPart(.55f), label);
+            if (!Buffers.TryGetValue(key, out string buffer)) buffer = value.ToString("0.###");
+            float edited = value; Widgets.TextFieldNumeric(row.RightPart(.45f), ref edited, ref buffer, min, max);
+            Buffers[key] = buffer; value = edited; TooltipHandler.TipRegion(row, tip);
+        }
+        private static Rect Indented(Rect row, float indent) => new Rect(row.x + indent, row.y, row.width - indent, row.height);
+        private static void Import(DeltaVSettings settings)
+        {
+            List<string> files = SectorGenerationJson.Files();
+            if (files.Count == 0) { Messages.Message("DeltaV_SectorImportEmpty".Translate(SectorGenerationJson.DirectoryPath), MessageTypeDefOf.RejectInput, false); return; }
+            Find.WindowStack.Add(new FloatMenu(files.Select(path => new FloatMenuOption(Path.GetFileName(path), () =>
             {
-                rule.segments.Add(new SegmentRule());
-                ClearSegmentBuffers(type.id);
-            }
-
-            // 各段：概率% | 追加上限 | 删除。
-            for (int i = 0; i < rule.segments.Count; i++)
-            {
-                SegmentRule segment = rule.segments[i];
-                Rect row = list.GetRect(RowHeight);
-                Rect indented = Indented(row, indent);
-                Widgets.Label(indented.LeftPart(0.08f), (i + 1).ToString());
-                int chancePct = Mathf.RoundToInt(segment.chance01 * 100f);
-                string chanceBuffer = BufferFor($"{type.id}:seg{i}:chance", chancePct.ToString());
-                Rect chanceRect = indented.LeftPart(0.6f).RightPart(0.46f);
-                Widgets.TextFieldNumeric(chanceRect, ref chancePct, ref chanceBuffer, 0, 100);
-                Buffers[$"{type.id}:seg{i}:chance"] = chanceBuffer;
-                segment.chance01 = chancePct / 100f;
-                int maxCount = segment.maxCount;
-                string maxBuffer = BufferFor($"{type.id}:seg{i}:max", maxCount.ToString());
-                Rect maxRect = indented.LeftPart(0.86f).RightPart(0.26f);
-                Widgets.TextFieldNumeric(maxRect, ref maxCount, ref maxBuffer, 1, 1000);
-                Buffers[$"{type.id}:seg{i}:max"] = maxBuffer;
-                segment.maxCount = maxCount;
-                TooltipHandler.TipRegion(row, "DeltaV_SettingsSectorSegmentTip".Translate());
-                if (Widgets.ButtonText(RightPart(row, 80f), "DeltaV_SettingsSectorRemoveSegment".Translate()))
-                {
-                    rule.segments.RemoveAt(i);
-                    ClearSegmentBuffers(type.id);
-                    break; // 行集合已变，本帧不再继续画段
-                }
-            }
-
-            Rect prefabButtonRect = Indented(list.GetRect(RowHeight), indent);
-            if (Widgets.ButtonText(prefabButtonRect, "DeltaV_SettingsSelectGenerationPrefabs".Translate()))
-            {
-                Dialog_PrefabSelector.OpenMultiple("DeltaV_SettingsPrefabTreeTitle".Translate(type.Label), rule.prefabPaths);
-            }
-            TooltipHandler.TipRegion(prefabButtonRect,
-                "DeltaV_SettingsSectorPrefabPoolTip".Translate() + "\n\n"
-                + "DeltaV_SettingsPrefabTreeCurrentCount".Translate(rule.prefabPaths.Count));
-        }
-
-
-        /// <summary>带左标签 + 右数值输入 + 整行 tooltip 的行；缓冲按 key 存取并写回。</summary>
-        private static void NumericRow(Listing_Standard list, float indent, string bufferKey, string label,
-            string tip, ref int value, int min, int max)
-        {
-            Rect row = Indented(list.GetRect(RowHeight), indent);
-            Widgets.Label(row.LeftPart(0.55f), label);
-            int edited = value;
-            string buffer = BufferFor(bufferKey, value.ToString());
-            Widgets.TextFieldNumeric(row.RightPart(0.45f), ref edited, ref buffer, min, max);
-            Buffers[bufferKey] = buffer;
-            value = edited;
-            TooltipHandler.TipRegion(row, tip);
-        }
-
-        private static Rect Indented(Rect row, float indent)
-        {
-            return new Rect(row.x + indent, row.y, row.width - indent, row.height);
-        }
-
-        private static Rect RightPart(Rect row, float width)
-        {
-            return new Rect(row.xMax - width, row.y, width, row.height);
-        }
-
-        // ---- 状态 ----
-
-        private static string BufferFor(string key, string seedValue)
-        {
-            if (!Buffers.TryGetValue(key, out string buffer) || buffer == null)
-            {
-                buffer = seedValue;
-                Buffers[key] = buffer;
-            }
-            return buffer;
-        }
-
-        private static void ClearSegmentBuffers(string typeId)
-        {
-            string prefix = typeId + ":seg";
-            foreach (string key in Buffers.Keys.Where(k => k.StartsWith(prefix)).ToList())
-            {
-                Buffers.Remove(key);
-            }
+                if (!SectorGenerationJson.TryRead(path, out SectorGenerationDocument document, out string error))
+                { Messages.Message("DeltaV_SectorJsonFailed".Translate(error), MessageTypeDefOf.RejectInput, false); return; }
+                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation("DeltaV_SectorImportConfirm".Translate(Path.GetFileName(path)), () =>
+                { settings.sectorGenerationRoots = document.roots; settings.sectorGenerationPreset = document.densityPreset; Buffers.Clear(); }));
+            })).ToList()));
         }
     }
 }

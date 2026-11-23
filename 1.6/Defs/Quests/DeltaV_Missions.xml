@@ -12,7 +12,13 @@
       <li><wealth>350000</wealth><goodwill>80</goodwill><boxes>32</boxes><passengers>24</passengers><craft>4</craft></li>
     </tiers>
     <cargo><li>Steel</li><li>ComponentIndustrial</li><li>MedicineIndustrial</li></cargo>
-    <craftTypes><li>Fighter</li><li>Gunboat</li><li>Frigate</li><li>Destroyer</li><li>Cruiser</li></craftTypes>
+    <combatCraft>
+      <li><prefabs><li>Sector/Craft/SectorFighter.xml</li></prefabs></li>
+      <li><prefabs><li>Sector/Craft/SectorGunboat.xml</li></prefabs></li>
+      <li><prefabs><li>Sector/Craft/SectorFrigate.xml</li></prefabs></li>
+      <li><prefabs><li>Sector/Craft/SectorDestroyer.xml</li></prefabs></li>
+      <li><prefabs><li>Sector/Craft/SectorCruiser.xml</li></prefabs></li>
+    </combatCraft>
     <combatRewards><li>400</li><li>600</li><li>900</li><li>1400</li><li>2000</li></combatRewards>
   </DeltaV.SpaceMissionDef>
   <QuestScriptDef>

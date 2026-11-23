@@ -50,9 +50,9 @@ internal static class Program
             new PrefabClusterEntry("Ignored.xml", 0f)
         };
         List<PrefabObjectSpawnPlan> first = PrefabObjectMarkerUtility.BuildClusterPlans(pool,
-            "Asteroid", 100f, 1000f, 2f, 12f, 500, false, 1234567);
+            100f, 1000f, 2f, 12f, 500, false, 1234567);
         List<PrefabObjectSpawnPlan> second = PrefabObjectMarkerUtility.BuildClusterPlans(pool,
-            "Asteroid", 100f, 1000f, 2f, 12f, 500, false, 1234567);
+            100f, 1000f, 2f, 12f, 500, false, 1234567);
         Check(first.Count == 500, "derived cluster count respects the configured cap deterministically");
         Check(first.Count == second.Count && first.Zip(second, Same).All(value => value),
             "same seed reproduces paths, offsets, angles, and child seeds");
@@ -75,7 +75,7 @@ internal static class Program
             "annulus sampling is uniform by area");
 
         List<PrefabObjectSpawnPlan> sparse = PrefabObjectMarkerUtility.BuildClusterPlans(pool,
-            "Asteroid", 100f, 160f, 5f, 20f, 50, false, 9);
+            100f, 160f, 5f, 20f, 50, false, 9);
         bool spaced = true;
         for (int i = 0; i < sparse.Count; i++)
             for (int j = i + 1; j < sparse.Count; j++)
@@ -83,7 +83,7 @@ internal static class Program
         Check(spaced, "feasible minimum spacing is honored");
 
         List<PrefabObjectSpawnPlan> crowded = PrefabObjectMarkerUtility.BuildClusterPlans(pool,
-            "Asteroid", 0f, 30f, 100f, 25f, 128, false, 17);
+            0f, 30f, 100f, 25f, 128, false, 17);
         bool crowdedSpaced = true;
         for (int i = 0; i < crowded.Count; i++)
             for (int j = i + 1; j < crowded.Count; j++)
@@ -93,16 +93,16 @@ internal static class Program
             && crowdedSpaced, "overcrowded clusters reduce count instead of violating spacing");
 
         List<PrefabObjectSpawnPlan> changed = PrefabObjectMarkerUtility.BuildClusterPlans(pool,
-            "Asteroid", 100f, 1000f, 2f, 12f, 500, false, 7654321);
+            100f, 1000f, 2f, 12f, 500, false, 7654321);
         Check(!Same(first[0], changed[0]), "rerolled seed changes the cluster");
         Check(PrefabObjectMarkerUtility.BuildClusterPlans(new List<PrefabClusterEntry>(),
-            null, 0f, 100f, 1f, 0f, 10, false, 1).Count == 0,
+            0f, 100f, 1f, 0f, 10, false, 1).Count == 0,
             "empty pool produces no plans");
     }
 
     private static bool Same(PrefabObjectSpawnPlan a, PrefabObjectSpawnPlan b)
     {
-        return a.prefabPath == b.prefabPath && a.contentTypeId == b.contentTypeId
+        return a.prefabPath == b.prefabPath
             && a.localOffset == b.localOffset && a.relativeAngle == b.relativeAngle
             && a.inheritFaction == b.inheritFaction && a.seed == b.seed;
     }

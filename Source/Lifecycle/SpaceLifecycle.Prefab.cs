@@ -64,8 +64,8 @@ namespace DeltaV
                 {
                     faction = faction,
                     ambientLabel = prefab.name,
-                    baseTag = SpaceObjectTag.Container | (source.baseTag & SpaceObjectTag.GravityRegion),
-                    contentTypeId = source.contentTypeId,
+                    baseTag = SpaceObjectTag.Container
+                        | (SectorContentService.PrefabHasNaturalBody(prefab) ? SpaceObjectTag.GravityRegion : 0),
                     sourcePrefabPath = path,
                 };
                 // ClaimOnSpawn must resolve the new container before any consoles spawn.

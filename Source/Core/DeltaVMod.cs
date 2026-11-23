@@ -26,7 +26,6 @@ namespace DeltaV
         public DeltaVMod(ModContentPack content) : base(content)
         {
             Settings = GetSettings<DeltaVSettings>();
-            Settings.EnsureSectorRulesSeeded();
             InitializeHarmony();
             Log.Message("[DeltaV] Star sector model build loaded (sector-scale setting, projection-based tactical docking, sector content bookkeeping, unified status panel with globe).");
         }

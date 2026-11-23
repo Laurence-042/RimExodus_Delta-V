@@ -13,7 +13,7 @@ namespace DeltaV
     /// <summary>
     /// 未物化 POI 触发器（SpaceObject 特化，星区架构 §4；2026-09-25 用户定案收窄）。
     ///
-    /// **marker（本类）= 无图的触发器特例**：按设置的类型显示图标与名称（envLabel），
+    /// **marker（本类）= 无图的触发器特例**：显示生成时冻结的名称与 prefab 投影，
     /// 玩家接近后经 SpaceLifecycle 物化——物化产物是**普通 SpaceObject 容器**
     /// （不是 PoiState；ambientLabel 继承 envLabel 作纯环境兜底名）。归档（收纳）
     /// 保留同 ID，替换为 ArchivedSpaceObject。即：**SnapshotPocket 型 PoiState 永远没有图**。
@@ -42,12 +42,6 @@ namespace DeltaV
         /// <summary>模板种子：无快照重生成时使用（快照优先，保证玩家改动可恢复）。</summary>
         public int seed;
 
-        /// <summary>
-        /// 内容类型（SectorContentTypes 注册键）：无快照首次物化时按它取该类型的
-        /// prefab 池。带快照的 marker（归档/遗留残骸）永远走快照恢复，不消费池；
-        /// 这类快照 marker 不需要内容类型。
-        /// </summary>
-
         /// <summary>删除段收起的结构级快照（地形/屋顶/建筑/物品；不保 pawn 与 comp 内部状态）。</summary>
         public PoiSnapshot snapshot;
 
@@ -58,23 +52,21 @@ namespace DeltaV
         /// 物化容器（普通 SpaceObject）不经本类，名 = 结构拼接。</summary>
         public override string label => envLabel;
 
-        /// <summary>PoiState 的缺省 tag 是 Marker（旧档无 tag 键时按类型正确回填）。</summary>
+        /// <summary>PoiState 的缺省 tag 是 Marker。</summary>
         protected override SpaceObjectTag DefaultTag => SpaceObjectTag.Marker;
 
         public PoiState()
         {
         }
 
-        public PoiState(int poiId, string label, Vector3 position, float angle, int seed,
-            string contentTypeId = null)
+        public PoiState(int poiId, string label, Vector3 position, float angle, int seed)
         {
             objectId = poiId;
             envLabel = label;
             pose = new SpacePose(position, angle);
             kind = PoiKind.SnapshotPocket;
-            baseTag = SpaceObjectTag.Marker | (SectorContentTypes.ById(contentTypeId)?.objectTags ?? 0);
+            baseTag = SpaceObjectTag.Marker;
             this.seed = seed;
-            this.contentTypeId = contentTypeId;
         }
 
         public PoiState(int poiId, MapParent parent)

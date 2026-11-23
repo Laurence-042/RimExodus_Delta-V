@@ -28,7 +28,7 @@ namespace DeltaV
             if (universe.IsResettingScene) return;
             DeltaVSettings settings = DeltaVMod.CurrentSettings;
             string enemyPath = settings?.testSceneEnemyPrefab;
-            if (string.IsNullOrEmpty(enemyPath)) enemyPath = SectorContentTypes.ById("Frigate").defaultPrefabPath;
+            if (string.IsNullOrEmpty(enemyPath)) enemyPath = "Sector/Craft/SectorFrigate.xml";
             if (!TryLoadLayout(settings?.testScenePlayerPrefab, out MapPrefabDocument playerPrefab)
                 || !TryLoadLayout(enemyPath, out MapPrefabDocument enemyPrefab)) return;
             // Freeze the requested options before the deferred scene reset.

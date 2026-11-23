@@ -4,9 +4,9 @@
 
 内置资源只放在受版本控制的 `Common/Prefabs/`，并按 `Tutorial`、`Sector/Craft`、`Sector/Stations`、`Sector/Asteroids` 和 `Templates` 分类；1.6／1.7 共用，不生成版本目录副本。本地导出放在 RimWorld 用户数据目录的 `DeltaV/Prefabs/`，不写入 Mod 安装目录。`MapPrefab.LoadRelative`、`ListPrefabFiles` 和 `ResolvePoolPath` 共用两层目录：用户导出优先、内置资源兜底，同相对路径只列一次，相对路径不得越界。教程从该目录加载 `Tutorial/Shipyard.xml`、`Tutorial/PrototypeShip.xml` 等资源，布局脚本只在制作期运行。所有手动选文件的入口共用 `Dialog_PrefabSelector`，由原版 `Listing_Tree` 和 `TreeNode` 承担层级与展开状态。星区生成池使用多选，精确／批量生成标记的条目、聚焦图替换和双船测试使用单选。选择在确认后应用，双船测试单选另外提供「自动」。派系、主台归属和教程角色由调用方绑定，不固化进模板。`LoadLatest` 保留只选用户目录最新导出文件的测试语义。
 
-星区内容的 12 个叶子类型各自绑定一份 `Sector*.xml` 内置默认资源。`SectorContentType.defaultPrefabPath` 是设置初始化来源；`EnsureSectorRulesSeeded` 为缺失条目或空池补入默认文件，不覆盖已有非空自定义池。类型停用使用数量 0，不依赖空物化池。制作源为 `scripts/TutorialContent/sector_layout.py`，由共用 `build.py` 从安装版与当前 Mod Def 解析占地、旋转、操作格、承载与电力数据，再从同一批 resolved records 写出 XML、布局报告和 PNG。五档舰船包含推进器、驾驶台、武器、维生、电源及人员标记；空间站类型按用途配置。贸易站的 Scribe 图显式引用三个锁定 `DeltaV_CargoContainer` 和一个解锁 `DeltaV_CargoStorage`。
+默认星区生成表的 12 个叶子项各自带一份 `Sector*.xml` 内置资源和标准面积密度。玩家可编辑任意分组、叶子项、名称后缀、密度和 prefab 池，或以 JSON 分享整表；生成表只冻结生成名称与实际抽中的 prefab，不成为对象身份。制作源为 `scripts/TutorialContent/sector_layout.py`，由共用 `build.py` 从安装版与当前 Mod Def 解析占地、旋转、操作格、承载与电力数据，再从同一批 resolved records 写出 XML、布局报告和 PNG。五档舰船包含推进器、驾驶台、武器、维生、电源及人员标记；三座民用站按用途配置。贸易站的 Scribe 图显式引用三个锁定 `DeltaV_CargoContainer` 和一个解锁 `DeltaV_CargoStorage`。
 
-稳定类型 ID `Asteroid` 的玩家显示名为“小行星带”；不改 ID，避免破坏设置与 POI 存档语义。默认 `SectorAsteroid.xml` 是带一枚 `DeltaV_PrefabClusterMarker` 的天然矿体核心：70–260 格环带、每万格密度 0.6、最小间距 28，固定种子下理论生成约 12 个伴生体。带权池引用五份 `Asteroid*.xml` 子资源，覆盖小／中／大、钢、工业零部件、塑钢和混合矿型。核心和子体在 `Space` 上直接生成 `Vacstone` 和 `Mineable*` 实例。实例禁用移除时铺设地形的原版副作用，模板省略基架、屋顶和环境数据。销图规则见[飞船与 SpaceObject 解耦架构](飞船与SpaceObject解耦架构.md#81-触发与结果已定)。子体不含批量标记。因此普通核心能展开小行星带，而它作为其他 cluster 的 `clusterChild` 时会由既有门禁销毁自身标记，不能递归 flood。
+默认“小行星带”生成项引用 `SectorAsteroid.xml`。该 prefab 是带一枚 `DeltaV_PrefabClusterMarker` 的天然矿体核心：70–260 格环带、每万格密度 0.6、最小间距 28，固定种子下理论生成约 12 个伴生体。带权池引用五份 `Asteroid*.xml` 子资源，覆盖小／中／大、钢、工业零部件、塑钢和混合矿型。核心和子体在 `Space` 上直接生成 `Vacstone` 和 `Mineable*` 实例，天然重力由这些真实地形与矿岩派生，不由生成项或标记声明。实例禁用移除时铺设地形的原版副作用，模板省略基架、屋顶和环境数据。销图规则见[飞船与 SpaceObject 解耦架构](飞船与SpaceObject解耦架构.md#81-触发与结果已定)。子体不含批量标记。因此普通核心能展开小行星带，而它作为其他 cluster 的 `clusterChild` 时会由既有门禁销毁自身标记，不能递归 flood。
 
 ### 缺失依赖的模板导入
 
@@ -164,9 +164,9 @@ Scribe 对同一份 prefab 内的引用在整批读取时解析。对外部 Pawn
 
 ## SpaceObject 生成标记（2026-11-09）
 
-`DeltaV_PrefabObjectMarker` 是精确生成入口。配置窗口冻结 prefab 相对路径、可选内容类型、相对距离、宿主局部方位、对象相对朝向及是否继承宿主派系。方位以宿主局部 `+X` 为零，角度随宿主一起旋转；展开时只用 `SpaceTransform.RigidPointPose` 求子对象的绝对位置、朝向、线速度和角速度，不另建 host-map 锚或战术坐标。标记不立即同步生成第二张 Map，而是登记带 `sourcePrefabPath` 的 `PoiState`；接近后仍由 `SpaceLifecycle` 的既有队列物化，归档和恢复也走同一链。prefab 局部布局固定 North，最终宇宙朝向只认标记配置的 `SpacePose`，避免重复旋转。
+`DeltaV_PrefabObjectMarker` 是精确生成入口。配置窗口冻结 prefab 相对路径、相对距离、宿主局部方位、对象相对朝向及是否继承宿主派系。方位以宿主局部 `+X` 为零，角度随宿主一起旋转；展开时只用 `SpaceTransform.RigidPointPose` 求子对象的绝对位置、朝向、线速度和角速度，不另建 host-map 锚或战术坐标。标记不立即同步生成第二张 Map，而是登记带 `sourcePrefabPath` 的 `PoiState`；接近后仍由 `SpaceLifecycle` 的既有队列物化，归档和恢复也走同一链。prefab 局部布局固定 North，最终宇宙朝向只认标记配置的 `SpacePose`，避免重复旋转。
 
-`DeltaV_PrefabClusterMarker` 是批量生成入口。每项保存 prefab 相对路径和非负权重；公共参数保存可选内容类型、环带内外半径、每 10000 格对象密度、最小中心间距、对象上限、派系继承和确定性种子。数量按环带面积乘密度取整并受上限约束；半径按面积均匀分布，角度均匀分布，带权抽样只使用正权重项。最小间距采用有限次拒绝采样，区域过密时可能少于理论数量，不把预览或屏幕坐标回写为生成事实。重新掷种子会改变整组布局；同一配置与种子在重建、存读档间保持一致。
+`DeltaV_PrefabClusterMarker` 是批量生成入口。每项保存 prefab 相对路径和非负权重；公共参数保存环带内外半径、每 10000 格对象密度、最小中心间距、对象上限、派系继承和确定性种子。数量按环带面积乘密度取整并受上限约束；半径按面积均匀分布，角度均匀分布，带权抽样只使用正权重项。最小间距采用有限次拒绝采样，区域过密时可能少于理论数量，不把预览或屏幕坐标回写为生成事实。重新掷种子会改变整组布局；同一配置与种子在重建、存读档间保持一致。
 
 两种标记都在宿主 prefab 全部落位、设施重链完成后展开。精确标记仅在目标 prefab 解析并成功登记后销毁；cluster 先解析所有唯一 prefab，再原子登记整批子对象，任一步失败会回滚本批登记并保留标记供作者修正。批量登记的子 `PoiState` 写入 `clusterChild`，物化、归档、恢复及后续精确标记生成的后代都传递该来源事实；`CompPrefabClusterSpawner` 发现宿主带此标记时不执行分布，直接销毁自身。因此 cluster prefab 可以保留普通内容和精确子对象，但无论经过多少层精确引用都不能再次展开 cluster。普通读档、归档恢复和 `PoiSnapshot.ApplyTo` 不展开标记，因此不会因加载同一地图重复生成。
 

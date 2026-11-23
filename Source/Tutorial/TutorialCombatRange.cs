@@ -41,9 +41,10 @@ namespace DeltaV
             {
                 rangeMap = CreateCourseMap(ShipPocketMapFactory.CompactSize(platform.size), initial);
                 SpaceObject frame = universe.FrameOf(rangeMap);
-                frame.contentTypeId = "WeaponPlatform";
+                frame.sourcePrefabPath = "Tutorial/WeaponRange.xml";
                 targetMap = CreateCourseMap(ShipPocketMapFactory.CompactSize(target.size), CombatRangeTargetPose(initial));
                 SpaceObject targetFrame = universe.FrameOf(targetMap);
+                targetFrame.sourcePrefabPath = "Tutorial/ShieldTarget.xml";
                 int clearance = CombatRangeClearance;
                 var rangeBounds = CellRect.WholeMap(rangeMap).ExpandedBy(clearance);
                 var targetBounds = CellRect.WholeMap(targetMap).ExpandedBy(clearance);

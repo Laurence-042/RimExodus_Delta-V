@@ -14,10 +14,10 @@ internal static partial class Program
     {
         var owner = new SpaceObject(79001, new SpacePose(Vector3.forward, .7f));
         var foundation = new GlobeDisplayEntry { owner = owner, craft = true,
-            ship = new GlobeShipSummary { key = 79002, armament = GlobeArmament.Armed, contentType = "Gunboat" } };
+            ship = new GlobeShipSummary { key = 79002, armament = GlobeArmament.Armed } };
         var shuttle = new GlobeDisplayEntry { owner = owner, craft = true,
             ship = new GlobeShipSummary { key = 79003, shuttle = true, armament = GlobeArmament.Unarmed } };
-        var station = new GlobeDisplayEntry { owner = owner, station = true, contentType = "Shipyard" };
+        var station = new GlobeDisplayEntry { owner = owner, station = true };
         var wreck = new GlobeDisplayEntry { owner = owner, wreck = true };
         var asteroid = new GlobeDisplayEntry { owner = owner, wreck = true, natural = true };
         var scatter = new GlobeDisplayEntry { owner = new SpaceObject(79004, owner.pose) { baseTag = SpaceObjectTag.Scattered } };
@@ -36,9 +36,7 @@ internal static partial class Program
             "uninhabited natural terrain remains separate from wrecks");
         filters = GlobeFilters.Everything();
         Check(Match(shuttle) && Match(projectile) && Match(scatter), "show all restores default-hidden categories");
-        filters.hiddenClasses.Add("Gunboat");
-        Check(!Match(foundation) && Match(shuttle) && Match(station), "ship class filtering cannot accidentally remove stations or unclassified craft");
-        filters.hiddenClasses.Clear(); filters.armament = GlobeArmament.Armed;
+        filters.armament = GlobeArmament.Armed;
         Check(Match(foundation) && !Match(shuttle) && !Match(station), "armament separates installed weapons from unarmed and unknown facts");
         filters.armament |= GlobeArmament.Unarmed;
         Check(Match(foundation) && Match(shuttle), "multiple values in one facet are OR alternatives");

@@ -82,7 +82,7 @@ namespace DeltaV
         public static Verse.KeyBindingDef DeltaV_AimMode;
 
         // 星区 POI 命名器（1.6/Defs/RulePackDefs/RulePacks_Namers_SpacePoi.xml）：
-        // 只产名字主干，类型名经 [poi_type] 由调用方注入；尾缀「(派系名) #ID」由
+        // 只产名字主干，生成项名称后缀经 [generation_suffix] 由调用方注入；尾缀「(派系名) #ID」由
         // SectorContentService 在代码侧拼接。
         public static Verse.RulePackDef DeltaV_NamerSpacePoi;
     }

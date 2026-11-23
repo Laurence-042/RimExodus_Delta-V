@@ -15,11 +15,16 @@ namespace DeltaV
         public int goodwill, boxes, passengers, craft;
     }
 
+    public sealed class SpaceMissionCraftTier
+    {
+        public List<string> prefabs = new List<string>();
+    }
+
     public sealed class SpaceMissionDef : Def
     {
         public List<SpaceMissionTier> tiers = new List<SpaceMissionTier>();
         public List<ThingDef> cargo = new List<ThingDef>();
-        public List<string> craftTypes = new List<string>();
+        public List<SpaceMissionCraftTier> combatCraft = new List<SpaceMissionCraftTier>();
         public List<int> combatRewards = new List<int>();
         public int refreshDays = 5, deadlineDays = 5, graceDays = 2;
         public int freightReward = 100, passengerReward = 200, successGoodwill = 3, failureGoodwill = -5, passengerGoodwill = -5;
@@ -94,7 +99,7 @@ namespace DeltaV
         public MissionTarget source, destination, enemyTarget;
         public ThingDef cargoDef;
         public int cargoCount;
-        public string prefab, craftType;
+        public string prefab;
         public Quest quest;
         public bool combatComplete, settled, goodwillApplied;
         public int deliveredCount, paidSilver, refundedDeposit, settledAt = -1;
@@ -116,7 +121,7 @@ namespace DeltaV
             Scribe_Deep.Look(ref source, "source"); Scribe_Deep.Look(ref destination, "destination");
             Scribe_Deep.Look(ref enemyTarget, "enemyTarget"); Scribe_Defs.Look(ref cargoDef, "cargoDef");
             Scribe_Values.Look(ref cargoCount, "cargoCount"); Scribe_Values.Look(ref prefab, "prefab");
-            Scribe_Values.Look(ref craftType, "craftType"); Scribe_References.Look(ref quest, "quest");
+            Scribe_References.Look(ref quest, "quest");
             Scribe_Values.Look(ref combatComplete, "combatComplete"); Scribe_Values.Look(ref settled, "settled");
             Scribe_Values.Look(ref goodwillApplied, "goodwillApplied");
             Scribe_Values.Look(ref deliveredCount, "deliveredCount"); Scribe_Values.Look(ref paidSilver, "paidSilver");

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization.Json;
 using System.Text.Json;
 using System.Xml;
 using DeltaV;
@@ -39,21 +40,23 @@ internal static partial class Program
 
     static void SectorContentDefaults(string directory)
     {
-        var leaves = SectorContentTypes.AllLeaves().ToList();
-        Check(leaves.Count == 12, "sector content registry has twelve generation leaves");
-        Check(leaves.All(leaf => !leaf.defaultPrefabPath.NullOrEmpty()),
+        var settings = new DeltaVSettings();
+        settings.EnsureSectorGenerationTable();
+        var leaves = SectorGenerationTable.Leaves(settings.sectorGenerationRoots).ToList();
+        Check(leaves.Count == 12, "default sector generation table has twelve leaves");
+        Check(leaves.All(leaf => leaf.prefabPaths.Count == 1 && !leaf.prefabPaths[0].NullOrEmpty()),
             "every sector generation leaf has a shipped default prefab");
-        Check(leaves.Select(leaf => leaf.defaultPrefabPath).Distinct().Count() == leaves.Count,
+        Check(leaves.Select(leaf => leaf.prefabPaths[0]).Distinct().Count() == leaves.Count,
             "sector generation leaves use distinct authored defaults");
         List<string> shippedPaths = MapPrefab.ListPrefabFiles(new[] { Path.Combine(directory, "Sector") });
         Check(shippedPaths.Count == 17
             && shippedPaths.All(path => path.StartsWith("Craft/") || path.StartsWith("Stations/") || path.StartsWith("Asteroids/")),
             "all seventeen sector prefabs use the sector purpose directories");
-        Check(leaves.All(leaf => leaf.defaultPrefabPath.StartsWith("Sector/")),
+        Check(leaves.All(leaf => leaf.prefabPaths[0].StartsWith("Sector/")),
             "every sector default points into the sector catalog tree");
-        foreach (SectorContentType leaf in leaves)
+        foreach (SectorGenerationNode leaf in leaves)
         {
-            string path = Path.Combine(directory, leaf.defaultPrefabPath);
+            string path = Path.Combine(directory, leaf.prefabPaths[0]);
             Check(File.Exists(path), leaf.id + " default prefab is shipped");
             var document = new XmlDocument(); document.Load(path);
             Check(document.DocumentElement?.GetAttribute("formatVersion") == "2"
@@ -63,47 +66,114 @@ internal static partial class Program
                 + "and not(state/saveable/combat/fireControlMode='Automatic')]") == null,
                 leaf.id + " authored pilot consoles use automatic fire control");
             int clusters = document.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_PrefabClusterMarker']").Count;
-            Check(clusters == (leaf.id == "Asteroid" ? 1 : 0),
+            Check(clusters == (leaf.id == "asteroid" ? 1 : 0),
                 leaf.id + " default has the expected cluster-core role");
             Check(document.SelectSingleNode("/MapPrefab/thingStates/li[def='GravEngine' or def='GravFieldExtender']") == null,
                 leaf.id + " default has no surface-launch hardware");
             var cells = document.SelectNodes("/MapPrefab/thingStates/li[def='GravcorePowerCell']");
             Check(cells.Count == 0, leaf.id + " has no gravcore power cell");
-            if (leaf.id == "Fighter")
+            if (leaf.id == "fighter")
             {
                 Check(document.SelectNodes("/MapPrefab/thingStates/li[def='ChemfuelPoweredGenerator' and state/saveable/fuel > 0]").Count == 1
                     && document.SelectNodes("/MapPrefab/thingStates/li[def='Battery']").Count == 2
                     && document.SelectSingleNode("/MapPrefab/thingStates/li[def='Chemfuel' and stackCount > 0]") != null,
                     "fighter ships with one fueled chemfuel generator, two standard batteries and reserve fuel");
             }
-            if (leaf.id == "Cruiser")
+            if (leaf.id == "cruiser")
                 Check(document.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_ShieldGenerator' "
                     + "and state/saveable[DeltaV_shieldMode='Guard' and DeltaV_shieldGroundRadius > 0 "
                     + "and DeltaV_regularCapacity=750 and fuel=750 and currentHitPoints=-1]]").Count == 2,
                     "both exported cruiser shield states are charged guard domes");
-            if (leaf.defaultPrefabPath.StartsWith("Sector/Stations/"))
+            if (leaf.prefabPaths[0].StartsWith("Sector/Stations/"))
                 CheckStationSolar(document, leaf.id, "Battery",
-                    leaf.id == "TradeStation" || leaf.id == "Shipyard" || leaf.id == "FactoryStation" ? 1 : 0);
+                    leaf.id == "trade-station" || leaf.id == "shipyard" || leaf.id == "factory-station" ? 1 : 0);
         }
-        var settings = new DeltaVSettings();
-        settings.EnsureSectorRulesSeeded();
-        Check(settings.sectorRules.Count == leaves.Count
-            && leaves.All(leaf => settings.EffectiveSectorRule(leaf).prefabPaths
-                .SequenceEqual(new[] { leaf.defaultPrefabPath })),
-            "fresh sector settings seed every shipped default pool");
+        Check(settings.sectorGenerationPreset == SectorGenerationPreset.Standard,
+            "fresh sector settings use the standard density preset");
 
-        var custom = new DeltaVSettings();
-        custom.sectorRules.Add(new SectorTypeRule {
-            typeId = leaves[0].id, prefabPaths = new List<string> { "Custom.xml" } });
-        custom.EnsureSectorRulesSeeded();
-        Check(custom.EffectiveSectorRule(leaves[0]).prefabPaths.SequenceEqual(new[] { "Custom.xml" }),
-            "default seeding preserves an existing custom pool");
-        custom.sectorRules[0].prefabPaths.Clear();
-        custom.EnsureSectorRulesSeeded();
-        Check(custom.EffectiveSectorRule(leaves[0]).prefabPaths.SequenceEqual(new[] { leaves[0].defaultPrefabPath }),
-            "empty sector pool regains its shipped usable default");
+        var expectedScales = new Dictionary<SectorGenerationPreset, float>
+        {
+            [SectorGenerationPreset.Disabled] = 0f,
+            [SectorGenerationPreset.Sparse] = .4f,
+            [SectorGenerationPreset.Standard] = 1f,
+            [SectorGenerationPreset.Dense] = 2f
+        };
+        double standardTotal = leaves.Sum(leaf => leaf.standardDensityPer100MCells2)
+            * SectorGenerationPresets.DefaultReferenceSectorAreaCellsSquared
+            / SectorGenerationPresets.DensityAreaUnitCellsSquared;
+        var expectedTotals = new Dictionary<SectorGenerationPreset, double>
+        {
+            [SectorGenerationPreset.Disabled] = 0d,
+            [SectorGenerationPreset.Sparse] = standardTotal * .4d,
+            [SectorGenerationPreset.Standard] = standardTotal,
+            [SectorGenerationPreset.Dense] = standardTotal * 2d
+        };
+        Check(SectorGenerationPresets.All.Count == expectedScales.Count,
+            "sector density preset registry has four choices");
+        foreach (SectorGenerationPreset preset in SectorGenerationPresets.All)
+        {
+            Check(Math.Abs(SectorGenerationPresets.Scale(preset) - expectedScales[preset]) < .0001f,
+                preset + " sector preset uses the reviewed uniform multiplier");
+            settings.sectorGenerationPreset = preset;
+            Check(Math.Abs(SectorGenerationPresets.ExpectedObjectCount(settings,
+                    SectorGenerationPresets.DefaultReferenceSectorAreaCellsSquared) - expectedTotals[preset]) < 0.0001d,
+                preset + " sector preset has the reviewed default-scale reference count");
+            Check(Math.Abs(SectorGenerationPresets.ExpectedObjectCount(settings,
+                    SectorGenerationPresets.DefaultReferenceSectorAreaCellsSquared * 4d)
+                - expectedTotals[preset] * 4d) < 0.0001d,
+                preset + " sector preset expectation scales linearly with area");
+        }
 
-        string trade = Path.Combine(directory, leaves.Single(leaf => leaf.id == "TradeStation").defaultPrefabPath);
+        var stochasticRound = typeof(SectorContentService).GetMethod("StochasticRound",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        int Round(double value, int seed) => (int)stochasticRound.Invoke(null, new object[] { value, seed });
+        int fractional = Round(7.25d, 12345);
+        Check(stochasticRound != null && Round(0d, 1) == 0 && Round(7d, 2) == 7
+            && (fractional == 7 || fractional == 8) && fractional == Round(7.25d, 12345),
+            "sector expected counts use deterministic stochastic rounding");
+
+        string preservedPool = leaves[0].prefabPaths[0];
+        settings.sectorGenerationPreset = SectorGenerationPreset.Dense;
+        Check(Math.Abs(SectorGenerationPresets.ExpectedObjectCount(settings,
+                SectorGenerationPresets.DefaultReferenceSectorAreaCellsSquared)
+                - expectedTotals[SectorGenerationPreset.Dense]) < 0.0001d
+            && leaves[0].prefabPaths.SequenceEqual(new[] { preservedPool }),
+            "applying a sector preset changes density while preserving prefab pools");
+        settings.sectorGenerationPreset = SectorGenerationPreset.Disabled;
+        Check(SectorGenerationPresets.ExpectedObjectCount(settings,
+                SectorGenerationPresets.DefaultReferenceSectorAreaCellsSquared) == 0d
+            && leaves.All(leaf => leaf.prefabPaths.Count > 0 && leaf.standardDensityPer100MCells2 > 0f),
+            "disabled sector preset suppresses generation without mutating recipes");
+
+        var custom = settings.sectorGenerationRoots.Select(root => root.Copy()).ToList();
+        SectorGenerationNode customLeaf = SectorGenerationTable.Leaves(custom).First();
+        customLeaf.label = "paper-thin research skiff";
+        customLeaf.prefabPaths = new List<string> { "Custom/ResearchSkiff.xml" };
+        customLeaf.standardDensityPer100MCells2 = .123f;
+        Check(SectorGenerationTable.Validate(custom, out _)
+            && SectorGenerationTable.Leaves(custom).First().prefabPaths.Single() == "Custom/ResearchSkiff.xml"
+            && leaves[0].prefabPaths.Single() == preservedPool,
+            "editable generation trees validate and deep-copy without changing defaults");
+        var generationDocument = new SectorGenerationDocument
+        {
+            densityPreset = SectorGenerationPreset.Sparse,
+            roots = custom.Select(root => root.Copy()).ToList()
+        };
+        var serializer = new DataContractJsonSerializer(typeof(SectorGenerationDocument));
+        using (var stream = new MemoryStream())
+        {
+            serializer.WriteObject(stream, generationDocument); stream.Position = 0;
+            var restored = (SectorGenerationDocument)serializer.ReadObject(stream);
+            Check(restored.version == 1 && restored.densityPreset == SectorGenerationPreset.Sparse
+                && SectorGenerationTable.Validate(restored.roots, out _)
+                && SectorGenerationTable.Leaves(restored.roots).First().label == "paper-thin research skiff",
+                "sector generation JSON preserves editable hierarchy, names, densities and prefab pools");
+        }
+        custom.Add(custom[0].Copy());
+        Check(!SectorGenerationTable.Validate(custom, out _),
+            "generation table validation rejects duplicate stable IDs");
+
+        string trade = Path.Combine(directory, leaves.Single(leaf => leaf.id == "trade-station").prefabPaths[0]);
         var xml = new XmlDocument(); xml.Load(trade);
         XmlNode terminal = xml.SelectSingleNode("/MapPrefab/thingStates/li[def='DeltaV_TradeTerminal']/state/saveable");
         var ids = xml.SelectNodes("/MapPrefab/thingStates/li/state/saveable")
@@ -125,12 +195,12 @@ internal static partial class Program
         var children = cluster.SelectNodes("prefabs/li").Cast<XmlNode>().ToList();
         Check(children.Count == 5 && children.All(node => ParseHelper.FromString<float>(node["weight"].InnerText) > 0f),
             "asteroid belt core has five positive weighted child variants");
-        Check(cluster["contentTypeId"].InnerText == "Asteroid"
+        Check(cluster["contentTypeId"] == null
             && cluster["innerRadius"].InnerText == "70"
             && cluster["outerRadius"].InnerText == "260"
             && cluster["densityPerTenThousand"].InnerText == "0.6"
             && cluster["minimumSpacing"].InnerText == "28",
-            "asteroid belt core stores its authored annulus and density");
+            "asteroid belt core stores geometry without a generation classification");
         CheckAsteroidPrefab(xml, "asteroid belt core");
         foreach (XmlNode child in children)
         {

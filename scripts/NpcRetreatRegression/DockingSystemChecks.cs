@@ -127,13 +127,15 @@ internal static partial class Program
         hostMap.terrainGrid.topGrid[1] = hostMap.terrainGrid.topGrid[0];
         hostMap.terrainGrid.topGrid[0] = TerrainDefOf.Space;
         var pose = new SpacePose(Vector3.forward, 0f);
-        var marker = new PoiState(49811, "asteroid", pose.position, pose.angle, 0, "Asteroid");
-        var station = new PoiState(49813, "station", pose.position, pose.angle, 0, "Shipyard");
+        var marker = new PoiState(49811, "asteroid", pose.position, pose.angle, 0);
+        marker.baseTag |= SpaceObjectTag.GravityRegion;
+        var station = new PoiState(49813, "station", pose.position, pose.angle, 0);
         var native = new PoiState(49814, (MapParent)null);
         var host = SpaceLifecycleService.CreateMaterializedContainer(marker, hostMap);
         var own = new MapSpaceObject(49810, ownMap, pose);
         var third = SpaceLifecycleService.CreateMaterializedContainer(
-            new PoiState(49812, "other asteroid", pose.position, pose.angle, 0, "Asteroid"), thirdMap);
+            new PoiState(49812, "other asteroid", pose.position, pose.angle, 0), thirdMap);
+        third.baseTag |= SpaceObjectTag.GravityRegion;
         Check(marker.HasGravityRegion && native.HasGravityRegion && !station.HasGravityRegion
             && !own.HasGravityRegion, "gravity tags are assigned by creation rules");
         Check(host.HasGravityRegion && host.HasTag(SpaceObjectTag.Container)

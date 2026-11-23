@@ -93,8 +93,7 @@ namespace DeltaV
         /// </summary>
         public string ambientLabel;
 
-        /// <summary>生成时固定的内容类型和 prefab 身份；归档与母港查询沿用。</summary>
-        public string contentTypeId;
+        /// <summary>生成时冻结的 prefab 身份；行为不从生成表或名称反推。</summary>
         public string sourcePrefabPath;
 
         /// <summary>
@@ -401,7 +400,7 @@ namespace DeltaV
         {
             other.objectId = objectId; other.pose = pose; other.baseTag = baseTag;
             other.faction = faction; other.ambientLabel = ambientLabel;
-            other.contentTypeId = contentTypeId; other.sourcePrefabPath = sourcePrefabPath;
+            other.sourcePrefabPath = sourcePrefabPath;
             other.clusterChild = clusterChild;
             other.npcRetreating = npcRetreating; other.npcHomeObjectId = npcHomeObjectId;
             other.npcHadShip = npcHadShip;
@@ -417,7 +416,6 @@ namespace DeltaV
             Scribe_Deep.Look(ref pose, "pose");
             Scribe_Deep.Look(ref payload, "payload");
             Scribe_Values.Look(ref ambientLabel, "ambientLabel", null);
-            Scribe_Values.Look(ref contentTypeId, "contentTypeId");
             Scribe_Values.Look(ref sourcePrefabPath, "sourcePrefabPath");
             Scribe_Values.Look(ref clusterChild, "clusterChild");
             Scribe_Values.Look(ref npcRetreating, "npcRetreating");

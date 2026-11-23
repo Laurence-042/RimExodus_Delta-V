@@ -231,11 +231,11 @@ internal static partial class Program
         CheckGlobeAndInput(universe);
         CheckGlobeNavigation(universe);
         }
-        SpaceObject Make(int id, float distance, string type = null, Faction owner = null)
+        SpaceObject Make(int id, float distance, string prefab = null, Faction owner = null)
         {
             var obj = new SpaceObject(id, new SpacePose(
                 OrbitSphere.Move(Vector3.forward, new Vector2(distance, 0)), 0f))
-                { contentTypeId = type, faction = owner };
+                { sourcePrefabPath = prefab, faction = owner };
             universe.objects.Add(obj);
             Set(universe, "objectById", null); // Fixture bypasses RegisterObject.
             return obj;
@@ -243,16 +243,16 @@ internal static partial class Program
         var ship = new ArchivedSpaceObject { objectId = 1, pose = new SpacePose(Vector3.forward, 0f) };
         universe.objects.Add(ship);
         Set(universe, "objectById", null);
-        SpaceObject trade = Make(2, 10, "TradeStation", faction);
-        SpaceObject factory = Make(3, 20, "FactoryStation", faction);
-        SpaceObject hostile = Make(4, 30, "Shipyard", other);
-        SpaceObject highId = Make(9, 100, "Shipyard", faction);
-        SpaceObject lowId = Make(8, 100, "Shipyard", faction);
+        SpaceObject trade = Make(2, 10, "Sector/Stations/SectorTradeStation.xml", faction);
+        SpaceObject factory = Make(3, 20, "Sector/Stations/SectorFactoryStation.xml", faction);
+        SpaceObject hostile = Make(4, 30, "Sector/Stations/SectorShipyard.xml", other);
+        SpaceObject highId = Make(9, 100, "Sector/Stations/SectorShipyard.xml", faction);
+        SpaceObject lowId = Make(8, 100, "Sector/Stations/SectorShipyard.xml", faction);
         Check(Home(universe, ship, faction) == lowId, "only same-faction shipyard; ties use ID");
         lowId.faction = other;
         Check(Home(universe, ship, faction) == highId, "captured home retargets");
         var materialized = new SpaceObject(highId.objectId, highId.pose)
-            { contentTypeId = highId.contentTypeId, faction = faction };
+            { sourcePrefabPath = highId.sourcePrefabPath, faction = faction };
         universe.ReplaceRepresentation(highId, materialized);
         Check(ship.npcHomeObjectId == highId.objectId && Home(universe, ship, faction) == materialized,
             "marker replacement preserves home identity");

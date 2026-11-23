@@ -36,7 +36,6 @@ namespace DeltaV
     public sealed class CompProperties_PrefabObjectSpawner : CompProperties
     {
         public string prefabPath;
-        public string contentTypeId;
         public float distance = 100f;
         public float bearingDegrees;
         public float relativeAngleDegrees;
@@ -50,7 +49,6 @@ namespace DeltaV
 
     public sealed class CompProperties_PrefabClusterSpawner : CompProperties
     {
-        public string contentTypeId = "Asteroid";
         public float innerRadius = 80f;
         public float outerRadius = 300f;
         public float densityPerTenThousand = 0.35f;
@@ -67,7 +65,6 @@ namespace DeltaV
     internal struct PrefabObjectSpawnPlan
     {
         internal string prefabPath;
-        internal string contentTypeId;
         internal Vector2 localOffset;
         internal float relativeAngle;
         internal bool inheritFaction;
@@ -139,8 +136,7 @@ namespace DeltaV
                 : document.name;
             SpacePose pose = SpaceTransform.RigidPointPose(host.pose, plan.localOffset,
                 SpaceTransform.WrapAngle(plan.relativeAngle));
-            marker = new PoiState(objectId, $"{name} #{objectId}", pose.position, pose.angle,
-                plan.seed, ValidTypeId(plan.contentTypeId))
+            marker = new PoiState(objectId, $"{name} #{objectId}", pose.position, pose.angle, plan.seed)
             {
                 pose = pose,
                 faction = plan.inheritFaction ? context.Faction : null,
@@ -157,9 +153,6 @@ namespace DeltaV
             return true;
         }
 
-        internal static string ValidTypeId(string contentTypeId)
-            => SectorContentTypes.ById(contentTypeId) != null ? contentTypeId : null;
-
         internal static bool InheritsClusterChild(bool hostIsClusterChild, bool spawnedByCluster)
             => hostIsClusterChild || spawnedByCluster;
 
@@ -175,7 +168,7 @@ namespace DeltaV
         }
 
         internal static List<PrefabObjectSpawnPlan> BuildClusterPlans(
-            IReadOnlyList<PrefabClusterEntry> entries, string contentTypeId,
+            IReadOnlyList<PrefabClusterEntry> entries,
             float innerRadius, float outerRadius, float densityPerTenThousand,
             float minimumSpacing, int maxObjects, bool inheritFaction, int seed)
         {
@@ -225,7 +218,6 @@ namespace DeltaV
                 result.Add(new PrefabObjectSpawnPlan
                 {
                     prefabPath = selected.prefabPath,
-                    contentTypeId = contentTypeId,
                     localOffset = best,
                     relativeAngle = (float)(random.NextDouble() * Math.PI * 2d),
                     inheritFaction = inheritFaction,
@@ -247,7 +239,6 @@ namespace DeltaV
     public sealed class CompPrefabObjectSpawner : CompPrefabMarker
     {
         internal string prefabPath;
-        internal string contentTypeId;
         internal float distance;
         internal float bearingDegrees;
         internal float relativeAngleDegrees;
@@ -260,7 +251,6 @@ namespace DeltaV
         {
             base.PostPostMake();
             prefabPath = Props.prefabPath;
-            contentTypeId = Props.contentTypeId;
             distance = Props.distance;
             bearingDegrees = Props.bearingDegrees;
             relativeAngleDegrees = Props.relativeAngleDegrees;
@@ -271,7 +261,6 @@ namespace DeltaV
         {
             base.PostExposeData();
             Scribe_Values.Look(ref prefabPath, "prefabPath", Props.prefabPath);
-            Scribe_Values.Look(ref contentTypeId, "contentTypeId", Props.contentTypeId);
             Scribe_Values.Look(ref distance, "distance", Props.distance);
             Scribe_Values.Look(ref bearingDegrees, "bearingDegrees", Props.bearingDegrees);
             Scribe_Values.Look(ref relativeAngleDegrees, "relativeAngleDegrees", Props.relativeAngleDegrees);
@@ -281,7 +270,6 @@ namespace DeltaV
         internal PrefabObjectMarkerDraft Draft() => new PrefabObjectMarkerDraft
         {
             prefabPath = prefabPath,
-            contentTypeId = contentTypeId,
             distance = distance,
             bearingDegrees = bearingDegrees,
             relativeAngleDegrees = relativeAngleDegrees,
@@ -291,7 +279,6 @@ namespace DeltaV
         internal void Apply(PrefabObjectMarkerDraft draft)
         {
             prefabPath = draft.prefabPath;
-            contentTypeId = draft.contentTypeId;
             distance = Mathf.Clamp(draft.distance, 0f, PrefabObjectMarkerUtility.MaxRadius);
             bearingDegrees = Mathf.Repeat(draft.bearingDegrees, 360f);
             relativeAngleDegrees = Mathf.Repeat(draft.relativeAngleDegrees, 360f);
@@ -341,7 +328,6 @@ namespace DeltaV
             var plan = new PrefabObjectSpawnPlan
             {
                 prefabPath = prefabPath,
-                contentTypeId = contentTypeId,
                 localOffset = SpaceTransform.Rotate(Vector2.right * Mathf.Max(0f, distance), bearing),
                 relativeAngle = relativeAngleDegrees * Mathf.Deg2Rad,
                 inheritFaction = inheritFaction,
@@ -359,7 +345,6 @@ namespace DeltaV
     public sealed class CompPrefabClusterSpawner : CompPrefabMarker
     {
         internal List<PrefabClusterEntry> entries = new List<PrefabClusterEntry>();
-        internal string contentTypeId;
         internal float innerRadius;
         internal float outerRadius;
         internal float densityPerTenThousand;
@@ -373,7 +358,6 @@ namespace DeltaV
         public override void PostPostMake()
         {
             base.PostPostMake();
-            contentTypeId = Props.contentTypeId;
             innerRadius = Props.innerRadius;
             outerRadius = Props.outerRadius;
             densityPerTenThousand = Props.densityPerTenThousand;
@@ -386,7 +370,6 @@ namespace DeltaV
         {
             base.PostExposeData();
             Scribe_Collections.Look(ref entries, "prefabs", LookMode.Deep);
-            Scribe_Values.Look(ref contentTypeId, "contentTypeId", Props.contentTypeId);
             Scribe_Values.Look(ref innerRadius, "innerRadius", Props.innerRadius);
             Scribe_Values.Look(ref outerRadius, "outerRadius", Props.outerRadius);
             Scribe_Values.Look(ref densityPerTenThousand, "densityPerTenThousand", Props.densityPerTenThousand);
@@ -404,7 +387,6 @@ namespace DeltaV
         internal PrefabClusterMarkerDraft Draft() => new PrefabClusterMarkerDraft
         {
             entries = entries.Select(entry => entry.Copy()).ToList(),
-            contentTypeId = contentTypeId,
             innerRadius = innerRadius,
             outerRadius = outerRadius,
             densityPerTenThousand = densityPerTenThousand,
@@ -416,7 +398,6 @@ namespace DeltaV
         internal void Apply(PrefabClusterMarkerDraft draft)
         {
             entries = draft.entries.Where(entry => entry != null).Select(entry => entry.Copy()).ToList();
-            contentTypeId = draft.contentTypeId;
             innerRadius = Mathf.Clamp(draft.innerRadius, 0f, PrefabObjectMarkerUtility.MaxRadius);
             outerRadius = Mathf.Clamp(draft.outerRadius, innerRadius, PrefabObjectMarkerUtility.MaxRadius);
             densityPerTenThousand = Mathf.Clamp(draft.densityPerTenThousand, 0f,
@@ -430,7 +411,7 @@ namespace DeltaV
         internal List<PrefabObjectSpawnPlan> Plans(PrefabClusterMarkerDraft draft = null)
         {
             PrefabClusterMarkerDraft source = draft ?? Draft();
-            return PrefabObjectMarkerUtility.BuildClusterPlans(source.entries, source.contentTypeId,
+            return PrefabObjectMarkerUtility.BuildClusterPlans(source.entries,
                 source.innerRadius, source.outerRadius, source.densityPerTenThousand,
                 source.minimumSpacing, Props.maxObjects, source.inheritFaction, source.seed);
         }

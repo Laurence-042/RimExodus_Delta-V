@@ -254,36 +254,77 @@
   <DeltaV_SettingsTabDevelopment>开发调试</DeltaV_SettingsTabDevelopment>
   <DeltaV_SettingsKeysHint>按键映射：在游戏的「选项 → 控制 → 按键设置」中找到「Delta-V 驾驶」分类，可调整驾驶、火控和移动参考系快捷键。</DeltaV_SettingsKeysHint>
 
-  <!-- 设置：生成页（星区内容类型） -->
-  <DeltaV_SettingsSectorIntro>星区内容生成规则。属于全局 Mod 设置、跨存档共享，只影响尚未生成过的星区。prefab 池为空（或全部失效）的物体在物化时回退程序生成模板。</DeltaV_SettingsSectorIntro>
-  <DeltaV_SettingsSectorMinCount>每星区保底数</DeltaV_SettingsSectorMinCount>
-  <DeltaV_SettingsSectorMinCountTip>每个新生成星区中该类型物体的保底数量；已存在的对象不会被删除。填 0 即关闭该类型。</DeltaV_SettingsSectorMinCountTip>
-  <DeltaV_SettingsSectorSegments>额外生成分段</DeltaV_SettingsSectorSegments>
-  <DeltaV_SettingsSectorSegmentsTip>在保底数之上的随机额外量。每段独立掷骰：按概率（%）命中后追加 1 到上限个。叠加多段可以得到长尾分布。</DeltaV_SettingsSectorSegmentsTip>
-  <DeltaV_SettingsSectorAddSegment>添加段</DeltaV_SettingsSectorAddSegment>
-  <DeltaV_SettingsSectorRemoveSegment>删除</DeltaV_SettingsSectorRemoveSegment>
-  <DeltaV_SettingsSectorSegmentTip>分段：以概率（%）追加 1 到上限个该类型额外物体。</DeltaV_SettingsSectorSegmentTip>
-  <DeltaV_SettingsSectorPrefabPoolTip>该类型物体首次物化时使用的地图 prefab（由各自 seed 确定性选取，旋转随机）。路径相对用户与内置资源合并后的 prefab 目录。池为空时该类型不生成；文件失效时取消物化。</DeltaV_SettingsSectorPrefabPoolTip>
+  <!-- 设置：生成页（星区生成表） -->
+  <DeltaV_SettingsSectorIntro>星区生成表只决定名称后缀、面积密度和 prefab；对象生成后的行为只由真实结构或载荷决定。全局设置跨存档共享，只影响尚未生成过的星区。</DeltaV_SettingsSectorIntro>
+  <DeltaV_SettingsSectorPreset>生成密度预设</DeltaV_SettingsSectorPreset>
+  <DeltaV_SettingsSectorPresetTip>统一乘到全部生成项的标准面积密度：关闭 0、稀疏 0.4、标准 1、丰富 2。不会改变分组、名称或 prefab 池，只影响尚未生成过的星区。</DeltaV_SettingsSectorPresetTip>
+  <DeltaV_SettingsSectorPresetDisabled>关闭</DeltaV_SettingsSectorPresetDisabled>
+  <DeltaV_SettingsSectorPresetSparse>稀疏</DeltaV_SettingsSectorPresetSparse>
+  <DeltaV_SettingsSectorPresetStandard>标准</DeltaV_SettingsSectorPresetStandard>
+  <DeltaV_SettingsSectorPresetDense>丰富</DeltaV_SettingsSectorPresetDense>
+  <DeltaV_SettingsSectorPresetCustom>自定义</DeltaV_SettingsSectorPresetCustom>
+  <DeltaV_SettingsSectorPresetApplied>已应用“{0}”星区生成预设；已生成的星区不受影响。</DeltaV_SettingsSectorPresetApplied>
+  <DeltaV_SettingsSectorExpectedCount>当前尺度平均星区约 {0} 亿平方格，期望 {1} 个顶层对象</DeltaV_SettingsSectorExpectedCount>
+  <DeltaV_SettingsSectorExpectedCountTip>按轨道层平均星区面积与当前各生成项面积密度计算；实际生成使用每个星区的真实球面多边形面积。数量按确定性概率取整，不包含小行星带 prefab 生成的伴生小行星。调整星区尺度或密度只影响之后首次生成的星区。</DeltaV_SettingsSectorExpectedCountTip>
+  <DeltaV_SettingsSectorDensity>标准档每亿平方格期望数</DeltaV_SettingsSectorDensity>
+  <DeltaV_SettingsSectorDensityTip>标准档下每 1 亿平方宇宙格期望生成多少个该项结构；其他档位统一乘以预设倍率。实际数量确定性概率取整，填 0 即关闭该项。</DeltaV_SettingsSectorDensityTip>
+  <DeltaV_SectorEditorButton>编辑生成表</DeltaV_SectorEditorButton>
+  <DeltaV_SectorExport>导出 JSON</DeltaV_SectorExport>
+  <DeltaV_SectorImport>导入 JSON</DeltaV_SectorImport>
+  <DeltaV_SectorReset>恢复默认表</DeltaV_SectorReset>
+  <DeltaV_SectorResetConfirm>用内置标准生成表替换当前全部分组、生成项、密度和 prefab 池？</DeltaV_SectorResetConfirm>
+  <DeltaV_SectorExported>已导出星区生成预设：{0}</DeltaV_SectorExported>
+  <DeltaV_SectorImportEmpty>没有可导入的 JSON。请把文件放入：{0}</DeltaV_SectorImportEmpty>
+  <DeltaV_SectorImportConfirm>用“{0}”完整替换当前生成表？已生成的星区不受影响。</DeltaV_SectorImportConfirm>
+  <DeltaV_SectorJsonFailed>星区生成预设失败：{0}</DeltaV_SectorJsonFailed>
+  <DeltaV_SectorEditorTitle>编辑星区生成表</DeltaV_SectorEditorTitle>
+  <DeltaV_SectorEditorHelp>分组只整理界面；生成项的名称会成为生成名称后缀。移动、重命名或新增生成项不会定义对象行为。</DeltaV_SectorEditorHelp>
+  <DeltaV_SectorEditorAddGroup>新增分组</DeltaV_SectorEditorAddGroup>
+  <DeltaV_SectorEditorAddEntry>新增生成项</DeltaV_SectorEditorAddEntry>
+  <DeltaV_SectorEditorGroup>分组</DeltaV_SectorEditorGroup>
+  <DeltaV_SectorEditorEntry>生成项</DeltaV_SectorEditorEntry>
+  <DeltaV_SectorEditorParent>父级</DeltaV_SectorEditorParent>
+  <DeltaV_SectorEditorRoot>顶层</DeltaV_SectorEditorRoot>
+  <DeltaV_SectorEditorNewGroup>新分组</DeltaV_SectorEditorNewGroup>
+  <DeltaV_SectorEditorNewEntry>新生成项</DeltaV_SectorEditorNewEntry>
+  <DeltaV_SectorEditorInvalid>生成表无效：{0}</DeltaV_SectorEditorInvalid>
+  <DeltaV_SectorValidationNullNode>生成表包含空节点。</DeltaV_SectorValidationNullNode>
+  <DeltaV_SectorValidationTooManyNodes>生成表超过 {0} 个节点。</DeltaV_SectorValidationTooManyNodes>
+  <DeltaV_SectorValidationTooDeep>生成表超过 {0} 层。</DeltaV_SectorValidationTooDeep>
+  <DeltaV_SectorValidationInvalidId>每个分组和生成项都需要不超过 64 字符的 ID。</DeltaV_SectorValidationInvalidId>
+  <DeltaV_SectorValidationDuplicateId>节点 ID“{0}”重复。</DeltaV_SectorValidationDuplicateId>
+  <DeltaV_SectorValidationInvalidName>节点“{0}”需要不超过 128 字符的名称。</DeltaV_SectorValidationInvalidName>
+  <DeltaV_SectorValidationLeafChildren>生成项“{0}”不能包含子节点。</DeltaV_SectorValidationLeafChildren>
+  <DeltaV_SectorValidationGroupPrefabs>分组“{0}”不能包含 prefab。</DeltaV_SectorValidationGroupPrefabs>
+  <DeltaV_SectorValidationInvalidDensity>节点“{0}”的密度无效。</DeltaV_SectorValidationInvalidDensity>
+  <DeltaV_SectorValidationUnsafePath>节点“{0}”包含不安全的 prefab 路径。</DeltaV_SectorValidationUnsafePath>
+  <DeltaV_SectorValidationEmpty>生成表为空。</DeltaV_SectorValidationEmpty>
+  <DeltaV_SectorValidationNoEntries>生成表没有生成项。</DeltaV_SectorValidationNoEntries>
+  <DeltaV_SectorJsonMissing>预设文件不存在：{0}</DeltaV_SectorJsonMissing>
+  <DeltaV_SectorJsonTooLarge>预设超过 1 MiB。</DeltaV_SectorJsonTooLarge>
+  <DeltaV_SectorJsonUnsupportedVersion>不支持这个星区预设版本。</DeltaV_SectorJsonUnsupportedVersion>
+  <DeltaV_SectorJsonUnknownDensity>未知的密度预设。</DeltaV_SectorJsonUnknownDensity>
+  <DeltaV_SettingsSectorPrefabPoolTip>该生成项可抽取的地图 prefab。生成 marker 时冻结实际路径，旋转由 seed 派生。路径相对用户与内置资源合并后的 prefab 目录；池为空时该项不生成，冻结路径失效时取消物化。</DeltaV_SettingsSectorPrefabPoolTip>
   <DeltaV_SettingsSelectGenerationPrefabs>选择用于生成的 prefab</DeltaV_SettingsSelectGenerationPrefabs>
   <DeltaV_SettingsPrefabTreeTitle>{0}：用于生成的 prefab</DeltaV_SettingsPrefabTreeTitle>
   <DeltaV_SettingsPrefabTreeCurrentCount>已选 {0} 个</DeltaV_SettingsPrefabTreeCurrentCount>
   <DeltaV_SettingsPrefabTreeNoFiles>用户目录和内置目录中都没有 prefab XML。</DeltaV_SettingsPrefabTreeNoFiles>
   <DeltaV_SettingsPrefabTreeScanFailed>无法扫描 prefab 目录：{0}</DeltaV_SettingsPrefabTreeScanFailed>
   <DeltaV_SettingsPrefabTreeMissingPath>{0}（已失效）</DeltaV_SettingsPrefabTreeMissingPath>
-  <DeltaV_SectorTypeCraft>飞行器</DeltaV_SectorTypeCraft>
-  <DeltaV_SectorTypeFighter>战机</DeltaV_SectorTypeFighter>
-  <DeltaV_SectorTypeGunboat>炮艇</DeltaV_SectorTypeGunboat>
-  <DeltaV_SectorTypeFrigate>护卫舰</DeltaV_SectorTypeFrigate>
-  <DeltaV_SectorTypeDestroyer>驱逐舰</DeltaV_SectorTypeDestroyer>
-  <DeltaV_SectorTypeCruiser>巡洋舰</DeltaV_SectorTypeCruiser>
-  <DeltaV_SectorTypeStation>空间站</DeltaV_SectorTypeStation>
-  <DeltaV_SectorTypeSatellite>卫星</DeltaV_SectorTypeSatellite>
-  <DeltaV_SectorTypeWeaponUnlockSatellite>天基武器解锁卫星</DeltaV_SectorTypeWeaponUnlockSatellite>
-  <DeltaV_SectorTypeAbandonedSatellite>废弃卫星</DeltaV_SectorTypeAbandonedSatellite>
-  <DeltaV_SectorTypeWeaponPlatform>武器平台</DeltaV_SectorTypeWeaponPlatform>
-  <DeltaV_SectorTypeTradeStation>贸易空间站</DeltaV_SectorTypeTradeStation>
-  <DeltaV_SectorTypeShipyard>造船厂</DeltaV_SectorTypeShipyard>
-  <DeltaV_SectorTypeFactoryStation>工厂空间站</DeltaV_SectorTypeFactoryStation>
+  <DeltaV_SectorGenerationDefaultCraft>飞行器</DeltaV_SectorGenerationDefaultCraft>
+  <DeltaV_SectorGenerationDefaultFighter>战机</DeltaV_SectorGenerationDefaultFighter>
+  <DeltaV_SectorGenerationDefaultGunboat>炮艇</DeltaV_SectorGenerationDefaultGunboat>
+  <DeltaV_SectorGenerationDefaultFrigate>护卫舰</DeltaV_SectorGenerationDefaultFrigate>
+  <DeltaV_SectorGenerationDefaultDestroyer>驱逐舰</DeltaV_SectorGenerationDefaultDestroyer>
+  <DeltaV_SectorGenerationDefaultCruiser>巡洋舰</DeltaV_SectorGenerationDefaultCruiser>
+  <DeltaV_SectorGenerationDefaultStructure>结构</DeltaV_SectorGenerationDefaultStructure>
+  <DeltaV_SectorGenerationDefaultSatellite>卫星</DeltaV_SectorGenerationDefaultSatellite>
+  <DeltaV_SectorGenerationDefaultWeaponRelay>武器中继卫星</DeltaV_SectorGenerationDefaultWeaponRelay>
+  <DeltaV_SectorGenerationDefaultAbandonedSatellite>废弃卫星</DeltaV_SectorGenerationDefaultAbandonedSatellite>
+  <DeltaV_SectorGenerationDefaultWeaponPlatform>武器平台</DeltaV_SectorGenerationDefaultWeaponPlatform>
+  <DeltaV_SectorGenerationDefaultTradeStation>贸易空间站</DeltaV_SectorGenerationDefaultTradeStation>
+  <DeltaV_SectorGenerationDefaultShipyard>造船厂</DeltaV_SectorGenerationDefaultShipyard>
+  <DeltaV_SectorGenerationDefaultFactoryStation>工厂空间站</DeltaV_SectorGenerationDefaultFactoryStation>
   <DeltaV_SettingsNpcDoctrine>敌舰战术姿态优先级</DeltaV_SettingsNpcDoctrine>
   <DeltaV_SettingsNpcDoctrineAdd>添加战术姿态</DeltaV_SettingsNpcDoctrineAdd>
   <DeltaV_NpcDoctrine_Standoff>远距交火</DeltaV_NpcDoctrine_Standoff>
@@ -291,7 +332,7 @@
   <DeltaV_NpcDoctrine_MissileBoat>导弹艇</DeltaV_NpcDoctrine_MissileBoat>
   <DeltaV_NpcDoctrine_Boarder>跳帮</DeltaV_NpcDoctrine_Boarder>
   <DeltaV_NpcDoctrine_Retreat>撤退</DeltaV_NpcDoctrine_Retreat>
-  <DeltaV_SectorTypeAsteroid>小行星带</DeltaV_SectorTypeAsteroid>
+  <DeltaV_SectorGenerationDefaultAsteroid>小行星带</DeltaV_SectorGenerationDefaultAsteroid>
   <DeltaV_ReassignProtectedDomain>该基架归属仍有主驾驶台，整域不能改划。请先将主台设为副台（注意：如果有多个驾驶台，其他同方向驾驶台可能会在主台退为副台或被摧毁时自动接任主台，可以考虑拆除驾驶台以避免这种情况）。</DeltaV_ReassignProtectedDomain>
   <DeltaV_ReassignProtectedDomainsSkipped>已跳过 {0} 格：其归属仍有主驾驶台。请先解除主台认领；其他合法格照常修改。</DeltaV_ReassignProtectedDomainsSkipped>
 
@@ -739,11 +780,9 @@
   <DeltaV_PrefabExactInspect>预制图：{0}\n距离：{1}；方位：{2}°；相对朝向：{3}°</DeltaV_PrefabExactInspect>
   <DeltaV_PrefabClusterInspect>预制图池：{0}项\n目标对象：{1}；半径：{2}–{3}</DeltaV_PrefabClusterInspect>
   <DeltaV_PrefabSelectorTitle>选择 prefab</DeltaV_PrefabSelectorTitle>
-  <DeltaV_PrefabMarkerNoType>不指定内容分类</DeltaV_PrefabMarkerNoType>
   <DeltaV_PrefabExactTitle>精确预制对象标记</DeltaV_PrefabExactTitle>
   <DeltaV_PrefabExactHelp>方位与相对朝向使用母 SpaceObject 的局部系：0°沿母对象局部 +X。距离单位为宇宙格。生成对象继承母对象对应刚体点的瞬时线速度与角速度。</DeltaV_PrefabExactHelp>
   <DeltaV_PrefabMarkerPrefab>预制图：{0}</DeltaV_PrefabMarkerPrefab>
-  <DeltaV_PrefabMarkerContentType>内容分类：{0}</DeltaV_PrefabMarkerContentType>
   <DeltaV_PrefabMarkerDistance>相对距离（格）</DeltaV_PrefabMarkerDistance>
   <DeltaV_PrefabMarkerBearing>相对方位（度）</DeltaV_PrefabMarkerBearing>
   <DeltaV_PrefabMarkerFacing>相对朝向（度）</DeltaV_PrefabMarkerFacing>

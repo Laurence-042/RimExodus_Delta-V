@@ -35,19 +35,8 @@ namespace DeltaV
             Group(0, ref left, width, "DeltaV_NavTypeShips".Translate(), new[] { "FoundationShip", "IntegratedShip" }, Draft.hiddenTypes);
             TypeRow(16, ref left, width - 16, "FoundationShip");
             TypeRow(16, ref left, width - 16, "IntegratedShip");
-            SectorContentType stations = SectorContentTypes.ById("Station");
-            string[] stationIds = Leaves(stations).Where(t => t.id != "Asteroid").Select(t => t.id).Concat(new[] { "OtherStation" }).ToArray();
-            Group(0, ref left, width, "DeltaV_NavTypeStations".Translate(), stationIds, Draft.hiddenTypes);
-            foreach (var station in stations.children.Where(t => t.id != "Asteroid")) Station(station, 1, ref left, width);
-            TypeRow(16, ref left, width - 16, "OtherStation");
             foreach (string type in new[] { "Wreck", "Natural", "Projectile", "Scattered", "Other" }) TypeRow(0, ref left, width, type);
 
-            Header(x, ref right, width, "DeltaV_NavFilterClasses");
-            string[] classes = Leaves(SectorContentTypes.ById("Craft")).Select(t => t.id).Concat(new[] { "Unclassified" }).ToArray();
-            Group(x, ref right, width, "DeltaV_NavFilterAllClasses".Translate(), classes, Draft.hiddenClasses);
-            foreach (string id in classes)
-                Group(x + 16, ref right, width - 16, id == "Unclassified" ? "DeltaV_NavUnclassified".Translate().ToString()
-                    : SectorContentTypes.ById(id).Label, new[] { id }, Draft.hiddenClasses);
             Header(x, ref right, width, "DeltaV_NavFilterDisplay");
             Check(x, ref right, width, "DeltaV_NavCoordinateGrid".Translate(), ref Draft.showCoordinateGrid);
             Header(x, ref right, width, "DeltaV_NavFilterArmament");
@@ -70,13 +59,6 @@ namespace DeltaV
             { universe.GlobeNavigation.ApplyFilters(universe, Draft); Close(); }
         }
 
-        private static IEnumerable<SectorContentType> Leaves(SectorContentType node) => node.IsLeaf
-            ? new[] { node } : node.children.SelectMany(Leaves);
-        private void Station(SectorContentType node, int depth, ref float y, float width)
-        {
-            Group(depth * 16f, ref y, width - depth * 16f, node.Label, Leaves(node).Select(t => t.id).ToArray(), Draft.hiddenTypes);
-            foreach (var child in node.children) Station(child, depth + 1, ref y, width);
-        }
         private void TypeRow(float x, ref float y, float width, string id) =>
             Group(x, ref y, width, ("DeltaV_NavType" + id).Translate(), new[] { id }, Draft.hiddenTypes);
         private static void Header(float x, ref float y, float width, string key)

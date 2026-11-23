@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
   <!-- 星区 POI 命名器（SectorContentService 在 marker 生成时调用）：
-       只产名字主干，类型名经 [poi_type] 注入（代码以 extraRules 传入翻译后的类型
-       Label），词干与类型名之间的衔接（空格/连接词）由规则自身决定，各语言翻译可
+       只产名字主干，生成项名称后缀经 [generation_suffix] 注入（代码以 extraRules
+       传入玩家可编辑的 Label），词干与后缀之间的衔接（空格/连接词）由规则自身决定，各语言翻译可
        自行定制。完整名 = 规则输出 + 代码追加 "(派系名) #ID"。
        结构参考原版 NamerGravship / NamerWorldObject_AsteroidBasic，但刻意不带
-       「ship/号」类名词后缀——类型名本身就是名词，避免出现「护卫舰号」。 -->
+       「ship/号」类名词后缀——生成项名称本身就是名词，避免出现「护卫舰号」。 -->
   <RulePackDef>
     <defName>DeltaV_NamerSpacePoi</defName>
     <include>
@@ -14,10 +14,10 @@
     </include>
     <rulePack>
       <rulesStrings>
-        <li>r_name(p=2)->The [narrative_name] [poi_type]</li>
-        <li>r_name(p=1)->[narrative_name] [poi_type]</li>
-        <li>r_name(p=0.5)->[storyname] [poi_type]</li>
-        <li>r_name(p=0.2)->[Color] [greekmyth_noun] [poi_type]</li>
+        <li>r_name(p=2)->The [narrative_name] [generation_suffix]</li>
+        <li>r_name(p=1)->[narrative_name] [generation_suffix]</li>
+        <li>r_name(p=0.5)->[storyname] [generation_suffix]</li>
+        <li>r_name(p=0.2)->[Color] [greekmyth_noun] [generation_suffix]</li>
 
         <li>narrative_name->[AdjectiveNatural] [thing_badass]</li>
         <li>narrative_name->[AdjectiveLarge] [thing_badass]</li>

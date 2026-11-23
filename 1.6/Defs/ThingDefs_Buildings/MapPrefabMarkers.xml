@@ -88,7 +88,6 @@
 		</graphicData>
 		<comps>
 			<li Class="DeltaV.CompProperties_PrefabClusterSpawner">
-				<contentTypeId>Asteroid</contentTypeId>
 				<innerRadius>80</innerRadius>
 				<outerRadius>300</outerRadius>
 				<densityPerTenThousand>0.35</densityPerTenThousand>

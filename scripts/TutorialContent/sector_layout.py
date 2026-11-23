@@ -241,7 +241,6 @@ def furnish(name, plan, place, footprint, prop, foundation, roofs, records, occu
             marker = put('DeltaV_PrefabClusterMarker', *center)
             marker['stateOverrides'].update({
                 '_clusterEntries': ASTEROID_CHILDREN,
-                '_contentTypeId': 'Asteroid',
                 '_innerRadius': 70,
                 '_outerRadius': 260,
                 '_densityPerTenThousand': .6,
@@ -396,7 +395,6 @@ def prepare_state(record, state, field, prop):
             entry = ET.SubElement(prefabs, 'li', {'Class': 'DeltaV.PrefabClusterEntry'})
             field(entry, 'prefabPath', path)
             field(entry, 'weight', weight)
-        field(state, 'contentTypeId', overrides['_contentTypeId'])
         field(state, 'innerRadius', overrides['_innerRadius'])
         field(state, 'outerRadius', overrides['_outerRadius'])
         field(state, 'densityPerTenThousand', overrides['_densityPerTenThousand'])

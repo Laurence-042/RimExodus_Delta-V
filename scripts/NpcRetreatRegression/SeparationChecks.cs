@@ -235,8 +235,8 @@ internal static partial class Program
                 && universe.FoundationTopology.BuildingDomain(map, rock) == null
                 && !universe.FoundationTopology.BuildingsIn(map, ShipRegistry.ControlDomain(main.Ship)).Contains(rock),
                 "a domainless mineable requires extraction and is absent from the departing ship capture");
-            Check(frame.contentTypeId == null && rock.Map == map && universe.FrameOf(map) == frame,
-                "domainless rock stays hosted without an asteroid content type");
+            Check(rock.Map == map && universe.FrameOf(map) == frame,
+                "domainless rock stays hosted without a generation classification");
             map.thingGrid.Deregister(rock);
             fixture.Remove(rock);
             Set(typeof(Thing), rock, "mapIndexOrState", (sbyte)-1);

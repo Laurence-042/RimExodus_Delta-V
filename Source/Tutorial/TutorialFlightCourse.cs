@@ -171,7 +171,7 @@ namespace DeltaV
                 SpawnCoursePrefab(salvage, salvageMap, new IntVec3(12, 0, 12), "DeltaV_Tutorial_SalvageTarget");
                 Run.salvageObjectId = universe.FrameOf(salvageMap).objectId;
                 Map yardMap = CreateRemoteCourseMap(ShipPocketMapFactory.CompactSize(new IntVec2(yard.size.x + BerthGap + gift.size.x, Math.Max(yard.size.z, gift.size.z))), station, 180f);
-                universe.FrameOf(yardMap).contentTypeId = "Shipyard";
+                universe.FrameOf(yardMap).sourcePrefabPath = "Tutorial/Shipyard.xml";
                 var yardThings = SpawnCoursePrefab(yard, yardMap, CoursePrefabOrigin, "DeltaV_Tutorial_Shipyard", Run.mentors);
                 var crew = yardMap.mapPawns.SpawnedPawnsInFaction(Run.mentors).ToList();
                 int expectedCrew = yard.thingEntries.Count(e => e.def.HasComp(typeof(CompPrefabPawnSpawner)));

@@ -12,7 +12,7 @@ namespace DeltaV
     /// Delta-V 距离策略；地图生成、休眠和父对象语义分别委托通用服务。
     ///
     /// **POI 容器与物化容器彻底分离（2026-09-25 用户定案）**：
-    /// - marker（未物化 PoiState）= 无图触发器：按设置的类型显示图标/名称，接近后
+    /// - marker（未物化 PoiState）= 无图触发器：显示冻结名称与确切 prefab 投影，接近后
     ///   物化——产物是**普通 SpaceObject 容器**（无 POI 图标身份，名称 = 图上结构
     ///   拼接、ambientLabel 兜底纯环境）。
     /// - 物化容器（普通 SpaceObject）：MustStayActive（玩家侧）恒活跃；离开活跃
@@ -273,8 +273,8 @@ namespace DeltaV
             }
             else
             {
-                Log.Error($"[DeltaV] {marker.label}: content type '{marker.contentTypeId}' has no usable " +
-                    "prefab pool (empty or unloadable); POI canceled instead of materialized.");
+                Log.Error($"[DeltaV] {marker.label}: frozen prefab is missing or unloadable; " +
+                    "POI canceled instead of materialized.");
                 universe.UnregisterObject(marker);
                 return;
             }
@@ -353,7 +353,7 @@ namespace DeltaV
                 {
                     poolPath = ResolvePoolPrefabPath(marker);
                     if (poolPath == null)
-                        throw new InvalidOperationException($"Content type '{marker.contentTypeId}' has no usable prefab pool.");
+                        throw new InvalidOperationException("Marker has no frozen prefab path.");
                     MapPrefabDocument doc = MapPrefab.LoadRelative(poolPath);
                     Rot4 rotation = new Rot4(marker.seed & 3);
                     MapPrefab.SpawnSpaceObject(doc, map, MapPrefab.CenteredPosition(doc, map, rotation),
@@ -381,23 +381,10 @@ namespace DeltaV
                 $"{container.label}: POI #{container.objectId} materialized ({UniverseManager.MapTag(map)})");
         }
 
-        /// <summary>无快照 marker 首次物化时的类型 prefab 池目标图边距（格）。</summary>
-
-        /// <summary>
-        /// 无快照 marker 的类型 prefab 池路径（seed 确定性解析；与盖章同一算法，
-        /// 保证入队测尺寸与最终放置取到同一份）。类型未注册或池为空/全失效返回 null。
-        /// </summary>
+        /// <summary>无快照 marker 在生成时冻结的确切 prefab 路径。</summary>
         private static string ResolvePoolPrefabPath(PoiState marker)
         {
-            // Prefab object markers carry an explicit path and do not need to belong to a
-            // global sector-generation leaf. Sector POIs continue to resolve their pool by
-            // content type when no explicit path was frozen at creation time.
-            if (!marker.sourcePrefabPath.NullOrEmpty()) return marker.sourcePrefabPath;
-            SectorContentType type = SectorContentTypes.ById(marker.contentTypeId);
-            if (type == null) return null;
-            DeltaVSettings settings = DeltaVMod.CurrentSettings;
-            if (settings == null) return null;
-            return MapPrefab.ResolvePoolPath(settings.EffectiveSectorRule(type).prefabPaths, marker.seed);
+            return marker?.sourcePrefabPath.NullOrEmpty() == false ? marker.sourcePrefabPath : null;
         }
 
         /// <summary>池可用时按选定 prefab 尺寸 + 边距决定目标图尺寸（下限 PoiMapSize）。</summary>
@@ -564,9 +551,9 @@ namespace DeltaV
             if (container.Ships.Any() || universe.Missions.Protects(container)
                 || map.mapPawns.AllPawnsCount != 0 || map.listerBuildings.allBuildingsColonist.Count != 0)
                 return false;
-            return container.contentTypeId == "Asteroid"
-                || (!GlobeDisplayInfo.IsStationType(container.contentTypeId)
-                    && SubstructureOwnership.For(map).SupportCellCount <= SmallWreckMaxSupportCells);
+            GlobeDisplaySummary display = universe.GlobeDisplay.Capture(container);
+            return display?.natural == true
+                || SubstructureOwnership.For(map).SupportCellCount <= SmallWreckMaxSupportCells;
         }
 
         private readonly HashSet<int> restoreQueued = new HashSet<int>();

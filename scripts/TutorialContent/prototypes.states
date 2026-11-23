@@ -264,7 +264,6 @@
     <def>DeltaV_PrefabClusterMarker</def>
     <health>50</health>
     <prefabs />
-    <contentTypeId>Asteroid</contentTypeId>
     <innerRadius>70</innerRadius>
     <outerRadius>260</outerRadius>
     <densityPerTenThousand>0.6</densityPerTenThousand>

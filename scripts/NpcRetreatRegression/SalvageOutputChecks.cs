@@ -690,13 +690,14 @@ internal static partial class Program
         map.terrainGrid.topGrid[64] = ground;
         SubstructureOwnership.For(map).UpdateSupportCell(map.cellIndices.IndexToCell(64));
         Check(!IsDisposable(), "65 support cells retain normal archiving");
-        obj.contentTypeId = "Asteroid";
-        Check(IsDisposable(), "a generated asteroid is disposable independently of its area");
+        obj.sourcePrefabPath = "Sector/Asteroids/SectorAsteroid.xml";
+        Check(!IsDisposable(), "a generation prefab name does not override actual large-structure disposal");
         map.listerBuildings.allBuildingsColonist.Add((Building)Raw(typeof(Building)));
         Check(!IsDisposable(), "a player building protects an asteroid from distance disposal");
         map.listerBuildings.allBuildingsColonist.Clear();
         map.terrainGrid.topGrid[64] = TerrainDefOf.Space;
-        obj.contentTypeId = "AbandonedSatellite";
-        Check(!IsDisposable(), "a registered station remains eligible for archive");
+        SubstructureOwnership.For(map).UpdateSupportCell(map.cellIndices.IndexToCell(64));
+        obj.sourcePrefabPath = "Sector/Stations/SectorAbandonedSatellite.xml";
+        Check(IsDisposable(), "a small empty structure is disposable independently of its generation label");
     }
 }
