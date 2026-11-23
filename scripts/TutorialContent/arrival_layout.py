@@ -159,6 +159,10 @@ def build_wreck():
         if r is captain:relocate(entry,(29,28),1)
         if r is rack:
             relocate(entry,(28,26),0)
+            # Humanoid Alien Races randomizes a missing outfit-stand body type on
+            # load. Pin the stocked stand to an adult body so its vacsuit remains
+            # in the native container instead of being rejected as adult apparel.
+            field(state,'BodyType','Male')
         elif name=='Building_OutfitStand':
             state.find('innerContainer/innerList').clear()
         if name=='Ship_Reactor':field(state,'hibernateState','Running')
@@ -248,6 +252,7 @@ def build_wreck():
     assert len(doc.findall(".//innerList/li[def='Apparel_Vacsuit']"))==1
     assert len(doc.findall(".//innerList/li[def='Apparel_VacsuitHelmet']"))==1
     assert len(rack['entry'].find('state/saveable/innerContainer/innerList'))==2
+    assert rack['entry'].findtext('state/saveable/BodyType')=='Male'
     for name in ('HospitalBed','Bed','DoubleBed','Building_OutfitStand','DiningChair','Table2x4c',
                  'ElectricStove','NutrientPasteDispenser','Hopper'):
         assert counts[name]==sum(r['name']==name for r in rows),('preserved original furnishings',name)

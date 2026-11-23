@@ -430,6 +430,9 @@ internal static partial class Program
                 Check(xml.SelectNodes("/MapPrefab//innerList/li[def='Apparel_Vacsuit']").Count == 1
                     && xml.SelectNodes("/MapPrefab//innerList/li[def='Apparel_VacsuitHelmet']").Count == 1,
                     "exactly one vacuum suit and helmet remain in the captain's cargo outfit stand");
+                Check(xml.SelectNodes("/MapPrefab/thingStates/li[def='Building_OutfitStand']/state/saveable[BodyType='Male' and innerContainer/innerList/li/def='Apparel_Vacsuit' and innerContainer/innerList/li/def='Apparel_VacsuitHelmet']").Count == 1
+                    && xml.SelectNodes("/MapPrefab/thingStates/li[def='Apparel_Vacsuit' or def='Apparel_VacsuitHelmet']").Count == 0,
+                    "the stocked outfit stand has a deterministic adult body and keeps both vacuum garments contained");
                 Check(xml.SelectSingleNode("/MapPrefab/thingStates/li[def='MealSurvivalPack']/stackCount").InnerText == "10"
                     && xml.SelectSingleNode("/MapPrefab/thingStates/li[def='MedicineIndustrial']/stackCount").InnerText == "5",
                     "limited aid is authored in the prefab");
