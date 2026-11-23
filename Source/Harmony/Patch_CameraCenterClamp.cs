@@ -13,9 +13,9 @@ namespace DeltaV
     [HarmonyPatch(typeof(CameraDriver), nameof(CameraDriver.Update))]
     internal static class Patch_CameraCenterClamp
     {
-        private static readonly MethodInfo VanillaClamp = AccessTools.Method(typeof(Mathf), nameof(Mathf.Clamp),
+        internal static readonly MethodInfo VanillaClamp = AccessTools.Method(typeof(Mathf), nameof(Mathf.Clamp),
             new[] { typeof(float), typeof(float), typeof(float) });
-        private static readonly MethodInfo ScopedClamp = AccessTools.Method(typeof(Patch_CameraCenterClamp),
+        internal static readonly MethodInfo ScopedClamp = AccessTools.Method(typeof(Patch_CameraCenterClamp),
             nameof(ClampForCurrentMap));
         internal static bool SupportsTargetFocus { get; private set; }
 
@@ -60,7 +60,7 @@ namespace DeltaV
             return code;
         }
 
-        private static float ClampForCurrentMap(float value, float min, float max)
+        internal static float ClampForCurrentMap(float value, float min, float max)
         {
             Map map = Find.CurrentMap;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
@@ -81,6 +81,50 @@ namespace DeltaV
             rootPos.x = center.x;
             rootPos.z = center.z;
             velocity = Vector3.zero;
+        }
+    }
+
+    /// <summary>
+    /// IsoRim replaces middle-button map dragging and clamps its target back inside the real
+    /// Map after CameraDriver.Update. Reuse the same Delta-V map scope as the vanilla clamp
+    /// replacement; ordinary maps retain IsoRim's original boundary.
+    /// </summary>
+    [HarmonyPatch]
+    internal static class Patch_IsoRimCameraCenterClamp
+    {
+        private static MethodBase target;
+
+        private static bool Prepare()
+        {
+            Type type = AccessTools.TypeByName("IsoRim.Patches");
+            if (type == null) return false;
+            target = AccessTools.Method(type, "ApplyDrag", new[] { typeof(CameraDriver) });
+            if (target is MethodInfo method && method.IsStatic && method.ReturnType == typeof(void)) return true;
+            Log.Warning("[DeltaV] IsoRim.Patches.ApplyDrag(CameraDriver) signature changed; " +
+                        "middle-drag camera boundary compatibility is disabled.");
+            target = null;
+            return false;
+        }
+
+        private static MethodBase TargetMethod() => target;
+
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var code = instructions.ToList();
+            var matches = new List<int>();
+            for (int i = 0; i < code.Count; i++)
+            {
+                if (code[i].opcode == OpCodes.Call
+                    && Equals(code[i].operand, Patch_CameraCenterClamp.VanillaClamp)) matches.Add(i);
+            }
+            if (matches.Count != 2)
+            {
+                Log.Warning($"[DeltaV] IsoRim middle-drag clamp changed ({matches.Count} matches); " +
+                            "leaving its camera boundary unchanged.");
+                return code;
+            }
+            foreach (int index in matches) code[index].operand = Patch_CameraCenterClamp.ScopedClamp;
+            return code;
         }
     }
 

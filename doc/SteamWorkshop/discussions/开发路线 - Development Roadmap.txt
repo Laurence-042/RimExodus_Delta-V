@@ -26,10 +26,6 @@ Maps without people are somewhat difficult to find on the world map. The sector 
 
 Regular flight currently consumes no chemfuel. I am considering adding fuel consumption, but I cannot simply let players accidentally become irrecoverable space debris. A rescue system needs to be developed first. I still have no concrete design for it, and if I cannot work one out, I may simply leave regular flight without chemfuel consumption.
 
-非聚焦视图上只有墙体类型建筑才会被绘制，这导致大部分建筑都不会在非聚焦地图上绘制（比如商会的那个轨道炮），准备近期看看能不能渲染的同时避免fps下降
-
-Only wall-type buildings are rendered in the non-focused view. As a result, most buildings do not appear on non-focused maps, including the Trade Guild's orbital cannon. I plan to look soon at whether those buildings can be rendered without reducing FPS.
-
 跳帮艇被击毁后没有人员死亡提示，准备近期修复
 
 There is no death notification when a boarding shuttle is destroyed. I plan to fix this soon.
@@ -146,6 +142,13 @@ The customization available for automated combat AI has not been tested thorough
 [h1]更新记录[/h1]
 
 [h1]Changelog[/h1]
+
+0.1.1
+
+- 右下角新增真实地图船体渲染开关。开启后由 RimExodus Framework 使用源地图的原版绘制流程渲染非聚焦船体，完整显示建筑与地图内容；默认的 Delta-V 自定义船壳仍可随时切回。
+  Added a bottom-right native map shell rendering toggle. When enabled, RimExodus Framework renders non-focused ships through each source map's vanilla draw path, showing complete buildings and map contents; the default Delta-V custom shell remains available at any time.
+- 修复 IsoRim 3D 视图在中键拖拽后重新限制 Delta-V 太空图摄像机范围的问题；普通地图继续保留 IsoRim 的原边界限制。
+  Fixed IsoRim 3D middle-button dragging reapplying the camera clamp on Delta-V space maps; ordinary maps retain IsoRim's original boundary.
 
 0.1.0（alpha初次发布）
 
