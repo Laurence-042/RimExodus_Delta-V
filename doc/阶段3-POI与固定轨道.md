@@ -88,7 +88,7 @@
 - 不重放整张源图的 `SectionLayer_Terrain` 或 `SectionLayer_ThingsGeneral`。先按结构白名单从真实 Map 选 Thing；静态图形调用原版 `Thing.Print`，将结果写入独立的 `SectionLayer_ThingsGeneral` 并按 17×17 缓存；实时图形只在限定作用域内捕获其原版 `DrawMesh` 输出。墙的连接角盖、导弹架附加图形等因此由原版绘制路径决定。所有 SpaceObject 使用同一收集路径。
 - 规则的 `render` 把 `source`（`Thing` 或 `TurretTop`）、`layer`（`Hull`／`Exposed`／`Effects`）、可选 `alternateGraphics` 有序整组替换和 `zIndex` 收在一起。未设置替换组时完整使用入壳 Thing 的原版多层图形；`zIndex` 以 `Altitudes.AltInc` 为单位调整所在表面层的高度。层间清深度保色，整壳顺序由命令缓冲决定。
 - 当前规则显式纳入 `LargeThruster`；点防／小型／中型炮塔只绘旋转炮身于 `Exposed` 层。轨道炮装弹机明确排除，加速段内构与外壳入壳；导弹架三层随装填状态显示。驾驶台、逆重引擎和其他室内设备默认不绘制。
-- POI 与飞船共用同一变换、点击和绘制规则；`TerrainDef.dontRender` 的 Space 背景天然跳过，Pawn/Projectile/Mote/Gas/Filth 和动态特效不进入普通船壳内容。
+- POI 与飞船共用同一变换、点击和绘制规则；`TerrainDef.dontRender` 的 Space 背景天然跳过，Pawn/Projectile/Mote/Gas/Filth 和动态特效不进入普通船壳内容。外壳点选只在原版 UI 完成后处理；人员 Gizmo、人员栏、完整左侧面板、窗口及其他已消费输入优先，不得穿透到其下船壳。
 - 代理按原版 17×17 section 缓存源内容与原版静态 Print 网格；Terrain/Things/Buildings 的 `MapMeshDirty` 只令相关及必要相邻 section 失效。实时层逐帧读取源 Thing 状态，门只显示全开／全关终态。缓存不存档，并在地图删除、换档、Def 缓存刷新时释放。
 
 ### 固定轨道 / 建造模式（逆重搬运）

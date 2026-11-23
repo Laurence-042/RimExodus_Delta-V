@@ -1090,7 +1090,6 @@ namespace DeltaV
             ShipStatusPanel.Draw(this);
             Pilot.DrawNavigationHint();
             Designator_ReassignSubstructure.DrawPendingLabels();
-            HandleShellClick();
             HandleWorldMarkerClick();
         }
 
@@ -1169,10 +1168,11 @@ namespace DeltaV
         /// <summary>
         /// 点击显示中的宇宙对象外壳 → 聚焦切换到对应地图（容器与 POI 通用）。
         /// 让位规则：瞄准会话（Targeter 激活）或建造设计器选中时完全不参与；
-        /// 悬停 UI、原版可选物优先；按下-抬起间发生拖拽（框选）即取消。
+        /// 原版 UI 完成后才在 MapInterface.HandleMapClicks 前缀调用；已消费事件、悬停 UI、
+        /// 原版可选物优先，按下-抬起间发生拖拽（框选）即取消。
         /// 不消费事件，原版点击流程不受影响。
         /// </summary>
-        private void HandleShellClick()
+        internal void HandleShellClick()
         {
             Map current = Find.CurrentMap;
             if (current == null || !RimWorld.Planet.WorldRendererUtility.DrawingMap)
@@ -1181,15 +1181,19 @@ namespace DeltaV
                 return;
             }
             Event ev = Event.current;
-            if (ev.type == EventType.MouseDown && ev.button == 0)
+            EventType rawType = ev.rawType;
+            if (rawType == EventType.MouseDown && ev.button == 0)
             {
                 pendingClickObject = null;
+                // 本入口位于原版 UI 之后：type != rawType 表示 Gizmo、主按钮等已经消费按下。
+                // 人员栏单击和侧栏空白不会自行 Use，继续由共同 UI 门禁显式拦截。
+                if (ev.type != EventType.MouseDown || SpaceAimController.MouseOverUiWindow()) return;
                 bool targeting = Find.Targeter.IsTargeting;
                 bool designator = Find.DesignatorManager.SelectedDesignator != null;
-                bool overWindow = Find.WindowStack.GetWindowAt(UI.GUIToScreenPoint(ev.mousePosition)) != null;
+                bool navigationTargeting = Pilot.NavigationTargetingActive;
                 // 瞄准会话让位（§6.1）：瞄准会话作用于本图时左键 = 射击，不作聚焦切换。
                 bool aimSession = Controls.AimSessionOnFocusedMap;
-                if (targeting || designator || overWindow || aimSession)
+                if (targeting || designator || navigationTargeting || aimSession)
                 {
                     return;
                 }
@@ -1211,14 +1215,19 @@ namespace DeltaV
                 pendingClickObject = ShellPicking.ShellAtFramePoint(this, current, UI.MouseMapPosition());
                 pendingClickScreen = ev.mousePosition;
             }
-            else if (ev.type == EventType.MouseDrag)
+            else if (rawType == EventType.MouseDrag)
             {
                 pendingClickObject = null;
             }
-            else if (ev.type == EventType.MouseUp && ev.button == 0 && pendingClickObject != null)
+            else if (rawType == EventType.MouseUp && ev.button == 0)
             {
                 SpaceObject target = pendingClickObject;
                 pendingClickObject = null;
+                // UI 可在按下后才取得控制（例如拖入侧栏）；抬起被消费或落在 UI 上都取消。
+                if (target == null || ev.type != EventType.MouseUp
+                    || SpaceAimController.MouseOverUiWindow() || Find.Targeter.IsTargeting
+                    || Find.DesignatorManager.SelectedDesignator != null
+                    || Pilot.NavigationTargetingActive || Controls.AimSessionOnFocusedMap) return;
                 bool noDrag = (ev.mousePosition - pendingClickScreen).sqrMagnitude < 100f;
                 SpaceObject recheck = ShellPicking.ShellAtFramePoint(this, current, UI.MouseMapPosition());
                 if (noDrag && recheck == target)

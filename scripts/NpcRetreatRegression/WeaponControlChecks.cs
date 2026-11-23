@@ -115,5 +115,14 @@ internal static partial class Program
             "installed game's chosen aim input hook follows UI windows and precedes the right-click shortcut");
         Check(Patch_AimModeClicks.TargetMethods().All(m => m != null),
             "both aim click Harmony targets resolve against the installed game");
+        MethodInfo shellInput = AccessTools.Method(typeof(UniverseManager), "HandleShellClick");
+        var gameComponentCalls = PatchProcessor.GetOriginalInstructions(
+                AccessTools.Method(typeof(UniverseManager), nameof(UniverseManager.GameComponentOnGUI)))
+            .Select(i => i.operand).OfType<MethodInfo>().ToList();
+        var inputPrefixCalls = PatchProcessor.GetOriginalInstructions(
+                AccessTools.Method(typeof(Patch_AimModeClicks), nameof(Patch_AimModeClicks.Prefix)))
+            .Select(i => i.operand).OfType<MethodInfo>().ToList();
+        Check(shellInput != null && !gameComponentCalls.Contains(shellInput) && inputPrefixCalls.Contains(shellInput),
+            "shell picking runs after UI widgets at the shared map-input hook, not in early GameComponentOnGUI");
     }
 }

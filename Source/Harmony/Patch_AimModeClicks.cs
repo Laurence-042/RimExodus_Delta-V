@@ -22,16 +22,20 @@ namespace DeltaV
         public static bool Prefix(MethodBase __originalMethod)
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            bool mapClicks = __originalMethod.Name == nameof(MapInterface.HandleMapClicks);
+            if (mapClicks) universe?.HandleShellClick();
             if (universe?.Pilot.NavigationTargetingActive == true)
             {
-                if (__originalMethod.Name == nameof(MapInterface.HandleMapClicks))
+                if (mapClicks)
                     universe.Pilot.ProcessNavigationInputEvent();
                 return false;
             }
             // Windows/widgets have run here, but the vanilla empty-selection right-click
             // shortcut has not. Sample once: a later sample would reject our own Used event.
-            if (__originalMethod.Name == nameof(MapInterface.HandleMapClicks))
+            if (mapClicks)
+            {
                 universe?.Controls.ProcessAimInputEvent();
+            }
             if (universe == null || !universe.Controls.AimSessionOnFocusedMap) return true;
             if (Find.CurrentMap == null || !WorldRendererUtility.DrawingMap) return true;
             // 悬停窗口（含本 mod 面板）：窗口交互优先，点击交还原版。

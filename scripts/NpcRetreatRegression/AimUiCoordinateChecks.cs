@@ -3,6 +3,7 @@ using DeltaV;
 using HarmonyLib;
 using LudeonTK;
 using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
@@ -12,13 +13,15 @@ internal static partial class Program
     static Vector2 staleAimMouse;
     static WindowStack aimWindows;
     static ColonistBar aimColonists;
+    static bool aimColonistHit;
 
     // Substitute native mouse acquisition; retain vanilla inversion and the production UI gates.
     static bool ReadLiveAimMouse(ref Vector2 __result) { __result = liveAimMouse; return false; }
     static bool ReadStaleAimMouse(ref Vector2 __result) { __result = staleAimMouse; return false; }
     static bool ReadAimWindows(ref WindowStack __result) { __result = aimWindows; return false; }
     static bool ReadAimColonists(ref ColonistBar __result) { __result = aimColonists; return false; }
-    static bool EmptyAimColonists(ref bool __result) { __result = false; return false; }
+    static bool ReadAimColonistHit(ref bool __result) { __result = aimColonistHit; return false; }
+    static bool ReadDrawingMap(ref bool __result) { __result = true; return false; }
 
     static void CheckAimUiCoordinates()
     {
@@ -26,6 +29,7 @@ internal static partial class Program
         int oldHeight = UI.screenHeight;
         sbyte oldMapIndex = Current.Game.currentMapIndex;
         Current.Game.currentMapIndex = -1;
+        Map panelMap = null;
         aimWindows = (WindowStack)Raw(typeof(WindowStack));
         var windows = new List<Window>();
         Set(aimWindows, "windows", windows);
@@ -42,7 +46,9 @@ internal static partial class Program
             harness.Patch(AccessTools.PropertyGetter(typeof(Find), nameof(Find.ColonistBar)),
                 prefix: new HarmonyMethod(typeof(Program), nameof(ReadAimColonists)));
             harness.Patch(AccessTools.Method(typeof(ColonistBar), nameof(ColonistBar.AnyColonistOrCorpseAt)),
-                prefix: new HarmonyMethod(typeof(Program), nameof(EmptyAimColonists)));
+                prefix: new HarmonyMethod(typeof(Program), nameof(ReadAimColonistHit)));
+            harness.Patch(AccessTools.PropertyGetter(typeof(WorldRendererUtility), nameof(WorldRendererUtility.DrawingMap)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(ReadDrawingMap)));
 
             UI.screenHeight = 1080;
             liveAimMouse = new Vector2(1279.5f, 1080f - 882f);
@@ -72,6 +78,23 @@ internal static partial class Program
             Check(buttons.Main, "fresh map press re-arms after leaving log");
 
             windows.Clear();
+            liveAimMouse = new Vector2(600f, 1080f - 600f);
+            aimColonistHit = true;
+            Check(SpaceAimController.MouseOverUiWindow(), "colonist bar blocks map input before map selection");
+            aimColonistHit = false;
+
+            panelMap = (Map)Raw(typeof(Map));
+            Find.Maps.Add(panelMap);
+            Current.Game.currentMapIndex = (sbyte)Find.Maps.IndexOf(panelMap);
+            typeof(ShipStatusPanel).GetField("inputMap", Private).SetValue(null, panelMap);
+            typeof(ShipStatusPanel).GetField("inputRect", Private).SetValue(null,
+                new Rect(550f, 550f, 100f, 100f));
+            Check(SpaceAimController.MouseOverUiWindow(), "whole Delta-V sidebar blocks map input, including blank space");
+            typeof(ShipStatusPanel).GetField("inputMap", Private).SetValue(null, null);
+            Current.Game.currentMapIndex = -1;
+            Find.Maps.Remove(panelMap);
+            panelMap = null;
+
             foreach (float scale in new[] { 1f, 1.5f, 2f })
             {
                 UI.screenHeight = (int)(2160f / scale);
@@ -100,6 +123,9 @@ internal static partial class Program
             Current.Game.currentMapIndex = oldMapIndex;
             aimWindows = null;
             aimColonists = null;
+            aimColonistHit = false;
+            typeof(ShipStatusPanel).GetField("inputMap", Private).SetValue(null, null);
+            if (panelMap != null) Find.Maps.Remove(panelMap);
             AimUiRegions.Clear();
         }
     }
