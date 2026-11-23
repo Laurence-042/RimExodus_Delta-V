@@ -122,6 +122,8 @@ The order roughly reflects priority, but work is not guaranteed to follow it, an
   More weapon mechanics. The projectile system itself should remain largely unchanged, with kinetic projectiles, laser projectiles, and missile projectiles as its three basic types.
   - 参考cosmoteer的链炮、超大甲板炮、激光汇集之类的？
     Perhaps take inspiration from Cosmoteer's chainguns, huge deck guns, laser combiners, and similar systems?
+- 专用叙事者
+  Dedicated Storyteller
 - 轨道轰炸
   Orbital bombardment
 - 太阳系飞行
