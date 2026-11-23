@@ -1,6 +1,6 @@
 [h1]RimExodus: Delta-V[/h1]
 
-[b]⚠ This mod is currently in alpha. Its save-data structure is mostly stable and its core mechanics are relatively complete, but mechanics and numerical values are still changing frequently, and content is still sparse. Expect plenty of bugs and compatibility issues. The main purpose of this release is to let interested players try the mod early and offer suggestions on balance and future content. Uninstall support is not currently planned, so I do not recommend installing it in an established save.[/b]
+[b]⚠ This mod is currently in alpha. Its save-data structure is mostly stable and its core mechanics are relatively complete, but mechanics and numerical values are still changing frequently, and there is still not enough content to support a complete gameplay loop. Expect plenty of bugs and compatibility issues. The main purpose of this release is to let interested players try the mod early and offer suggestions on balance and future content. Although the mod can technically be added mid-save, I have not specifically implemented uninstall support or tested this scenario thoroughly, so I still do not recommend using it in a serious playthrough.[/b]
 
 [img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/name.jpg[/img]
 
