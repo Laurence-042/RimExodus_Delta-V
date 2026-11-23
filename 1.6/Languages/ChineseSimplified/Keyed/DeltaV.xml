@@ -539,6 +539,7 @@
   <DeltaV_MissileMagazineStored>导弹：{0} / {1}</DeltaV_MissileMagazineStored>
   <DeltaV_MissileMagazineCountEntry>{0}：{1}</DeltaV_MissileMagazineCountEntry>
   <DeltaV_CoordinateGridToggle>显示宇宙坐标网格</DeltaV_CoordinateGridToggle>
+  <DeltaV_NativeMapShellToggle>使用真实地图绘制非聚焦船体：开启后由 REF 在原版地图绘制回调中显示完整地图内容，不再使用 Delta-V 自定义船壳。默认关闭，状态随当前存档保存。</DeltaV_NativeMapShellToggle>
   <DeltaV_SettingsCoordinateGridTransparency>坐标网格透明度：{0}</DeltaV_SettingsCoordinateGridTransparency>
   <DeltaV_CombatAIEdit>编辑战斗策略</DeltaV_CombatAIEdit>
   <DeltaV_CombatAIEditTip>编辑驾驶台或艇体的自动战斗规则。多选时以首台策略为草稿，确认后将整套策略应用到所选设备；取消不修改。</DeltaV_CombatAIEditTip>

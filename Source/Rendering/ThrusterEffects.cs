@@ -205,15 +205,16 @@ namespace DeltaV
         /// GenDraw.DrawQuad（反编译核实：plane10 + TRS(pos, rot, (size,1,size))）。
         /// 脱离排气由宇宙表现管线统一绘制，不在船壳层重复发射。
         /// </summary>
-        public static void CollectShellFlames(SpaceObject container, Map map, Matrix4x4 matrix, Quaternion rotation)
+        public static bool CollectShellFlames(SpaceObject container, Map map, Matrix4x4 matrix, Quaternion rotation)
         {
             // 普通弹体另有尾焰；侵入 shuttle 与正常驾驶均读取真实分配油门。
-            if (container.baseTag == SpaceObjectTag.Projectile) return;
+            if (container.baseTag == SpaceObjectTag.Projectile) return false;
             DriveInfo report = container.PresentationInfo;
             if (report == null || !report.HasFreshThrottles)
             {
-                return;
+                return false;
             }
+            bool drew = false;
             if (flameBlockFrame != Time.frameCount)
             {
                 flameBlockFrame = Time.frameCount;
@@ -237,6 +238,7 @@ namespace DeltaV
                         matrix.MultiplyPoint3x4(virtualCenter), out FlameDraw virtualFlame))
                     {
                         AddFlameCommand(virtualFlame);
+                        drew = true;
                     }
                     continue;
                 }
@@ -249,7 +251,9 @@ namespace DeltaV
                     continue;
                 }
                 AddFlameCommand(flame);
+                drew = true;
             }
+            return drew;
         }
 
         private static void AddFlameCommand(FlameDraw flame)

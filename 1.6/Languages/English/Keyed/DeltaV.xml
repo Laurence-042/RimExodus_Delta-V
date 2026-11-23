@@ -539,6 +539,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_MissileMagazineStored>Missiles: {0} / {1}</DeltaV_MissileMagazineStored>
   <DeltaV_MissileMagazineCountEntry>{0}: {1}</DeltaV_MissileMagazineCountEntry>
   <DeltaV_CoordinateGridToggle>Show universe coordinate grid</DeltaV_CoordinateGridToggle>
+  <DeltaV_NativeMapShellToggle>Render nonfocused ships as real maps: REF displays their complete map content through the original map draw callbacks instead of Delta-V's custom shells. Disabled by default and saved with the current game.</DeltaV_NativeMapShellToggle>
   <DeltaV_SettingsCoordinateGridTransparency>Coordinate grid transparency: {0}</DeltaV_SettingsCoordinateGridTransparency>
   <DeltaV_CombatAIEdit>Edit combat strategy</DeltaV_CombatAIEdit>
   <DeltaV_CombatAIEditTip>Edit automatic combat rules for consoles or shuttle hulls. With multiple selected, start from the first strategy and apply the complete draft to all selected devices on confirmation. Cancel leaves them unchanged.</DeltaV_CombatAIEditTip>

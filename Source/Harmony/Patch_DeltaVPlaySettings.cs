@@ -37,6 +37,14 @@ namespace DeltaV
             universe.ShowWeaponArcOverlay = showWeaponArcs;
             row.ToggleableIcon(ref universe.ShowCollisionDebugOverlay, TexCommand.Attack,
                 "DeltaV_DebugCollisionToggleButton".Translate(), SoundDefOf.Mouseover_ButtonToggle);
+            bool nativeMapShells = universe.UseNativeMapShellRendering;
+            row.ToggleableIcon(ref nativeMapShells, TexButton.ShowRoofOverlay,
+                "DeltaV_NativeMapShellToggle".Translate(), SoundDefOf.Mouseover_ButtonToggle);
+            if (nativeMapShells != universe.UseNativeMapShellRendering)
+            {
+                universe.UseNativeMapShellRendering = nativeMapShells;
+                NativeMapShellRenderer.NotifyModeChanged();
+            }
         }
     }
 

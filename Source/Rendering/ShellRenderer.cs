@@ -57,7 +57,11 @@ namespace DeltaV
             bool anyBuffered = motionSlots > 0;
             for (int i = 0; i < LayerOrderScratch.Count; i++)
             {
-                bool drew = DrawObjectShell(universe, LayerOrderScratch[i], frame, current, backgroundLayer.At(i + motionSlots));
+                bool drew = universe.UseNativeMapShellRendering
+                    ? DrawNativeMapExtras(universe, LayerOrderScratch[i], frame, current,
+                        backgroundLayer.At(i + motionSlots))
+                    : DrawObjectShell(universe, LayerOrderScratch[i], frame, current,
+                        backgroundLayer.At(i + motionSlots));
                 anyBuffered |= drew;
                 if (logBeat) AppendLayerObj("b" + i + "/" + LayerOrderScratch.Count, LayerOrderScratch[i], drew);
             }
@@ -110,13 +114,8 @@ namespace DeltaV
             }
             if (!HasDrawableMap(universe, obj)) return false;
             Map map = obj.map;
-
-            Quaternion rotation = SpaceTransform.FocusedMeshRotation(frame, obj.pose.angle);
-            Vector3 drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
-            Vector2 sourceOrigin = SpaceTransform.ShipLocalOrigin(map);
-
-            Vector3 translation = drawPos - rotation * new Vector3(sourceOrigin.x, 0f, sourceOrigin.y);
-            Matrix4x4 matrix = Matrix4x4.TRS(translation, rotation, Vector3.one);
+            if (!TryGetMapDisplayTransform(frame, frameMap, obj, out Matrix4x4 matrix,
+                out Quaternion rotation)) return false;
             CellRect localView = TransformRectInverse(matrix, Find.CameraDriver.CurrentViewRect).ExpandedBy(4);
             Vector2 localSun = ShellHullVisuals.LocalSun(obj.pose);
             bool drew = MapOverlayRenderer.CollectShellCommands(map, matrix, rotation, localView, null,
@@ -130,6 +129,39 @@ namespace DeltaV
                 target.layer.Emit(target, mapShell: true);
             }
             return drew;
+        }
+
+        /// <summary>
+        /// Native REF rendering replaces only map contents. Payload proxies and Delta-V's
+        /// universe-space thruster flames remain in the established shell layer.
+        /// </summary>
+        private static bool DrawNativeMapExtras(UniverseManager universe, SpaceObject obj,
+            SpaceObject frame, Map frameMap, ShellLayer.Slot target)
+        {
+            if (obj.Payload != null) return DrawObjectShell(universe, obj, frame, frameMap, target);
+            if (!HasDrawableMap(universe, obj)
+                || !TryGetMapDisplayTransform(frame, frameMap, obj, out Matrix4x4 matrix,
+                    out Quaternion rotation)) return false;
+            MapOverlayRenderer.BeginQuadBatch();
+            if (!ThrusterEffects.CollectShellFlames(obj, obj.map, matrix, rotation)) return false;
+            target.layer.Emit(target, mapShell: true);
+            return true;
+        }
+
+        /// <summary>Single display transform shared by custom shells and REF native map views.</summary>
+        internal static bool TryGetMapDisplayTransform(SpaceObject frame, Map frameMap, SpaceObject obj,
+            out Matrix4x4 matrix, out Quaternion rotation)
+        {
+            matrix = default;
+            rotation = default;
+            Map map = obj?.map;
+            if (frame == null || frameMap == null || map == null || map.Disposed) return false;
+            rotation = SpaceTransform.FocusedMeshRotation(frame, obj.pose.angle);
+            Vector3 drawPos = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
+            Vector2 sourceOrigin = SpaceTransform.ShipLocalOrigin(map);
+            Vector3 translation = drawPos - rotation * new Vector3(sourceOrigin.x, 0f, sourceOrigin.y);
+            matrix = Matrix4x4.TRS(translation, rotation, Vector3.one);
+            return true;
         }
 
         internal static bool HasDrawableMap(UniverseManager universe, SpaceObject obj)

@@ -53,6 +53,7 @@ namespace DeltaV
             RimExodus.Maps.MapModule.Install();
             RimExodus.Maps.MapRuntime.Current.SetStopPolicy(SharedMapBackend.Owner, map =>
                 SpaceLifecycleService.IsUniverseHost(map) || Generation.IsGenerating(map));
+            NativeMapShellRenderer.Configure();
         }
 
         // ---- 流程服务实例（2026-09-22 实例化迁移）----
@@ -203,6 +204,7 @@ namespace DeltaV
         internal bool ConfirmSplitWarnings = true;
         internal bool ShowWeaponArcOverlay;
         internal bool ShowCollisionDebugOverlay;
+        internal bool UseNativeMapShellRendering;
         [NonSerialized] private OrbitalWorkService worksites;
         public OrbitalWorkService Worksites => worksites ?? (worksites = new OrbitalWorkService(this));
 
@@ -742,6 +744,7 @@ namespace DeltaV
             Scribe_Values.Look(ref ConfirmSplitWarnings, "confirmSplitWarnings", true);
             Scribe_Values.Look(ref ShowWeaponArcOverlay, "showWeaponArcOverlay", false);
             Scribe_Values.Look(ref ShowCollisionDebugOverlay, "showCollisionDebugOverlay", false);
+            Scribe_Values.Look(ref UseNativeMapShellRendering, "useNativeMapShellRendering", false);
             if (Scribe.mode == LoadSaveMode.LoadingVars && generatedSectorTiles == null)
             {
                 generatedSectorTiles = new List<string>();
