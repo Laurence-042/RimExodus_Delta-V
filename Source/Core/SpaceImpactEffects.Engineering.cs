@@ -30,7 +30,7 @@ namespace DeltaV
             Map map = evt.defender.map;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe == null || universe.IsResettingScene || map.Disposed || evt.defender.IsActiveCollider
-                || SpaceLifecycleService.IsUniverseHost(map) || !FreeFlightBootstrap.IsZeroGravity(universe, map)
+                || SpaceMapStateManager.IsUniverseHost(map) || !FreeFlightBootstrap.IsZeroGravity(universe, map)
                 || universe.SpaceObjectOnMap(map) != evt.defender) return;
             Map outputMap = cutter.deliverToEmitter ? launcher.Map : map;
             if (cutter.deliverToEmitter && (map == outputMap || outputMap.Disposed

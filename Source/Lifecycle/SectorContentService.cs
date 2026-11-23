@@ -97,11 +97,11 @@ namespace DeltaV
             double sectorAreaCellsSquared = OrbitSphere.TileAreaCellsSquared(tile);
             if (sectorAreaCellsSquared <= 0d) return;
             int totalSpawned = 0;
-            IEnumerable<SectorGenerationNode> leaves = settings != null
-                ? SectorGenerationTable.Leaves(settings.sectorGenerationRoots)
-                : SectorGenerationTable.Leaves(SectorGenerationTable.Defaults());
-            foreach (SectorGenerationNode entry in leaves)
+            List<SectorGenerationNode> roots = settings != null
+                ? settings.sectorGenerationRoots : SectorGenerationTable.Defaults();
+            foreach (var source in SectorGenerationTable.LeavesWithPaths(roots))
             {
+                SectorGenerationNode entry = source.node;
                 float density = settings != null
                     ? entry.standardDensityPer100MCells2 * SectorGenerationPresets.Scale(settings.sectorGenerationPreset)
                     : entry.standardDensityPer100MCells2;
@@ -122,7 +122,8 @@ namespace DeltaV
                 int spawned = 0;
                 for (int i = 0; i < target; i++)
                 {
-                    if (SpawnSectorObject(universe, tile, entry)) { spawned++; totalSpawned++; }
+                    if (SpawnSectorObject(universe, tile, roots, entry, source.path, i))
+                    { spawned++; totalSpawned++; }
                 }
                 if (spawned > 0)
                 {
@@ -168,7 +169,9 @@ namespace DeltaV
             }
         }
 
-        private static bool SpawnSectorObject(UniverseManager universe, PlanetTile tile, SectorGenerationNode entry)
+        private static bool SpawnSectorObject(UniverseManager universe, PlanetTile tile,
+            List<SectorGenerationNode> roots, SectorGenerationNode entry,
+            IReadOnlyList<string> categoryPath, int spawnIndex)
         {
             Vector3 center = OrbitSphere.TileCenterDirection(tile);
             // 先在星区内切圆近似中取样，再用原版 tile 地址函数复核；小尺度下留白
@@ -212,7 +215,9 @@ namespace DeltaV
             int poiId = universe.AllocateOwnerId();
             SpaceFactionCandidates().TryRandomElement(out Faction faction);
             int seed = Rand.Int;
-            string prefabPath = MapPrefab.ResolvePoolPath(entry.prefabPaths, seed);
+            string preferred = MapPrefab.ResolvePoolPath(entry.prefabPaths, seed);
+            string prefabPath = SectorGenerationTable.ResolveFrozenPrefab(
+                roots, preferred, categoryPath, seed);
             if (prefabPath.NullOrEmpty()) return false;
             MapPrefabDocument prefab;
             try { prefab = MapPrefab.LoadRelative(prefabPath); }
@@ -233,11 +238,16 @@ namespace DeltaV
                 OrbitSphere.Move(center, bestOffset), Rand.Range(0f, 360f) * Mathf.Deg2Rad, seed)
             {
                 faction = faction,
-                sourcePrefabPath = prefabPath.Replace('\\', '/')
+                sourcePrefabPath = prefabPath.Replace('\\', '/'),
+                sourcePrefabCategoryPath = new List<string>(categoryPath),
+                sourcePrefabSeed = seed,
+                externalPrefabGenerationCompleted = false
             };
             if (PrefabHasNaturalBody(prefab)) poi.baseTag |= SpaceObjectTag.GravityRegion;
             universe.RegisterObject(poi);
-            return true;
+            if (universe.ObjectById(poiId) == poi) return true;
+            universe.UnregisterObject(poi);
+            return false;
         }
 
         internal static bool PrefabHasNaturalBody(MapPrefabDocument prefab)

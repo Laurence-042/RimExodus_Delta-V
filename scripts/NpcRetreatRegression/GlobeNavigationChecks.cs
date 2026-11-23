@@ -366,7 +366,7 @@ internal static partial class Program
                 int frameActionCount = Actions(universe)?.Count ?? 0;
                 try
                 {
-                    Call(universe.Lifecycle, "MaterializeMarker", marker, map);
+                    Call(universe.MapStates, "MaterializeMarker", marker, map);
                     nav.Refresh(universe);
                     SpaceObject current = universe.ObjectById(id);
                     Check(!universe.objects.Contains(marker), "the old marker representation is retired");

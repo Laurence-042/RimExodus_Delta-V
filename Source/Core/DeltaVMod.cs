@@ -264,6 +264,9 @@ namespace DeltaV
             TippedRow(list, rect, "DeltaV_SettingsLifecycleScanIntervalTip",
                 () => list.TextFieldNumericLabeled("DeltaV_SettingsLifecycleScanInterval".Translate(),
                     ref Settings.lifecycleScanIntervalTicks, ref lifecycleScanIntervalBuffer, 1, 600));
+            TippedRow(list, rect, "DeltaV_SettingsExactMapRetentionDaysTip",
+                () => list.TextFieldNumericLabeled("DeltaV_SettingsExactMapRetentionDays".Translate(),
+                    ref Settings.exactMapRetentionDays, ref exactMapRetentionDaysBuffer, 0, 600));
             list.End();
         }
 
@@ -320,6 +323,7 @@ namespace DeltaV
         private string poiDeleteBuffer;
         private string npcDecisionIntervalBuffer;
         private string lifecycleScanIntervalBuffer;
+        private string exactMapRetentionDaysBuffer;
 
         private string mapGenBudgetBuffer;
         private string loadedMapLimitBuffer;

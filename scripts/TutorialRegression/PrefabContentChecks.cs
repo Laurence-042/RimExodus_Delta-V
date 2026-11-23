@@ -392,6 +392,8 @@ internal static partial class Program
         {
             var xml = new XmlDocument(); xml.Load(path);
             string name = Path.GetFileNameWithoutExtension(path);
+            Check(xml.SelectNodes("//terminalUuid|//markerUuid").Count == 0,
+                name + " contains no terminal or prefab-marker UUID state");
             bool arrival = tutorial && name == "ArrivalStation";
             bool asteroid = name == "SectorAsteroid" || name.StartsWith("Asteroid", StringComparison.Ordinal);
             var requirements = authoredEnvironment && !asteroid

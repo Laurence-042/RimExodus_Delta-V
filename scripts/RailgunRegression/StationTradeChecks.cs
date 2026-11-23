@@ -89,6 +89,8 @@ internal static partial class Program
             ThingSetMakerDefOf.TraderStock = new ThingSetMakerDef { root = new ThingSetMaker_TraderStock() };
             var terminal = spawn(new Building_SpaceTradeTerminal(), 1);
             var second = spawn(new Building_SpaceTradeTerminal(), 2);
+            Check(AccessTools.Field(typeof(Building_SpaceTradeTerminal), "terminalUuid") == null,
+                "trade terminals carry no persistent endpoint identity; station missions address the host object");
             var kind = new TraderKindDef { defName = "fixtureTrader" };
             Set(terminal, "traderKind", kind);
             var a = cargo(3, false); var b = cargo(4, false);

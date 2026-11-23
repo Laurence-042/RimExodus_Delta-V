@@ -72,7 +72,7 @@ namespace DeltaV
             {
                 if (!retiring.Remove(owner) || universe.ObjectById(owner.objectId) != owner
                     || owner.RepresentationVersion != version) return;
-                float distance = universe.Lifecycle.MinPlayerDistance(owner);
+                float distance = universe.MapStates.MinPlayerDistance(owner);
                 float limit = Mathf.Max(DeltaVMod.CurrentSettings.poiDeleteRadius,
                     DeltaVMod.CurrentSettings.poiActiveRadius + 1f);
                 if (departing || !float.IsPositiveInfinity(distance) && distance > limit)

@@ -349,10 +349,21 @@ internal static class Program
             "source and plant grower clones have independent Thing IDs");
     }
 
+    static void StablePrefabUuids()
+    {
+        Check(AccessTools.Field(typeof(Building_SpaceTradeTerminal), "terminalUuid") == null
+            && AccessTools.Field(typeof(CompPrefabMarker), "markerUuid") == null,
+            "prefab terminals and markers require no per-instance UUID identity");
+        Check(AccessTools.Method(typeof(Building_SpaceTradeTerminal), "ValidatePrefabEndpoints") == null
+            && AccessTools.Method(typeof(CompPrefabMarker), "ValidatePrefabMarkerUuids") == null,
+            "prefab loading contains no UUID validation gate");
+    }
+
     static void Run()
     {
         using var logLock = Log.LockMessages();
         PrepareNativeFixture();
+        StablePrefabUuids();
         ImportMissingDefs();
         PlantGrowerContents();
         // Def constructors preload shaders; only those rendering defaults are bypassed here.

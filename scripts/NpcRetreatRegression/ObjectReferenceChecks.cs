@@ -142,7 +142,7 @@ internal static partial class Program
             && universe.PlayerReferenceObjects().Contains(solo),
             "intrusion adds projectile behavior while preserving player ship membership and persistence");
         var target = new SpaceObject(900, new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(100, 0)), 0));
-        Check(Math.Abs(universe.Lifecycle.MinPlayerDistance(target) - 100) < 0.1,
+        Check(Math.Abs(universe.MapStates.MinPlayerDistance(target) - 100) < 0.1,
             "POI distance uses the solo shuttle container position");
         var snapshot = universe.PlayerReferenceObjects();
         universe.objects.Add(new SpaceObject(901, target.pose) { baseTag = SpaceObjectTag.Projectile, faction = player });

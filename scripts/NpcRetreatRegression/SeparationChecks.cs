@@ -267,7 +267,7 @@ internal static partial class Program
             Set(universe, "objectById", null);
             Set(universe, "objectByMap", null);
             Actions(universe)?.Clear();
-            universe.Lifecycle.Reset();
+            universe.MapStates.Reset();
             Find.Maps.Remove(map);
             Find.Maps.Remove(neighbor);
         }
@@ -319,7 +319,7 @@ internal static partial class Program
                 postfix: new HarmonyMethod(typeof(Patch_SpaceScatterCargo_Deregister), "Postfix"));
             var scatter = AccessTools.Method(typeof(SpaceScatterService), "TryScatter", new[] { typeof(Thing) });
             harmony.Patch(scatter, prefix: new HarmonyMethod(typeof(Program), nameof(RejectFixtureItem)));
-            Check(!universe.Lifecycle.RecycleUnsupportedMap(map) && item.Spawned && Find.Maps.Contains(map)
+            Check(!universe.MapStates.RecycleUnsupportedMap(map) && item.Spawned && Find.Maps.Contains(map)
                 && universe.ObjectById(frame.objectId) == frame,
                 "an unsupported map survives when part of its cargo cannot be scattered");
             SpaceObject pawnPayload = universe.objects.Single(obj => obj.Payload?.Entity == pawn);
@@ -328,7 +328,7 @@ internal static partial class Program
             harmony.Unpatch(scatter, HarmonyPatchType.Prefix, harmony.Id);
             harmony.Patch(AccessTools.Method(typeof(PocketMapUtility), nameof(PocketMapUtility.DestroyPocketMap)),
                 prefix: new HarmonyMethod(typeof(Program), nameof(DestroyUnsupportedFixture)));
-            Check(universe.Lifecycle.RecycleUnsupportedMap(map) && universe.ObjectById(frame.objectId) == null
+            Check(universe.MapStates.RecycleUnsupportedMap(map) && universe.ObjectById(frame.objectId) == null
                 && !Find.Maps.Contains(map), "successful retry recycles the unsupported map");
             SpaceObject itemPayload = universe.objects.Single(obj => obj.Payload?.Entity == item);
             Check(itemPayload.map == null && itemPayload.pose.Equals(expected)

@@ -417,7 +417,7 @@ namespace DeltaV
                 ResetGeneratorStatics();
                 if (map != null && Find.Maps.Contains(map))
                 {
-                    try { Current.Game.GetComponent<UniverseManager>().Lifecycle.DeinitMap(map, false); }
+                    try { Current.Game.GetComponent<UniverseManager>().MapStates.DeinitMap(map, false); }
                     catch { Find.Maps.Remove(map); }
                 }
                 else if (map != null) RimExodus.Maps.MapRuntime.Current.Forget(map);
@@ -592,7 +592,7 @@ namespace DeltaV
             ResetGeneratorStatics();
             if (map != null && Find.Maps.Contains(map))
             {
-                try { Current.Game.GetComponent<UniverseManager>().Lifecycle.DeinitMap(map, false); }
+                try { Current.Game.GetComponent<UniverseManager>().MapStates.DeinitMap(map, false); }
                 catch (Exception ex)
                 {
                     Log.Error($"[DeltaV] Failed to remove partial map: {ex}");

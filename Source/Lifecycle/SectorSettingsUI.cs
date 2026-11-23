@@ -31,7 +31,9 @@ namespace DeltaV
             }
             if (Widgets.ButtonText(new Rect(controls.x + (button + 8) * 2, controls.y, button, RowHeight), "DeltaV_SectorImport".Translate())) Import(settings);
             if (Widgets.ButtonText(new Rect(controls.x + (button + 8) * 3, controls.y, button, RowHeight), "DeltaV_SectorReset".Translate()))
-                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation("DeltaV_SectorResetConfirm".Translate(), () =>
+                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
+                    "DeltaV_SectorResetConfirm".Translate() + "\n\n"
+                    + "DeltaV_SectorClassificationChangeConfirm".Translate(), () =>
                 { settings.sectorGenerationRoots = SectorGenerationTable.Defaults(); settings.sectorGenerationPreset = SectorGenerationPreset.Standard; Buffers.Clear(); }));
 
             Rect preset = new Rect(rect.x, controls.yMax + 4, rect.width, RowHeight);
@@ -75,7 +77,10 @@ namespace DeltaV
                 "DeltaV_SettingsSectorDensityTip".Translate(), ref node.standardDensityPer100MCells2, 0, SectorGenerationTable.MaxStandardDensity);
             Rect prefabs = Indented(list.GetRect(RowHeight), indent);
             if (Widgets.ButtonText(prefabs, "DeltaV_SettingsSelectGenerationPrefabs".Translate()))
-                Dialog_PrefabSelector.OpenMultiple("DeltaV_SettingsPrefabTreeTitle".Translate(node.label), node.prefabPaths);
+                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
+                    "DeltaV_SectorClassificationChangeConfirm".Translate(), () =>
+                    Dialog_PrefabSelector.OpenMultiple(
+                        "DeltaV_SettingsPrefabTreeTitle".Translate(node.label), node.prefabPaths)));
             TooltipHandler.TipRegion(prefabs, "DeltaV_SettingsSectorPrefabPoolTip".Translate() + "\n\n"
                 + "DeltaV_SettingsPrefabTreeCurrentCount".Translate(node.prefabPaths.Count));
         }
@@ -96,7 +101,9 @@ namespace DeltaV
             {
                 if (!SectorGenerationJson.TryRead(path, out SectorGenerationDocument document, out string error))
                 { Messages.Message("DeltaV_SectorJsonFailed".Translate(error), MessageTypeDefOf.RejectInput, false); return; }
-                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation("DeltaV_SectorImportConfirm".Translate(Path.GetFileName(path)), () =>
+                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
+                    "DeltaV_SectorImportConfirm".Translate(Path.GetFileName(path)) + "\n\n"
+                    + "DeltaV_SectorClassificationChangeConfirm".Translate(), () =>
                 { settings.sectorGenerationRoots = document.roots; settings.sectorGenerationPreset = document.densityPreset; Buffers.Clear(); }));
             })).ToList()));
         }

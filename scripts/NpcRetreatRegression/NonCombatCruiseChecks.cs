@@ -158,7 +158,7 @@ internal static partial class Program
         var reference = new CruiseReference(55000, Vector3.forward, true, f.player);
         var target = new SpaceObject(55001, new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(100, 0)), 0));
         universe.objects.Add(reference); universe.objects.Add(target);
-        var batch = new SpaceLifecycleService.PlayerDistanceBatch(universe);
+        var batch = new SpaceMapStateManager.PlayerDistanceBatch(universe);
         cruiseReferencesBuilt = 0;
         Check(cruiseReferencesBuilt == 0, "a distance batch without queries does not enumerate player references");
         bool distancesMatch = true;
@@ -185,11 +185,11 @@ internal static partial class Program
         Check(Math.Abs(batch.Distance(target) - 10) < .01, "explicit native-map invalidation rebuilds membership");
         var replacement = new CruiseReference(nearer.objectId, Vector3.forward, true, f.player);
         universe.objects[universe.objects.IndexOf(nearer)] = replacement;
-        var nextBatch = new SpaceLifecycleService.PlayerDistanceBatch(universe);
+        var nextBatch = new SpaceMapStateManager.PlayerDistanceBatch(universe);
         Check(Math.Abs(nextBatch.Distance(target) - 100) < .01,
             "a new synchronous batch sees a replacement representation with the same object ID");
         float deferred = -1;
-        universe.QueueFrameAction(() => deferred = universe.Lifecycle.MinPlayerDistance(target));
+        universe.QueueFrameAction(() => deferred = universe.MapStates.MinPlayerDistance(target));
         replacement.pose.position = OrbitSphere.Move(Vector3.forward, new Vector2(70, 0));
         var queued = Actions(universe); var action = queued[queued.Count - 1]; queued.RemoveAt(queued.Count - 1); action();
         Check(Math.Abs(deferred - 30) < .01, "frame actions resolve current references rather than capturing the batch");
@@ -199,16 +199,16 @@ internal static partial class Program
             pose = new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(radius + 10, 0)), 0) };
         universe.objects.Clear(); universe.objects.Add(replacement); universe.objects.Add(archive);
         replacement.pose.position = Vector3.forward;
-        var arrivalBatch = new SpaceLifecycleService.PlayerDistanceBatch(universe);
+        var arrivalBatch = new SpaceMapStateManager.PlayerDistanceBatch(universe);
         int pending = Actions(universe)?.Count ?? 0;
-        universe.Lifecycle.CheckArchivedProximity(archive, arrivalBatch);
+        universe.MapStates.CheckArchivedProximity(archive, arrivalBatch);
         Check((Actions(universe)?.Count ?? 0) == pending, "an archive outside the current radius does not queue an early restore");
         replacement.pose.position = OrbitSphere.Move(Vector3.forward, new Vector2(20, 0));
-        universe.Lifecycle.CheckArchivedProximity(archive, arrivalBatch);
+        universe.MapStates.CheckArchivedProximity(archive, arrivalBatch);
         Check(Actions(universe).Count == pending + 1,
             "an integrated player reference crossing the radius queues restoration in the same check");
         Actions(universe).RemoveAt(pending);
-        ((HashSet<int>)AccessTools.Field(typeof(SpaceLifecycleService), "restoreQueued").GetValue(universe.Lifecycle)).Remove(archive.objectId);
+        Call(universe.MapStates, "CancelTransition", archive.objectId, MapTransitionKind.Restore);
     }
 
     // Reflection lets the same workload run against the preserved pre-change production DLL.
@@ -242,11 +242,11 @@ internal static partial class Program
         f.universe.objects.Add(new CruiseReference(57000, Vector3.forward, true, f.player));
         for (int i = 1; i < 256; i++) f.universe.objects.Add(new SpaceObject(57000 + i,
             new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(i * 10, 0)), 0)));
-        var type = typeof(SpaceLifecycleService).GetNestedType("PlayerDistanceBatch", BindingFlags.NonPublic);
+        var type = typeof(SpaceMapStateManager).GetNestedType("PlayerDistanceBatch", BindingFlags.NonPublic);
         Func<SpaceObject, float> getDistance;
         Action distances;
         if (type == null)
-            distances = () => { foreach (var obj in f.universe.objects) _ = f.universe.Lifecycle.MinPlayerDistance(obj); };
+            distances = () => { foreach (var obj in f.universe.objects) _ = f.universe.MapStates.MinPlayerDistance(obj); };
         else
         {
             var ctor = AccessTools.Constructor(type, new[] { typeof(UniverseManager) });

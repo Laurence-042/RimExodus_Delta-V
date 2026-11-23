@@ -42,35 +42,66 @@ namespace DeltaV
     // Stable addresses, not external Thing references into unloadable maps.
     public sealed class MissionTarget : IExposable
     {
-        public int objectId, shipId, thingId;
+        public int objectId, shipId;
         public string label;
         public static MissionTarget Of(UniverseManager u, Thing thing)
         {
+            SpaceObject host = u.FrameOf(thing.Map);
+            if (thing is Building_SpaceTradeTerminal)
+                return new MissionTarget { objectId = host?.objectId ?? 0,
+                    label = host?.label ?? thing.LabelCap.ToString() };
             ShipBase ship = ShipRegistry.ShipOf(thing);
-            return new MissionTarget { objectId = u.FrameOf(thing.Map)?.objectId ?? 0,
-                shipId = ship.IsValid ? ship.Identity.key : 0, thingId = thing.thingIDNumber,
+            return new MissionTarget { objectId = host?.objectId ?? 0,
+                shipId = ship.IsValid ? ship.Identity.key : 0,
                 label = ship.IsValid ? ship.Label : thing.LabelCap.ToString() };
         }
         public Thing Resolve(UniverseManager u)
         {
+            if (u == null) return null;
+            if (shipId <= 0)
+            {
+                SpaceObject host = u.ObjectById(objectId);
+                return host?.map == null || host.map.Disposed ? null
+                    : ShipStructureIndex.Read(host.map).BuildingsOf<Building_SpaceTradeTerminal>()
+                        .Where(terminal => terminal.Spawned).OrderBy(terminal => terminal.thingIDNumber)
+                        .FirstOrDefault();
+            }
             foreach (SpaceObject obj in u.objects)
             {
                 if (obj.map == null || obj.map.Disposed) continue;
-                Thing found = u.ShipStructure.For(obj.map).Find(thingId);
-                if (found == null) continue;
-                objectId = obj.objectId;
-                ShipBase ship = ShipRegistry.ShipOf(found);
-                shipId = ship.IsValid ? ship.Identity.key : 0;
-                return found;
+                ShipBase ship = obj.Ships.FirstOrDefault(candidate => candidate.Identity.key == shipId);
+                if (ship?.IsValid == true)
+                {
+                    objectId = obj.objectId;
+                    return ship.Anchor;
+                }
             }
             return null;
+        }
+        public bool Matches(UniverseManager u, Thing thing)
+        {
+            if (thing == null || !thing.Spawned) return false;
+            SpaceObject obj = u?.FrameOf(thing.Map);
+            if (obj == null) return false;
+            if (shipId <= 0)
+                return thing is Building_SpaceTradeTerminal && obj.objectId == objectId;
+            ShipBase ship = ShipRegistry.ShipOf(thing);
+            return ship.IsValid && ship.Identity.key == shipId;
+        }
+        internal bool References(SpaceObject obj)
+        {
+            if (obj == null) return false;
+            if (objectId == obj.objectId) return true;
+            return shipId > 0 && (obj is ArchivedSpaceObject archived
+                ? archived.globe?.ships.Any(ship => !ship.shuttle && ship.key == shipId) == true
+                : obj.Ships.Any(ship => ship.Identity.key == shipId));
         }
         internal GlobeTarget Navigation => shipId > 0 ? new GlobeTarget { shipKey = shipId }
             : new GlobeTarget { objectId = objectId };
         public void ExposeData()
         {
             Scribe_Values.Look(ref objectId, "objectId"); Scribe_Values.Look(ref shipId, "shipId");
-            Scribe_Values.Look(ref thingId, "thingId"); Scribe_Values.Look(ref label, "label");
+            Scribe_Values.Look(ref label, "label");
         }
     }
 
@@ -134,13 +165,16 @@ namespace DeltaV
 
     public sealed class MissionBoard : IExposable
     {
-        public MissionTarget terminal;
+        public int hostObjectId;
+        public string label;
         public Faction faction;
         public int refreshed = -1;
         public List<SpaceMission> offers = new List<SpaceMission>();
         public void ExposeData()
         {
-            Scribe_Deep.Look(ref terminal, "terminal"); Scribe_References.Look(ref faction, "faction");
+            Scribe_Values.Look(ref hostObjectId, "hostObjectId");
+            Scribe_Values.Look(ref label, "label");
+            Scribe_References.Look(ref faction, "faction");
             Scribe_Values.Look(ref refreshed, "refreshed", -1);
             Scribe_Collections.Look(ref offers, "offers", LookMode.Deep);
         }

@@ -20,7 +20,7 @@ namespace DeltaV
     /// - NativeParent 型 PoiState 例外：map 字段跟随原版 MapParent 镜像
     ///   （SynchronizeNative/UpdateFromParent），保留原版图标与生命周期。
     /// </summary>
-    public sealed partial class SpaceLifecycleService
+    public sealed partial class SpaceMapStateManager
     {
         public const int PoiMapSize = 90;
         private const int SmallWreckMaxSupportCells = 64;
@@ -33,23 +33,32 @@ namespace DeltaV
         private const int GenerationFailureBackoffTicks = 2500;
 
         private readonly UniverseManager universe;
-        private readonly MapDormancyService dormancy = new MapDormancyService();
-
         /// <summary>物化失败退避（marker.objectId → 可重试 tick；运行时不存档）。</summary>
         private readonly Dictionary<int, int> generationRetryAfterTick = new Dictionary<int, int>();
 
-        public SpaceLifecycleService(UniverseManager universe)
+        public SpaceMapStateManager(UniverseManager universe)
         {
             this.universe = universe;
+            universe.PlayerMapActivitySignaled += ReceivePlayerMapActivity;
         }
 
-        public bool IsDormant(Map map) => dormancy.IsDormant(map);
+        public bool IsDormant(Map map) => map != null
+            && RimExodus.Maps.MapRuntime.Current.TickRates.IsStopped(map);
         public bool IsFrozen(Map map) => IsDormant(map) || IsUniverseHost(map)
             || universe.Generation?.IsGenerating(map) == true;
         public static bool IsUniverseHost(Map map) => map?.Parent is UniverseHostParent_DeltaV;
         public void Wake(Map map, string reason)
         {
-            dormancy.Wake(map, reason);
+            if (map == null || map.Disposed) return;
+            RimExodus.Maps.MapRuntime.Current.TickRates.Release(map, SharedMapBackend.Owner);
+            Find.ColonistBar?.MarkColonistsDirty();
+        }
+
+        private static void Sleep(Map map, string reason)
+        {
+            if (map == null || map.Disposed) return;
+            RimExodus.Maps.MapRuntime.Current.TickRates.Set(map, SharedMapBackend.Owner, 0);
+            Find.ColonistBar?.MarkColonistsDirty();
         }
 
         /// <summary>Call-local membership only; distances always read each reference's current pose.</summary>
@@ -119,10 +128,14 @@ namespace DeltaV
             if (float.IsPositiveInfinity(distance)) return;
             string key = GenerationKey(poi);
             universe.Generation.UpdatePriority(key, distance);
-            if (distance > activeRadius) universe.Generation.CancelQueued(key);
+            if (distance > activeRadius)
+            {
+                universe.Generation.CancelQueued(key);
+                CancelTransition(poi.objectId, MapTransitionKind.Materialize);
+            }
             if (poi.map != null && SpaceMapGovernance.MustStayActive(poi.map, universe))
             {
-                dormancy.Wake(poi.map, "protected map");
+                Wake(poi.map, "protected map");
                 return;
             }
             if (IsPendingGeneration(poi)) return;
@@ -145,6 +158,8 @@ namespace DeltaV
             if (map == null)
             {
                 CheckArchivedProximity(container, distances);
+                if (container is ArchivedSpaceObject)
+                    RequestColdRetirement(container);
                 return;
             }
             if (IsUniverseHost(map)) return;
@@ -168,21 +183,26 @@ namespace DeltaV
                 QueueStructureCheck(map);
                 return;
             }
+            if (SpaceMapGovernance.HasPlayerPawn(map))
+                RecordPlayerContact(container.objectId, PlayerContactKind.PawnPresence);
+            if (container.HasTag(SpaceObjectTag.Ship)
+                && container.HasFaction(Faction.OfPlayerSilentFail))
+                RecordPlayerContact(container.objectId, PlayerContactKind.ShipPresence);
             if (SpaceMapGovernance.MustStayActive(map, universe))
             {
-                dormancy.Wake(map, "protected map");
+                Wake(map, "protected map");
                 return;
             }
             float distance = distances.Distance(container);
             if (float.IsPositiveInfinity(distance)) return;
             if (distance <= activeRadius)
             {
-                dormancy.Wake(map, "inside load radius");
+                Wake(map, "inside load radius");
                 return;
             }
             if (distance <= deleteRadius)
             {
-                dormancy.Sleep(map, "outside load radius");
+                Sleep(map, "outside load radius");
                 return;
             }
             ArchiveContainer(container, map);
@@ -220,7 +240,7 @@ namespace DeltaV
         {
             if (poi.map != null)
             {
-                dormancy.Wake(poi.map, "inside POI load radius");
+                Wake(poi.map, "inside POI load radius");
                 return;
             }
             // 物化失败退避期内不重试（防每 60 tick 无限重生成）。
@@ -237,6 +257,8 @@ namespace DeltaV
         {
             MapParent parent = poi.nativeParent;
             if (parent == null || parent.Destroyed || parent.HasMap) return;
+            int version = poi.RepresentationVersion;
+            if (!TryBeginTransition(poi, MapTransitionKind.Materialize)) return;
             IntVec3 size = SpaceMapGovernance.GenerationSize(parent);
             universe.Generation.Enqueue(new IncrementalMapGenerationRequest
             {
@@ -246,12 +268,22 @@ namespace DeltaV
                 extraGenSteps = parent.ExtraGenStepDefs, isPocketMap = false,
                 onComplete = map =>
                 {
-                    poi.map = map;
-                    OrbitalPoiRegistry.EnsureForMap(universe, map);
-                    dormancy.Wake(map, "generation complete");
-                    Messages.Message("DeltaV_PoiActivated".Translate(poi.label), MessageTypeDefOf.NeutralEvent, false);
+                    try
+                    {
+                        if (!TransitionStillCurrent(poi.objectId, MapTransitionKind.Materialize, version))
+                            return;
+                        poi.map = map;
+                        OrbitalPoiRegistry.EnsureForMap(universe, map);
+                        Wake(map, "generation complete");
+                        Messages.Message("DeltaV_PoiActivated".Translate(poi.label), MessageTypeDefOf.NeutralEvent, false);
+                    }
+                    finally { CompleteTransition(poi.objectId, MapTransitionKind.Materialize, version); }
                 },
-                onFailure = ex => ReportGenerationFailure(poi.label, ex)
+                onFailure = ex =>
+                {
+                    CompleteTransition(poi.objectId, MapTransitionKind.Materialize, version);
+                    ReportGenerationFailure(poi.label, ex);
+                }
             });
         }
 
@@ -263,23 +295,30 @@ namespace DeltaV
             // 报错并取消该 POI（prefab-only 定案）——生成期已拦截池空，此处兜配置
             // 事后变更的存量 marker。
             IntVec3 size;
+            string resolvedPrefabPath = null;
+            MapPrefabDocument resolvedPrefab = null;
             if (marker.snapshot != null && marker.snapshot.HasSourceSize)
             {
                 size = marker.snapshot.SourceMapSize;
             }
-            else if (TryGetPrefabPoolSize(marker, out IntVec3 prefabSize))
+            else if (TryResolvePrefabSource(marker, out resolvedPrefabPath, out resolvedPrefab,
+                out string prefabError))
             {
-                size = prefabSize;
+                Rot4 rotation = new Rot4(marker.sourcePrefabSeed & 3);
+                size = ShipPocketMapFactory.CompactSize(MapPrefab.ContentBounds(resolvedPrefab, rotation).Size);
             }
             else
             {
-                Log.Error($"[DeltaV] {marker.label}: frozen prefab is missing or unloadable; " +
-                    "POI canceled instead of materialized.");
-                universe.UnregisterObject(marker);
+                Log.Error($"[DeltaV] {marker.label}: no valid prefab source is available; "
+                    + $"the unmaterialized object was retained ({prefabError}).");
+                generationRetryAfterTick[marker.objectId] =
+                    Find.TickManager.TicksGame + GenerationFailureBackoffTicks;
                 return;
             }
             Map host = universe.GetOrCreateHostMap(CapacityScore(size.x * size.z, priority));
             if (host == null) return;
+            int version = marker.RepresentationVersion;
+            if (!TryBeginTransition(marker, MapTransitionKind.Materialize)) return;
             var parent = (ShipPocketParent_DeltaV)WorldObjectMaker.MakeWorldObject(DeltaVDefOf.DeltaV_ShipMapParent);
             parent.sourceMap = host;
             parent.mapGenerator = DeltaVDefOf.DeltaV_ShipPocket;
@@ -291,18 +330,24 @@ namespace DeltaV
                 isPocketMap = true,
                 onComplete = map =>
                 {
-                    Find.World.pocketMaps.Add(parent);
-                    // 孤儿图防护：排队期间 marker 被注销（注销入口会取消排队，此处双
-                    // 保险）→ 丢弃本次生成的图，不给死实例赋 map。
-                    if (universe.ObjectById(marker.objectId) != marker)
+                    try
                     {
-                        DestroyPocketMap(map);
-                        return;
+                        Find.World.pocketMaps.Add(parent);
+                        // 孤儿图防护：排队期间 marker 被注销（注销入口会取消排队，此处双
+                        // 保险）→ 丢弃本次生成的图，不给死实例赋 map。
+                        if (!TransitionStillCurrent(marker.objectId, MapTransitionKind.Materialize, version)
+                            || universe.ObjectById(marker.objectId) != marker)
+                        {
+                            DestroyPocketMap(map);
+                            return;
+                        }
+                        MaterializeMarker(marker, map, resolvedPrefabPath, resolvedPrefab);
                     }
-                    MaterializeMarker(marker, map);
+                    finally { CompleteTransition(marker.objectId, MapTransitionKind.Materialize, version); }
                 },
                 onFailure = ex =>
                 {
+                    CompleteTransition(marker.objectId, MapTransitionKind.Materialize, version);
                     // onComplete 开头的 pocketMaps.Add 不会回滚：onComplete 中途抛出时
                     // parent 已入 pocketMaps 而 CleanupFailed 只 Deinit 图——显式摘除，
                     // 防止重试积累死 parent。
@@ -333,14 +378,13 @@ namespace DeltaV
             return container;
         }
 
-        private void MaterializeMarker(PoiState marker, Map map)
+        private void MaterializeMarker(PoiState marker, Map map,
+            string resolvedPrefabPath, MapPrefabDocument resolvedPrefab)
         {
             var container = CreateMaterializedContainer(marker, map);
             universe.ReplaceRepresentation(marker, container);
-            generationRetryAfterTick.Remove(marker.objectId);
 
             int ownerId = marker.objectId;
-            string poolPath = null;
             try
             {
                 if (!marker.envLabel.NullOrEmpty())
@@ -351,64 +395,73 @@ namespace DeltaV
                 }
                 else
                 {
-                    poolPath = ResolvePoolPrefabPath(marker);
-                    if (poolPath == null)
-                        throw new InvalidOperationException("Marker has no frozen prefab path.");
-                    MapPrefabDocument doc = MapPrefab.LoadRelative(poolPath);
-                    Rot4 rotation = new Rot4(marker.seed & 3);
-                    MapPrefab.SpawnSpaceObject(doc, map, MapPrefab.CenteredPosition(doc, map, rotation),
+                    if (resolvedPrefab == null || resolvedPrefabPath.NullOrEmpty())
+                        throw new InvalidOperationException("Marker has no resolved prefab source.");
+                    Rot4 rotation = new Rot4(marker.sourcePrefabSeed & 3);
+                    MapPrefab.SpawnSpaceObject(resolvedPrefab, map,
+                        MapPrefab.CenteredPosition(resolvedPrefab, map, rotation),
                         marker.faction, ownerId, rotation, universe, blankSpace: true);
+                    container.sourcePrefabPath = resolvedPrefabPath;
                 }
             }
             catch (Exception ex)
             {
                 Log.Error($"[DeltaV] {marker.label} #{container.objectId}: materialization canceled " +
-                    $"({poolPath ?? (marker.snapshot != null ? "snapshot" : "prefab pool")}): {ex}");
+                    $"({resolvedPrefabPath ?? (marker.snapshot != null ? "snapshot" : "prefab source")}): {ex}");
+                if (universe.ObjectById(container.objectId) == container)
+                    universe.ReplaceRepresentation(container, marker);
                 // FinalizeInit may still have queued drawing setup for this map.
                 universe.QueueFrameAction(() =>
                 {
                     if (universe.SpaceObjectOnMap(map) == null) DestroyPocketMap(map);
                 });
-                universe.UnregisterObject(container);
+                generationRetryAfterTick[marker.objectId] =
+                    Find.TickManager.TicksGame + GenerationFailureBackoffTicks;
                 return;
             }
 
+            generationRetryAfterTick.Remove(marker.objectId);
             universe.NpcShips.NotifyMaterialized(container);
-            dormancy.Wake(map, "generation complete");
+            Wake(map, "generation complete");
             Messages.Message((marker.snapshot != null ? "DeltaV_PoiRestored" : "DeltaV_PoiActivated")
                 .Translate(container.label), MessageTypeDefOf.NeutralEvent, false);
             DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                 $"{container.label}: POI #{container.objectId} materialized ({UniverseManager.MapTag(map)})");
         }
 
-        /// <summary>无快照 marker 在生成时冻结的确切 prefab 路径。</summary>
-        private static string ResolvePoolPrefabPath(PoiState marker)
+        /// <summary>Resolve and load one prefab once per transition; all later sizing/spawn uses it.</summary>
+        private bool TryResolvePrefabSource(SpaceObject obj, out string path,
+            out MapPrefabDocument document, out string error)
         {
-            return marker?.sourcePrefabPath.NullOrEmpty() == false ? marker.sourcePrefabPath : null;
-        }
-
-        /// <summary>池可用时按选定 prefab 尺寸 + 边距决定目标图尺寸（下限 PoiMapSize）。</summary>
-        private static bool TryGetPrefabPoolSize(PoiState marker, out IntVec3 size)
-        {
-            size = IntVec3.Invalid;
-            string path = ResolvePoolPrefabPath(marker);
-            if (path == null) return false;
+            path = null;
+            document = null;
+            error = null;
             try
             {
-                MapPrefabDocument doc = MapPrefab.LoadRelative(path);
-                size = ShipPocketMapFactory.CompactSize(MapPrefab.ContentBounds(doc, new Rot4(marker.seed & 3)).Size);
+                DeltaVSettings settings = DeltaVMod.CurrentSettings;
+                settings?.EnsureSectorGenerationTable();
+                List<SectorGenerationNode> roots = settings?.sectorGenerationRoots
+                    ?? SectorGenerationTable.Defaults();
+                path = SectorGenerationTable.ResolveFrozenPrefab(roots, obj?.sourcePrefabPath,
+                    obj?.sourcePrefabCategoryPath, obj?.sourcePrefabSeed ?? 0);
+                if (path.NullOrEmpty())
+                {
+                    error = "the exact source, its classification ancestors, and the global prefab pool are empty";
+                    return false;
+                }
+                document = MapPrefab.LoadRelative(path);
                 return true;
             }
             catch (Exception ex)
             {
-                Log.Warning($"[DeltaV] prefab pool size probe failed for '{path}' ({marker.label}): {ex.Message}");
+                error = ex.Message;
                 return false;
             }
         }
 
         private void EnsureDormant(PoiState poi)
         {
-            if (poi.map != null) dormancy.Sleep(poi.map, "outside POI load radius");
+            if (poi.map != null) Sleep(poi.map, "outside POI load radius");
         }
 
         /// <summary>
@@ -425,7 +478,7 @@ namespace DeltaV
             if (parent == null || parent.Destroyed) return;
             if (!parent.ShouldRemoveMapNow(out bool alsoRemoveWorldObject))
             {
-                dormancy.Sleep(map, "native removal blocked");
+                Sleep(map, "native removal blocked");
                 return;
             }
             poi.map = null;
@@ -476,33 +529,39 @@ namespace DeltaV
         {
             if (container.IsScattered) { universe.Scatter.RetireLost(container, departing); return; }
             int objectId = container.objectId, version = container.RepresentationVersion;
+            if (!TryBeginTransition(container, MapTransitionKind.Archive, map)) return;
             universe.QueueFrameAction(delegate
             {
-                container = universe.ObjectById(objectId);
-                if (container?.RepresentationVersion != version || container.map != map) return; // 已被替换/改变 → 丢弃本任务
-                if (map.Disposed || !Find.Maps.Contains(map))
+                try
                 {
-                    universe.UnregisterObject(container);
-                    DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                        $"{container.label}: map destroyed externally before archiving; object removed");
-                    return;
+                    if (!TransitionStillCurrent(objectId, MapTransitionKind.Archive, version, map)) return;
+                    container = universe.ObjectById(objectId);
+                    if (container?.RepresentationVersion != version || container.map != map) return;
+                    if (map.Disposed || !Find.Maps.Contains(map))
+                    {
+                        universe.UnregisterObject(container);
+                        DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                            $"{container.label}: map destroyed externally before archiving; object removed");
+                        return;
+                    }
+                    float distance = MinPlayerDistance(container);
+                    bool beyondDeleteRadius = departing || (!float.IsPositiveInfinity(distance) && distance > DeleteRadius);
+                    if ((!force && !beyondDeleteRadius)
+                        || SpaceMapGovernance.MustStayActive(map, universe)
+                        || container.HasTag(SpaceObjectTag.Projectile) == true
+                        || map.Parent is not ShipPocketParent_DeltaV
+                        || !ArchivedMapStore.CanUnloadLosslessly(map))
+                    {
+                        return;
+                    }
+                    if (IsDisposableContainer(container, map))
+                    {
+                        if (beyondDeleteRadius) RemoveDistantContainer(container, map);
+                        return;
+                    }
+                    CaptureAndUnload((MapSpaceObject)container, map);
                 }
-                float distance = MinPlayerDistance(container);
-                bool beyondDeleteRadius = departing || (!float.IsPositiveInfinity(distance) && distance > DeleteRadius);
-                if ((!force && !beyondDeleteRadius)
-                    || SpaceMapGovernance.MustStayActive(map, universe)
-                    || container.HasTag(SpaceObjectTag.Projectile) == true
-                    || map.Parent is not ShipPocketParent_DeltaV
-                    || !ArchivedMapStore.CanUnloadLosslessly(map))
-                {
-                    return;
-                }
-                if (IsDisposableContainer(container, map))
-                {
-                    if (beyondDeleteRadius) RemoveDistantContainer(container, map);
-                    return;
-                }
-                CaptureAndUnload((MapSpaceObject)container, map);
+                finally { CompleteTransition(objectId, MapTransitionKind.Archive, version); }
             });
         }
 
@@ -556,8 +615,6 @@ namespace DeltaV
                 || SubstructureOwnership.For(map).SupportCellCount <= SmallWreckMaxSupportCells;
         }
 
-        private readonly HashSet<int> restoreQueued = new HashSet<int>();
-
         internal void CheckArchivedProximity(SpaceObject container, PlayerDistanceBatch distances = null)
         {
             if (container is ArchivedSpaceObject archived
@@ -588,23 +645,27 @@ namespace DeltaV
         }
         private void ActivateRestoredContainer(SpaceObject container)
         {
-            dormancy.Wake(container.map, "full map archive restored");
+            Wake(container.map, "full map archive restored");
             universe.Weapons.RegisterMapWeapons(container.map);
             universe.Controls.RegisterMap(container.map);
         }
         private void QueueRestore(ArchivedSpaceObject container)
         {
             int id = container.objectId, version = container.RepresentationVersion;
-            if (!restoreQueued.Add(id)) return;
+            if (!TryBeginTransition(container, MapTransitionKind.Restore)) return;
             universe.QueueFrameAction(() =>
             {
-                restoreQueued.Remove(id);
-                if (!(universe.ObjectById(id) is ArchivedSpaceObject archive)
-                    || archive.RepresentationVersion != version) return;
-                if (!TryRestoreContainer(archive, out MapSpaceObject current)) return;
-                ActivateRestoredContainer(current);
-                DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                    $"{current.label}: full map restored ({UniverseManager.MapTag(current.map)})");
+                try
+                {
+                    if (!TransitionStillCurrent(id, MapTransitionKind.Restore, version)
+                        || !(universe.ObjectById(id) is ArchivedSpaceObject archive)
+                        || archive.RepresentationVersion != version) return;
+                    if (!TryRestoreContainer(archive, out MapSpaceObject current)) return;
+                    ActivateRestoredContainer(current);
+                    DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                        $"{current.label}: full map restored ({UniverseManager.MapTag(current.map)})");
+                }
+                finally { CompleteTransition(id, MapTransitionKind.Restore, version); }
             });
         }
 
@@ -615,7 +676,7 @@ namespace DeltaV
         internal bool TryRemoveArchivedContainer(ArchivedSpaceObject archive)
         {
             if (universe.ObjectById(archive.objectId) != archive || archive.mapData.NullOrEmpty()) return false;
-            if (restoreQueued.Contains(archive.objectId)
+            if (IsTransitionPending(archive.objectId, MapTransitionKind.Restore)
                 || MinPlayerDistance(archive) <= DeltaVMod.CurrentSettings.poiActiveRadius)
             {
                 QueueRestore(archive);
@@ -657,8 +718,8 @@ namespace DeltaV
             DeinitMap(map, notifyPlayer: false);
             Find.World.pocketMaps.Remove(parent);
             if (!parent.Destroyed) parent.Destroy();
-            universe.UnregisterObject(obj);
             obj.map = null;
+            CommitRetirement(obj, "distant disposable container");
         }
 
         /// <summary>外部销图的统一注销；归档已换表示时不得移除同 ID 的新对象。</summary>
@@ -678,8 +739,13 @@ namespace DeltaV
 
         private void Forget(Map map, bool projectileTargetsAlreadyReviewed)
         {
-            pendingStructureChecks.Remove(map);
-            dormancy.Forget(map);
+            if (map != null)
+            {
+                foreach (int objectId in PendingTransitions.Where(pair => pair.Value.map == map)
+                    .Select(pair => pair.Key).ToList())
+                    PendingTransitions.Remove(objectId);
+            }
+            RimExodus.Maps.MapRuntime.Current.Forget(map);
             universe.ForgetMapRuntimeState(map, projectileTargetsAlreadyReviewed);
             universe.Weapons.ForgetMap(map);
             ShipStatusPanel.Forget(map);
@@ -738,7 +804,8 @@ namespace DeltaV
             }
         }
         private bool IsPendingGeneration(PoiState poi) => poi != null
-            && universe.Generation?.IsQueued(GenerationKey(poi)) == true;
+            && (IsTransitionPending(poi.objectId, MapTransitionKind.Materialize)
+                || universe.Generation?.IsQueued(GenerationKey(poi)) == true);
         private static string GenerationKey(PoiState poi) => poi.kind == PoiKind.NativeParent
             ? $"orbital-parent:{poi.nativeParent?.ID ?? poi.objectId}" : $"snapshot-poi:{poi.objectId}";
 
@@ -750,6 +817,7 @@ namespace DeltaV
         internal void NotifyUnregistered(PoiState poi)
         {
             universe.Generation?.CancelQueued(GenerationKey(poi));
+            CancelTransition(poi.objectId, MapTransitionKind.Materialize);
             generationRetryAfterTick.Remove(poi.objectId);
         }
 
@@ -762,10 +830,9 @@ namespace DeltaV
         }
         public void Reset()
         {
-            pendingStructureChecks.Clear();
-            dormancy.Reset();
+            RimExodus.Maps.MapRuntime.Current.TickRates.ReleaseOwner(SharedMapBackend.Owner);
             generationRetryAfterTick.Clear();
-            restoreQueued.Clear();
+            PendingTransitions.Clear();
         }
     }
 }

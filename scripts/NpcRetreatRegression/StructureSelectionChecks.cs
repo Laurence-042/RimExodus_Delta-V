@@ -114,7 +114,7 @@ internal static partial class Program
             for (int i = 0; i < map.terrainGrid.topGrid.Length; i++) map.terrainGrid.topGrid[i] = space;
             map.listerThings.AllThings.Clear();
             universe.ForgetFoundationTopology(map);
-            Check(SpaceLifecycleService.HasMapSupport(frame)
+            Check(SpaceMapStateManager.HasMapSupport(frame)
                 && ownership.SupportCellCount == map.terrainGrid.foundationGrid.Count(terrain => terrain == foundation),
                 "foundation alone supports an otherwise all-space map");
             Array.Clear(map.terrainGrid.foundationGrid, 0, map.terrainGrid.foundationGrid.Length);
@@ -122,18 +122,18 @@ internal static partial class Program
             var filth = (Thing)Raw(typeof(Thing));
             filth.def = (ThingDef)Raw(typeof(ThingDef)); filth.def.category = ThingCategory.Filth;
             map.listerThings.AllThings.Add(filth);
-            Check(!SpaceLifecycleService.HasMapSupport(frame), "filth cannot keep an unsupported map alive");
+            Check(!SpaceMapStateManager.HasMapSupport(frame), "filth cannot keep an unsupported map alive");
             int queued = Actions(universe).Count;
-            universe.Lifecycle.QueueStructureCheck(map);
-            universe.Lifecycle.QueueStructureCheck(map);
+            universe.MapStates.QueueStructureCheck(map);
+            universe.MapStates.QueueStructureCheck(map);
             Check(Actions(universe).Count == queued + 1, "structure-loss events coalesce into one frame action");
             map.terrainGrid.topGrid[0] = (TerrainDef)Raw(typeof(TerrainDef));
             Current.Game.GetComponent<UniverseManager>().ShipStructure.Changed(map);
-            Check(!SpaceLifecycleService.HasMapSupport(frame),
+            Check(!SpaceMapStateManager.HasMapSupport(frame),
                 "a generic structure version change does not rescan the support grid");
             ShipStructureChanges.Notify(map, terrainCell: IntVec3.Zero);
             ShipStructureChanges.Notify(map, terrainCell: IntVec3.Zero);
-            Check(SpaceLifecycleService.HasMapSupport(frame), "non-space terrain supports a foundation-less map");
+            Check(SpaceMapStateManager.HasMapSupport(frame), "non-space terrain supports a foundation-less map");
             Call(universe, "RunFrameActions");
             Check(universe.ObjectById(frame.objectId) == frame,
                 "deferred recycling rechecks final terrain and preserves restored support");
@@ -145,12 +145,12 @@ internal static partial class Program
                 (Mineable)Raw(typeof(Mineable)));
             ShipStructureChanges.Notify(map, building: rock);
             ShipStructureChanges.Notify(map, building: rock);
-            Check(SpaceLifecycleService.HasMapSupport(frame) && ownership.SpawnedBuildingCount == 1
+            Check(SpaceMapStateManager.HasMapSupport(frame) && ownership.SpawnedBuildingCount == 1
                 && ownership.SupportCellCount == 0, "one indexed mineable keeps a pure Space map alive");
             Set(typeof(Thing), rock, "mapIndexOrState", (sbyte)-1);
             map.listerThings.AllThings.Remove(rock);
             ShipStructureChanges.Notify(map, building: rock);
-            Check(!SpaceLifecycleService.HasMapSupport(frame), "despawning the final mineable immediately removes support");
+            Check(!SpaceMapStateManager.HasMapSupport(frame), "despawning the final mineable immediately removes support");
             var temporaryTerrain = (TerrainDef[])AccessTools.Field(typeof(TerrainGrid), "tempGrid").GetValue(map.terrainGrid);
             temporaryTerrain[0] = (TerrainDef)Raw(typeof(TerrainDef));
             ShipStructureChanges.Notify(map, terrainCell: IntVec3.Zero);
@@ -171,18 +171,18 @@ internal static partial class Program
             ShipStructureChanges.Notify(map, terrainCell: IntVec3.Zero);
             var hull = AddTestHull(map, player, 2640);
             ShipStructureChanges.Notify(map, building: (Building)hull.parent);
-            Check(SpaceLifecycleService.HasMapSupport(frame), "shuttle remains supported without any terrain or foundation");
+            Check(SpaceMapStateManager.HasMapSupport(frame), "shuttle remains supported without any terrain or foundation");
             UnspawnFixture(hull, map);
             ShipStructureChanges.Notify(map, building: (Building)hull.parent);
             frame.projectileRoleOverride = true;
-            Check(SpaceLifecycleService.HasMapSupport(frame), "projectile role retains its own lifecycle");
+            Check(SpaceMapStateManager.HasMapSupport(frame), "projectile role retains its own lifecycle");
         }
         finally
         {
             universe.objects.Remove(frame);
             Set(universe, "objectById", null);
             Set(universe, "objectByMap", null);
-            universe.Lifecycle.Reset();
+            universe.MapStates.Reset();
             ShipStatusPanel.ClearRuntimeState();
             ShipRegistry.ClearCaches();
             TerrainDefOf.Space = oldSpace;

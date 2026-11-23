@@ -19,7 +19,7 @@ namespace DeltaV
     /// - 非聚焦对象代理绘制在 GameComponentUpdate 分发（WorldComponent_GravshipController 同款节奏）；
     /// - SetFocused 只切换参考系（CurrentMap），绝不修改任何 pose 数值（不变量 #5）；
     /// - 聚焦 = 当前聚焦地图的承载容器（FrameOf(CurrentMap)），不再持久化聚焦 ID；
-    /// - POI 地图生命周期统一委托 SpaceLifecycle（单一管理入口，AGENTS §11）；
+    /// - 地图表示、休眠与归档状态统一委托 SpaceMapStateManager；
     /// - 宿主：所有 Delta-V 口袋图（飞船/POI）共用的 sourceMap 锚——一张专用的
     ///   无 tile 口袋图（UniverseHostParent_DeltaV，仅存在于 Find.World.pocketMaps），
     ///   永不聚焦、永不出现在世界视图、tick 常冻结。它不是宇宙坐标锚（坐标已是
@@ -52,7 +52,7 @@ namespace DeltaV
             // REF is the only backend. Installation failure must not silently select retired code.
             RimExodus.Maps.MapModule.Install();
             RimExodus.Maps.MapRuntime.Current.SetStopPolicy(SharedMapBackend.Owner, map =>
-                SpaceLifecycleService.IsUniverseHost(map) || Generation.IsGenerating(map));
+                SpaceMapStateManager.IsUniverseHost(map) || Generation.IsGenerating(map));
             NativeMapShellRenderer.Configure();
         }
 
@@ -71,6 +71,17 @@ namespace DeltaV
 
         [field: NonSerialized]
         internal event Action<SpaceObject, SpaceObject> RepresentationChanged;
+
+        [field: NonSerialized]
+        internal event Action<Map, Thing, PlayerContactKind> PlayerMapActivitySignaled;
+
+        /// <summary>业务模块只发布已完成的玩家行为；宿主解析与保留时钟由 MapStates 独占。</summary>
+        internal void PublishPlayerMapActivity(Map map, PlayerContactKind kind, Thing source = null)
+        {
+            if (map == null || map.Disposed) return;
+            _ = MapStates; // Ensure the instance listener exists before the first signal.
+            PlayerMapActivitySignaled?.Invoke(map, source, kind);
+        }
 
         /// <summary>帧边界表示替换；身份与绝对位姿不变，不触发注销／新生。</summary>
         internal void ReplaceRepresentation(SpaceObject previous, SpaceObject current)
@@ -93,6 +104,7 @@ namespace DeltaV
             scatter?.Remove(previous);
             if (current.IsScattered) Scatter.Register(current);
             if (current.map != null && current.baseTag != SpaceObjectTag.Projectile) ShipStructure.For(current.map);
+            MapStates.NotifyRepresentationChanged(previous, current);
             try { Autopilot.Detach(previous); previous.ClearDrive(); }
             catch (Exception ex) { Log.Error($"[DeltaV] Representation #{current.objectId} changed, but old drive cleanup failed: {ex}"); }
             finally
@@ -260,9 +272,9 @@ namespace DeltaV
         internal ShipFlightTransitionService ShipTransitions =>
             shipTransitions ?? (shipTransitions = new ShipFlightTransitionService(this));
 
-        [NonSerialized] private SpaceLifecycleService lifecycle;
+        [NonSerialized] private SpaceMapStateManager mapStates;
 
-        public SpaceLifecycleService Lifecycle => lifecycle ?? (lifecycle = new SpaceLifecycleService(this));
+        public SpaceMapStateManager MapStates => mapStates ?? (mapStates = new SpaceMapStateManager(this));
 
         public IncrementalMapGenerationService Generation =>
             Current.Game?.GetComponent<IncrementalMapGenerationService>();
@@ -472,6 +484,7 @@ namespace DeltaV
                 Weapons.RegisterMapWeapons(obj.map);
                 foreach (ShipBase ship in obj.Ships) Controls.For(ship);
             }
+            MapStates.NotifyObjectRegistered(obj);
         }
 
         public void UnregisterObject(SpaceObject obj)
@@ -521,7 +534,7 @@ namespace DeltaV
             // map 产出孤儿图）并清理失败退避记录。
             if (obj is PoiState poi)
             {
-                Lifecycle.NotifyUnregistered(poi);
+                MapStates.NotifyUnregistered(poi);
             }
             ForgetFoundationTopology(obj.map);
         }
@@ -733,6 +746,7 @@ namespace DeltaV
                 objectByMap = null;
             }
             Scribe_Collections.Look(ref generatedSectorTiles, "generatedSectorTiles", LookMode.Value);
+            MapStates.ExposeData();
             Scribe_Deep.Look(ref missionState, "missions");
             missionState ??= new SpaceMissionState();
             Scribe_Collections.Look(ref globeBookmarks, "globeBookmarks", LookMode.Deep);
@@ -1008,7 +1022,7 @@ namespace DeltaV
             stageStart = Performance.Start();
             long objectDriveTime = 0L, objectDriftTime = 0L, objectArchiveTime = 0L;
             int thrustingObjects = 0, driftingObjects = 0, archivedObjects = 0;
-            SpaceLifecycleService.PlayerDistanceBatch archiveDistances = null;
+            SpaceMapStateManager.PlayerDistanceBatch archiveDistances = null;
             foreach (SpaceObject obj in objects)
             {
                 if (piloting && obj.map == piloted.Map && !Autopilot.IsActive(obj))
@@ -1031,8 +1045,8 @@ namespace DeltaV
                 {
                     long archiveStart = Performance.Start();
                     archivedObjects++;
-                    Lifecycle.CheckArchivedProximity(obj,
-                        archiveDistances ?? (archiveDistances = new SpaceLifecycleService.PlayerDistanceBatch(this)));
+                    MapStates.CheckArchivedProximity(obj,
+                        archiveDistances ?? (archiveDistances = new SpaceMapStateManager.PlayerDistanceBatch(this)));
                     NpcShips.NotifyArchivedMovement((ArchivedSpaceObject)obj);
                     objectArchiveTime += Performance.Elapsed(archiveStart);
                 }
@@ -1060,7 +1074,7 @@ namespace DeltaV
             {
                 lastLifecycleScanTick = now;
                 stageStart = Performance.Start();
-                Lifecycle.Tick();
+                MapStates.Tick();
                 Performance.Record(PerformanceStage.Lifecycle, stageStart);
             }
             // 星区记账仍按原有周期触发（自由飞行跨 tile 首次生成）。
@@ -1345,12 +1359,13 @@ namespace DeltaV
         {
             foreach (SpaceObject obj in objects.ToList())
             {
-                if (obj.map != null) Lifecycle.DestroyPocketMap(obj.map);
+                if (obj.map != null) MapStates.DestroyPocketMap(obj.map);
                 UnregisterObject(obj);
             }
             if (UniverseHostMap != null)
                 foreach (Map orphan in UniverseHostMap.ChildPocketMaps.ToList())
-                    Lifecycle.DestroyPocketMap(orphan);
+                    MapStates.DestroyPocketMap(orphan);
+            MapStates.ClearPersistentStateForSceneReset();
         }
 
         /// <summary>
@@ -1388,7 +1403,7 @@ namespace DeltaV
             PlanetGlobeRenderer.ClearRuntimeCaches();
             ThrusterEffects.ClearRuntimeCaches();
             ThrusterAudio.Reset();
-            Lifecycle.Reset();
+            MapStates.Reset();
             Generation?.Reset();
             sectorReferenceTiles.Clear();
             SpaceCollision.ClearCaches();

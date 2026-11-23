@@ -276,6 +276,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SectorExported>Exported sector generation preset: {0}</DeltaV_SectorExported>
   <DeltaV_SectorImportEmpty>No JSON preset is available. Put files in: {0}</DeltaV_SectorImportEmpty>
   <DeltaV_SectorImportConfirm>Replace the complete generation table with “{0}”? Already generated sectors are unchanged.</DeltaV_SectorImportConfirm>
+  <DeltaV_SectorClassificationChangeConfirm>Changing generation classifications or prefab pools can invalidate the original prefab of existing unmaterialized or cold-retired objects. On a later visit, the game will deterministically choose a replacement from the nearest valid classification, or from the global pool if the whole path is gone. Continue?</DeltaV_SectorClassificationChangeConfirm>
   <DeltaV_SectorJsonFailed>Sector generation preset failed: {0}</DeltaV_SectorJsonFailed>
   <DeltaV_SectorEditorTitle>Edit sector generation table</DeltaV_SectorEditorTitle>
   <DeltaV_SectorEditorHelp>Groups organize the UI only. Entry names become generated-name suffixes. Moving, renaming, or adding entries never defines object behavior.</DeltaV_SectorEditorHelp>
@@ -805,4 +806,45 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SettingsWeaponTest>Weapons test</DeltaV_SettingsWeaponTest>
   <DeltaV_SettingsCreateWeaponTest>Generate weapons platform and target</DeltaV_SettingsCreateWeaponTest>
   <DeltaV_WeaponTestUnavailable>Could not generate the weapons test. Check that this game has an orbit layer and see the log.</DeltaV_WeaponTestUnavailable>
+  <DeltaV_SettingsExactMapRetentionDays>Exact station scene retention (days)</DeltaV_SettingsExactMapRetentionDays>
+  <DeltaV_SettingsExactMapRetentionDaysTip>Keep the complete scene for at least this many game days after meaningful player contact. Once expired and free of player people, ships, buildings, missions, and active transitions, the site remains but its interior is rebuilt from the prefab on the next visit. Range 0-600; default 60.</DeltaV_SettingsExactMapRetentionDaysTip>
+  <DeltaV_NavRetention>Retention</DeltaV_NavRetention>
+  <DeltaV_MapRetentionTitle>Map retention: {0}</DeltaV_MapRetentionTitle>
+  <DeltaV_MapRetentionState>Current state: {0}</DeltaV_MapRetentionState>
+  <DeltaV_MapRetentionState_Unmaterialized>unmaterialized structure (A)</DeltaV_MapRetentionState_Unmaterialized>
+  <DeltaV_MapRetentionState_Loaded>loaded map (B)</DeltaV_MapRetentionState_Loaded>
+  <DeltaV_MapRetentionState_Archived>exact archive (C)</DeltaV_MapRetentionState_Archived>
+  <DeltaV_MapRetentionState_Deleted>permanently retired</DeltaV_MapRetentionState_Deleted>
+  <DeltaV_MapRetentionStateDormant>dormant</DeltaV_MapRetentionStateDormant>
+  <DeltaV_MapRetentionStateCold>cold-rebuild source</DeltaV_MapRetentionStateCold>
+  <DeltaV_MapRetentionLastContact>Last meaningful player contact: {0}</DeltaV_MapRetentionLastContact>
+  <DeltaV_MapRetentionExpiry>Exact-scene expiry: {0}</DeltaV_MapRetentionExpiry>
+  <DeltaV_MapRetentionArchiveSize>Compressed archive size: {0}</DeltaV_MapRetentionArchiveSize>
+  <DeltaV_MapRetentionBlocker>Current retirement blocker: {0}</DeltaV_MapRetentionBlocker>
+  <DeltaV_MapRetentionNever>never</DeltaV_MapRetentionNever>
+  <DeltaV_MapRetentionNotApplicable>not scheduled</DeltaV_MapRetentionNotApplicable>
+  <DeltaV_MapRetentionAgo>{0} ago</DeltaV_MapRetentionAgo>
+  <DeltaV_MapRetentionIn>in {0}</DeltaV_MapRetentionIn>
+  <DeltaV_MapRetentionExpiredAgo>expired {0} ago</DeltaV_MapRetentionExpiredAgo>
+  <DeltaV_MapRetentionNoBlocker>none detected</DeltaV_MapRetentionNoBlocker>
+  <DeltaV_MapRetentionExplanation>Exact retention preserves loose items, damage and local component state. Cold rebuilding keeps the site and its stable service endpoints, but discards the old interior and generates it again from its frozen prefab.</DeltaV_MapRetentionExplanation>
+  <DeltaV_MapRetentionKeepExact>Keep exact scene indefinitely</DeltaV_MapRetentionKeepExact>
+  <DeltaV_MapRetentionResumeAutomatic>Resume automatic retirement</DeltaV_MapRetentionResumeAutomatic>
+  <DeltaV_MapRetentionColdNow>Rebuild interior now</DeltaV_MapRetentionColdNow>
+  <DeltaV_MapRetentionAbandon>Permanently abandon site</DeltaV_MapRetentionAbandon>
+  <DeltaV_MapRetentionColdConfirm>Discard the exact interior of "{0}" now? Loose items, damage and other local scene state will be lost. The site and its stable service endpoints will remain and its interior will be rebuilt from the prefab on the next visit.</DeltaV_MapRetentionColdConfirm>
+  <DeltaV_MapRetentionAbandonConfirm>Permanently abandon "{0}"? Its map, archive, world object and future regeneration will be removed. This cannot be undone.</DeltaV_MapRetentionAbandonConfirm>
+  <DeltaV_MapRetentionRequestRejected>The map retention request was refused because its state or protections changed.</DeltaV_MapRetentionRequestRejected>
+  <DeltaV_MapRetentionBlock_CurrentMap>this is the current map</DeltaV_MapRetentionBlock_CurrentMap>
+  <DeltaV_MapRetentionBlock_PlayerPawn>a player pawn or prisoner is present</DeltaV_MapRetentionBlock_PlayerPawn>
+  <DeltaV_MapRetentionBlock_PlayerHome>this is a player home</DeltaV_MapRetentionBlock_PlayerHome>
+  <DeltaV_MapRetentionBlock_PlayerBuilding>player buildings remain</DeltaV_MapRetentionBlock_PlayerBuilding>
+  <DeltaV_MapRetentionBlock_PlayerShip>a player ship remains</DeltaV_MapRetentionBlock_PlayerShip>
+  <DeltaV_MapRetentionBlock_ActiveMission>an active mission references this site</DeltaV_MapRetentionBlock_ActiveMission>
+  <DeltaV_MapRetentionBlock_Generation>map generation is in progress</DeltaV_MapRetentionBlock_Generation>
+  <DeltaV_MapRetentionBlock_Transfer>a docking or map transfer is in progress</DeltaV_MapRetentionBlock_Transfer>
+  <DeltaV_MapRetentionBlock_ExternalReference>an external system still references the map</DeltaV_MapRetentionBlock_ExternalReference>
+  <DeltaV_MapRetentionBlock_Transition>a map-state transition is already in progress</DeltaV_MapRetentionBlock_Transition>
+  <DeltaV_MapRetentionBlock_ManualKeep>exact retention was manually enabled</DeltaV_MapRetentionBlock_ManualKeep>
+  <DeltaV_MapRetentionBlock_Unavailable>the map is unavailable</DeltaV_MapRetentionBlock_Unavailable>
 </LanguageData>

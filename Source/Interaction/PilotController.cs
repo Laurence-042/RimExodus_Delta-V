@@ -376,7 +376,7 @@ internal readonly struct HeadingPanelAction
         internal void DecideAutoCombat(ShipBase ship)
         {
             SpaceObject own = universe.FrameOf(ship.Map);
-            if (own == null || universe.Lifecycle.IsFrozen(ship.Map)) return;
+            if (own == null || universe.MapStates.IsFrozen(ship.Map)) return;
             if (ship.Combat?.weaponsArmed != true)
             {
                 FireControl.Clear(preserveCommands: true);

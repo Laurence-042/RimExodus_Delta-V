@@ -276,6 +276,7 @@
   <DeltaV_SectorExported>已导出星区生成预设：{0}</DeltaV_SectorExported>
   <DeltaV_SectorImportEmpty>没有可导入的 JSON。请把文件放入：{0}</DeltaV_SectorImportEmpty>
   <DeltaV_SectorImportConfirm>用“{0}”完整替换当前生成表？已生成的星区不受影响。</DeltaV_SectorImportConfirm>
+  <DeltaV_SectorClassificationChangeConfirm>更改生成分类或 prefab 池可能使现有未物化或冷退役对象的原 prefab 失效。重访时会从最接近的仍有效分类中确定性选择替代 prefab；整条分类失效时会退到全局池。是否继续？</DeltaV_SectorClassificationChangeConfirm>
   <DeltaV_SectorJsonFailed>星区生成预设失败：{0}</DeltaV_SectorJsonFailed>
   <DeltaV_SectorEditorTitle>编辑星区生成表</DeltaV_SectorEditorTitle>
   <DeltaV_SectorEditorHelp>分组只整理界面；生成项的名称会成为生成名称后缀。移动、重命名或新增生成项不会定义对象行为。</DeltaV_SectorEditorHelp>
@@ -805,4 +806,45 @@
   <DeltaV_SettingsWeaponTest>武器测试</DeltaV_SettingsWeaponTest>
   <DeltaV_SettingsCreateWeaponTest>生成武器测试平台与靶舰</DeltaV_SettingsCreateWeaponTest>
   <DeltaV_WeaponTestUnavailable>无法生成武器测试。请确认当前游戏有轨道层，并查看日志。</DeltaV_WeaponTestUnavailable>
+  <DeltaV_SettingsExactMapRetentionDays>空间站现场精确保留天数</DeltaV_SettingsExactMapRetentionDays>
+  <DeltaV_SettingsExactMapRetentionDaysTip>最近一次有意义的玩家接触后，完整现场至少保留这么多游戏日。到期且无玩家人员、船只、建筑、任务或流程阻塞时，站点仍保留，但内部现场会在下次访问时从 prefab 重建。范围 0–600；默认 60。</DeltaV_SettingsExactMapRetentionDaysTip>
+  <DeltaV_NavRetention>现场保留</DeltaV_NavRetention>
+  <DeltaV_MapRetentionTitle>地图现场保留：{0}</DeltaV_MapRetentionTitle>
+  <DeltaV_MapRetentionState>当前状态：{0}</DeltaV_MapRetentionState>
+  <DeltaV_MapRetentionState_Unmaterialized>未物化结构（A）</DeltaV_MapRetentionState_Unmaterialized>
+  <DeltaV_MapRetentionState_Loaded>已加载地图（B）</DeltaV_MapRetentionState_Loaded>
+  <DeltaV_MapRetentionState_Archived>精确归档（C）</DeltaV_MapRetentionState_Archived>
+  <DeltaV_MapRetentionState_Deleted>已永久退役</DeltaV_MapRetentionState_Deleted>
+  <DeltaV_MapRetentionStateDormant>休眠</DeltaV_MapRetentionStateDormant>
+  <DeltaV_MapRetentionStateCold>冷重建来源</DeltaV_MapRetentionStateCold>
+  <DeltaV_MapRetentionLastContact>最后一次有意义玩家接触：{0}</DeltaV_MapRetentionLastContact>
+  <DeltaV_MapRetentionExpiry>精确现场到期：{0}</DeltaV_MapRetentionExpiry>
+  <DeltaV_MapRetentionArchiveSize>压缩归档大小：{0}</DeltaV_MapRetentionArchiveSize>
+  <DeltaV_MapRetentionBlocker>当前退役阻塞：{0}</DeltaV_MapRetentionBlocker>
+  <DeltaV_MapRetentionNever>从未发生</DeltaV_MapRetentionNever>
+  <DeltaV_MapRetentionNotApplicable>尚未排期</DeltaV_MapRetentionNotApplicable>
+  <DeltaV_MapRetentionAgo>{0}前</DeltaV_MapRetentionAgo>
+  <DeltaV_MapRetentionIn>{0}后</DeltaV_MapRetentionIn>
+  <DeltaV_MapRetentionExpiredAgo>已于{0}前到期</DeltaV_MapRetentionExpiredAgo>
+  <DeltaV_MapRetentionNoBlocker>未发现</DeltaV_MapRetentionNoBlocker>
+  <DeltaV_MapRetentionExplanation>精确保留会保存散落物品、战损和局部组件状态。冷重建仍保留站点及稳定服务端点，但会丢弃旧内部现场，并在下次访问时从冻结的 prefab 重新生成。</DeltaV_MapRetentionExplanation>
+  <DeltaV_MapRetentionKeepExact>长期保留精确现场</DeltaV_MapRetentionKeepExact>
+  <DeltaV_MapRetentionResumeAutomatic>恢复自动退役</DeltaV_MapRetentionResumeAutomatic>
+  <DeltaV_MapRetentionColdNow>立即冷重建内部</DeltaV_MapRetentionColdNow>
+  <DeltaV_MapRetentionAbandon>永久放弃站点</DeltaV_MapRetentionAbandon>
+  <DeltaV_MapRetentionColdConfirm>立即丢弃“{0}”的精确内部现场吗？散落物品、战损和其他局部状态都会消失。站点及稳定服务端点仍会保留，下次访问时从 prefab 重建内部。</DeltaV_MapRetentionColdConfirm>
+  <DeltaV_MapRetentionAbandonConfirm>永久放弃“{0}”吗？其地图、归档、世界对象及未来重新生成都会被移除，且无法撤销。</DeltaV_MapRetentionAbandonConfirm>
+  <DeltaV_MapRetentionRequestRejected>地图现场状态或保护条件已经变化，本次请求被拒绝。</DeltaV_MapRetentionRequestRejected>
+  <DeltaV_MapRetentionBlock_CurrentMap>这是当前地图</DeltaV_MapRetentionBlock_CurrentMap>
+  <DeltaV_MapRetentionBlock_PlayerPawn>仍有玩家人员或收押人员</DeltaV_MapRetentionBlock_PlayerPawn>
+  <DeltaV_MapRetentionBlock_PlayerHome>这是玩家家园</DeltaV_MapRetentionBlock_PlayerHome>
+  <DeltaV_MapRetentionBlock_PlayerBuilding>仍有玩家建筑</DeltaV_MapRetentionBlock_PlayerBuilding>
+  <DeltaV_MapRetentionBlock_PlayerShip>仍有玩家飞船</DeltaV_MapRetentionBlock_PlayerShip>
+  <DeltaV_MapRetentionBlock_ActiveMission>仍有活跃任务引用此站点</DeltaV_MapRetentionBlock_ActiveMission>
+  <DeltaV_MapRetentionBlock_Generation>地图正在生成</DeltaV_MapRetentionBlock_Generation>
+  <DeltaV_MapRetentionBlock_Transfer>正在对接或跨图转移</DeltaV_MapRetentionBlock_Transfer>
+  <DeltaV_MapRetentionBlock_ExternalReference>外部系统仍引用此地图</DeltaV_MapRetentionBlock_ExternalReference>
+  <DeltaV_MapRetentionBlock_Transition>地图状态转移正在进行</DeltaV_MapRetentionBlock_Transition>
+  <DeltaV_MapRetentionBlock_ManualKeep>已启用长期精确保留</DeltaV_MapRetentionBlock_ManualKeep>
+  <DeltaV_MapRetentionBlock_Unavailable>地图不可用</DeltaV_MapRetentionBlock_Unavailable>
 </LanguageData>

@@ -28,7 +28,7 @@ namespace DeltaV
         {
             var universe = Current.Game?.GetComponent<UniverseManager>();
             if (universe == null || map == null || map.Disposed || universe.IsResettingScene
-                || SpaceLifecycleService.IsUniverseHost(map) || !FreeFlightBootstrap.IsZeroGravity(universe, map)
+                || SpaceMapStateManager.IsUniverseHost(map) || !FreeFlightBootstrap.IsZeroGravity(universe, map)
                 || universe.SpaceObjectOnMap(map) is not SpaceObject frame || frame.IsActiveCollider || frame.IsScattered)
                 return null;
             return new CombatLeavingsScope(universe, map);

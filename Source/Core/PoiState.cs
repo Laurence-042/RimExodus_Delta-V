@@ -39,8 +39,8 @@ namespace DeltaV
         /// <summary>原版或第三方轨道 POI 的事实源；定制 POI 为 null。</summary>
         public MapParent nativeParent;
 
-        /// <summary>模板种子：无快照重生成时使用（快照优先，保证玩家改动可恢复）。</summary>
-        public int seed;
+        /// <summary>模板种子兼容访问；权威事实存于 SpaceObject，表示替换时自动继承。</summary>
+        public int seed { get => sourcePrefabSeed; set => sourcePrefabSeed = value; }
 
         /// <summary>删除段收起的结构级快照（地形/屋顶/建筑/物品；不保 pawn 与 comp 内部状态）。</summary>
         public PoiSnapshot snapshot;
@@ -89,7 +89,6 @@ namespace DeltaV
             base.ExposeData();
             Scribe_Values.Look(ref kind, "kind", PoiKind.SnapshotPocket);
             Scribe_References.Look(ref nativeParent, "nativeParent");
-            Scribe_Values.Look(ref seed, "seed", 0);
             Scribe_Deep.Look(ref snapshot, "snapshot");
             Scribe_Values.Look(ref envLabel, "label", null);
         }

@@ -38,7 +38,15 @@ namespace DeltaV
                 map = ShipPocketMapFactory.Generate(ShipPocketMapFactory.CompactSize(doc.size), universe);
                 if (map == null) throw new InvalidOperationException("Mission ship map generation failed.");
                 SpaceObject home = universe.FrameOf(terminal.Map);
-                obj = new MapSpaceObject(universe.AllocateOwnerId(), map, home.pose);
+                obj = new MapSpaceObject(universe.AllocateOwnerId(), map, home.pose)
+                {
+                    sourcePrefabPath = m.prefab?.Replace('\\', '/'),
+                    sourcePrefabCategoryPath = SectorGenerationTable.CategoryPathForPrefab(
+                        DeltaVMod.CurrentSettings?.sectorGenerationRoots ?? SectorGenerationTable.Defaults(),
+                        m.prefab),
+                    sourcePrefabSeed = Gen.HashCombineInt(m.id, m.tier),
+                    externalPrefabGenerationCompleted = false
+                };
                 universe.RegisterObject(obj);
                 bool placed = false;
                 for (int attempt = 0; attempt < 128; attempt++)
@@ -63,14 +71,13 @@ namespace DeltaV
                 ShipBase ship = ShipRegistry.AllShipsOnMap(map).OfType<FoundationShip>().FirstOrDefault(s => s.IsValid && s.Faction == m.enemy);
                 if (ship == null) throw new InvalidOperationException("Mission ship has no main console.");
                 m.enemyTarget = MissionTarget.Of(universe, ship.Anchor);
-                obj.sourcePrefabPath = m.prefab;
                 universe.NoteStructureName(ship.Identity.key, m.Title);
                 return map;
             }
             catch
             {
                 if (obj != null) universe.UnregisterObject(obj);
-                if (map != null) universe.Lifecycle.DestroyPocketMap(map);
+                if (map != null) universe.MapStates.DestroyPocketMap(map);
                 throw;
             }
         }
@@ -92,13 +99,13 @@ namespace DeltaV
             SpaceMission m = Find(box.missionId);
             if (m?.Active != true || m.settled || m.faction != shelf.Faction || box.issuer != m.faction) return false;
             return ShipStructureIndex.Read(shelf.Map).BuildingsOf<Building_SpaceTradeTerminal>()
-                .Any(t => t.thingIDNumber == m.destination?.thingId && t.MissionCargo?.Thing == shelf);
+                .Any(t => m.destination?.Matches(universe, t) == true && t.MissionCargo?.Thing == shelf);
         }
 
         internal int Deliverable(Building_SpaceTradeTerminal terminal, SpaceMission m)
         {
             if (m?.Active != true || m.settled || terminal.Faction != m.faction) return 0;
-            if ((m.kind == SpaceMissionKind.Combat ? m.source : m.destination)?.thingId != terminal.thingIDNumber) return 0;
+            if ((m.kind == SpaceMissionKind.Combat ? m.source : m.destination)?.Matches(universe, terminal) != true) return 0;
             return m.kind == SpaceMissionKind.Freight ? DeliverableBoxes(terminal, m).Count
                 : m.kind == SpaceMissionKind.Passengers ? DeliverablePassengers(terminal, m).Count()
                 : m.combatComplete ? 1 : 0;
@@ -160,6 +167,7 @@ namespace DeltaV
             m.refundedDeposit = m.kind == SpaceMissionKind.Freight && !m.Late(Now) ? count * m.depositEach : 0;
             foreach (var p in people) p.result = PassengerResult.Delivered;
             foreach (Thing box in detached) box.Destroy();
+            universe.PublishPlayerMapActivity(terminal.Map, PlayerContactKind.Mission, terminal);
             ApplyOutcome(m, true);
             m.quest.End(QuestEndOutcome.Success);
         }
@@ -231,9 +239,7 @@ namespace DeltaV
                 }
             });
         }
-        internal bool Protects(SpaceObject obj) => Active.Any(m => m.kind == SpaceMissionKind.Combat
-            && (m.enemyTarget?.objectId == obj.objectId || (obj is ArchivedSpaceObject archived
-                ? archived.globe?.ships.Any(s => !s.shuttle && s.key == m.enemyTarget?.shipId) == true
-                : obj.Ships.Any(s => s.Identity.key == m.enemyTarget?.shipId))));
+        internal bool Protects(SpaceObject obj) => Active.Any(m => m.source?.References(obj) == true
+            || m.destination?.References(obj) == true || m.enemyTarget?.References(obj) == true);
     }
 }

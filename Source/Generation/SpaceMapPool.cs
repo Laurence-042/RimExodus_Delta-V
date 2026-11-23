@@ -45,7 +45,7 @@ namespace DeltaV
             WorldRenderMode view = renderer.wantedMode;
             try
             {
-                universe.Lifecycle.ReleaseForCapacity(targetCount, score);
+                universe.MapStates.ReleaseForCapacity(targetCount, score);
             }
             finally { renderer.wantedMode = view; }
         }

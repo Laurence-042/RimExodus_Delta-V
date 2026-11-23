@@ -30,7 +30,7 @@ namespace DeltaV
             if (owner != null)
             {
                 if (!terrainCell.HasValue && building == null) universe.ShipStructure.Changed(map);
-                universe.Lifecycle.QueueStructureCheck(map);
+                universe.MapStates.QueueStructureCheck(map);
                 universe.Weapons.QueuePower(map);
             }
             return owner != null ? universe : null;

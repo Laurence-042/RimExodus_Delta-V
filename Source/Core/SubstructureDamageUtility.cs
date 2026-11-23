@@ -26,6 +26,11 @@ namespace DeltaV
             if (SubstructureOwnership.HasFoundation(map, cell)) return false;
             CompleteDestruction(map, cell, scatterNearbyRoofs, removeAttachment);
             PublicFacility.Penalize(owner, instigator, new GlobalTargetInfo(cell, map));
+            // Faction.IsPlayer dereferences def; offline collision fixtures can carry a
+            // partially initialized non-player Faction, so read the same flag safely.
+            if (instigator?.Faction?.def?.isPlayer == true)
+                Current.Game?.GetComponent<UniverseManager>()?.PublishPlayerMapActivity(
+                    map, PlayerContactKind.StructureChange, instigator);
             return true;
         }
 

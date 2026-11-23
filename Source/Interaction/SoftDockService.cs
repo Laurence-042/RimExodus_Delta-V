@@ -58,7 +58,7 @@ namespace DeltaV
         }
 
         internal bool Live(Building_DockingPort port) => port?.Spawned == true && !port.Destroyed
-            && universe.FrameOf(port.Map) != null && !universe.Lifecycle.IsFrozen(port.Map)
+            && universe.FrameOf(port.Map) != null && !universe.MapStates.IsFrozen(port.Map)
             && !universe.ShipTransitions.IsAwaitingDockingCleanup(port.Map);
 
         internal bool Reserved(Building_DockingPort port, DriveSubject except = default)

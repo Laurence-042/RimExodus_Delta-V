@@ -24,7 +24,7 @@ namespace DeltaV
         internal static bool ShouldHide(Map map)
         {
             if (map == null) return false; // Caravan entries have no map.
-            if (SpaceLifecycleService.IsUniverseHost(map)) return true;
+            if (SpaceMapStateManager.IsUniverseHost(map)) return true;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             if (DeltaVMod.CurrentSettings?.hideSpaceMapsWithoutPlayerPawns == false)
                 return false;

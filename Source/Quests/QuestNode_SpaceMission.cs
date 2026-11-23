@@ -53,8 +53,8 @@ namespace DeltaV
             if (quest.Historical) yield break;
             SpaceMission run = Service?.Find(missionId);
             if (run == null) yield break;
-            if (target is Thing thing && thing.thingIDNumber != run.source?.thingId
-                && thing.thingIDNumber != run.destination?.thingId
+            if (target is Thing thing && run.source?.Matches(Current.Game.GetComponent<UniverseManager>(), thing) != true
+                && run.destination?.Matches(Current.Game.GetComponent<UniverseManager>(), thing) != true
                 && !(thing is MissionCargo box && box.missionId == missionId)
                 && !run.passengers.Any(p => p.pawn == thing)) yield break;
             yield return new Command_Action

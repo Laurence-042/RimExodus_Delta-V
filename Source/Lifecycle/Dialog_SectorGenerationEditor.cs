@@ -91,7 +91,14 @@ namespace DeltaV
         {
             if (!SectorGenerationTable.Validate(roots, out string error))
             { Messages.Message("DeltaV_SectorEditorInvalid".Translate(error), MessageTypeDefOf.RejectInput, false); return; }
-            settings.sectorGenerationRoots = roots.Select(root => root.Copy()).ToList(); Close();
+            void Commit()
+            {
+                settings.sectorGenerationRoots = roots.Select(root => root.Copy()).ToList();
+                Close();
+            }
+            if (SectorGenerationTable.ClassificationEquivalent(settings.sectorGenerationRoots, roots)) Commit();
+            else Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
+                "DeltaV_SectorClassificationChangeConfirm".Translate(), Commit));
         }
     }
 }

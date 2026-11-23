@@ -148,7 +148,7 @@ namespace DeltaV
         /// <summary>One target per weapon; locks are runtime-only and the weapon service remains the firing authority.</summary>
         internal void TickAutoVolley(ShipBase ship, SpaceObject own, bool suppressSystems)
         {
-            if (universe.Lifecycle.IsFrozen(ship.Map)) return;
+            if (universe.MapStates.IsFrozen(ship.Map)) return;
             int now = Find.TickManager.TicksGame;
             var maneuver = universe.Controls.ExistingFor(ship)?.AutoManeuver;
             var fixedWeapon = maneuver?.FixedAimWeapon;
@@ -316,7 +316,7 @@ namespace DeltaV
         internal bool TryGetIntent(ShipBase ship, SpaceObject own, bool suppressSystems, out ShipVolleyIntent intent)
         {
             intent = default;
-            if (universe.Lifecycle.IsFrozen(ship.Map)) return false;
+            if (universe.MapStates.IsFrozen(ship.Map)) return false;
             if (!TryResolveAutomatic(ship, own, target, out var victim))
             {
                 if (!target.HasLock) return false;

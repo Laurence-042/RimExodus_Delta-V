@@ -638,7 +638,7 @@ internal static partial class Program
         var archivedWreck = new ArchivedSpaceObject { objectId = victim.objectId, pose = victim.pose };
         var marker = new PoiState { objectId = universe.AllocateOwnerId(), pose = victim.pose };
         Map materializedMap = TestMap(marker.objectId);
-        var materialized = SpaceLifecycleService.CreateMaterializedContainer(marker, materializedMap);
+        var materialized = SpaceMapStateManager.CreateMaterializedContainer(marker, materializedMap);
         universe.RegisterObject(marker);
         var replacements = new List<(SpaceObject previous, SpaceObject current)>();
         bool sawPublishedIndexes = true;
@@ -662,7 +662,7 @@ internal static partial class Program
             Check(!(bool)Call(universe.Projectiles, "ResolveTarget", archiveFlight)
                 && !((CombatTarget)archiveFlight.GetType().GetField("target").GetValue(archiveFlight)).HasLock,
                 "archive replacement clears the wreck lock and same-tick guidance sample before old-map cleanup");
-            universe.Lifecycle.CompleteArchiveMapCleanup(oldMap);
+            universe.MapStates.CompleteArchiveMapCleanup(oldMap);
             Check(projectileTargetReviews == 1 && (bool)Call(universe.Projectiles, "ResolveTarget", maplessLock),
                 "archive replacement and resource cleanup review targets once and preserve a legal mapless lock");
             universe.ReplaceRepresentation(archivedWreck, victim);

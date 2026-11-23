@@ -96,6 +96,18 @@ namespace DeltaV
         /// <summary>生成时冻结的 prefab 身份；行为不从生成表或名称反推。</summary>
         public string sourcePrefabPath;
 
+        /// <summary>生成时冻结的生成表节点 ID 路径；显示名、顺序和文件目录都不是分类身份。</summary>
+        public List<string> sourcePrefabCategoryPath = new List<string>();
+
+        /// <summary>prefab 选择与局部朝向共用的稳定种子；表示替换不得重掷。</summary>
+        public int sourcePrefabSeed;
+
+        /// <summary>
+        /// 本对象是否已经成功完成过一次外部 SpaceObject prefab 标记展开。
+        /// 冷重建只恢复宿主结构并消费这些标记，人员标记仍按模板正常展开。
+        /// </summary>
+        public bool externalPrefabGenerationCompleted;
+
         /// <summary>
         /// 本对象来自批量 prefab 标记或其后代。该持久来源标记只阻止后续批量标记再次
         /// 展开，避免 cluster 递归；不改变对象身份、运动、碰撞或普通精确标记。
@@ -401,6 +413,9 @@ namespace DeltaV
             other.objectId = objectId; other.pose = pose; other.baseTag = baseTag;
             other.faction = faction; other.ambientLabel = ambientLabel;
             other.sourcePrefabPath = sourcePrefabPath;
+            other.sourcePrefabCategoryPath = new List<string>(sourcePrefabCategoryPath ?? new List<string>());
+            other.sourcePrefabSeed = sourcePrefabSeed;
+            other.externalPrefabGenerationCompleted = externalPrefabGenerationCompleted;
             other.clusterChild = clusterChild;
             other.npcRetreating = npcRetreating; other.npcHomeObjectId = npcHomeObjectId;
             other.npcHadShip = npcHadShip;
@@ -417,11 +432,17 @@ namespace DeltaV
             Scribe_Deep.Look(ref payload, "payload");
             Scribe_Values.Look(ref ambientLabel, "ambientLabel", null);
             Scribe_Values.Look(ref sourcePrefabPath, "sourcePrefabPath");
+            Scribe_Collections.Look(ref sourcePrefabCategoryPath, "sourcePrefabCategoryPath", LookMode.Value);
+            Scribe_Values.Look(ref sourcePrefabSeed, "sourcePrefabSeed");
+            Scribe_Values.Look(ref externalPrefabGenerationCompleted, "externalPrefabGenerationCompleted");
             Scribe_Values.Look(ref clusterChild, "clusterChild");
             Scribe_Values.Look(ref npcRetreating, "npcRetreating");
             Scribe_Values.Look(ref npcHadShip, "npcHadShip");
             Scribe_Values.Look(ref npcHomeObjectId, "npcHomeObjectId");
             Scribe_References.Look(ref npcFaction, "npcFaction");
+
+            if (Scribe.mode == LoadSaveMode.PostLoadInit)
+                sourcePrefabCategoryPath ??= new List<string>();
 
         }
     }

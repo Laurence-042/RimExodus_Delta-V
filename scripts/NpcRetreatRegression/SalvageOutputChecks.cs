@@ -681,7 +681,7 @@ internal static partial class Program
         map.mapPawns = new MapPawns(map);
         map.passingShipManager = new PassingShipManager(map);
         var obj = new MapSpaceObject(47009, map, new SpacePose(Vector3.forward, 0));
-        bool IsDisposable() => (bool)Call(universe.Lifecycle, "IsDisposableContainer", obj, map);
+        bool IsDisposable() => (bool)Call(universe.MapStates, "IsDisposableContainer", obj, map);
 
         TerrainDef ground = map.terrainGrid.topGrid[0];
         for (int i = 64; i < map.terrainGrid.topGrid.Length; i++) map.terrainGrid.topGrid[i] = TerrainDefOf.Space;

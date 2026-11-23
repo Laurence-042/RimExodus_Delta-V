@@ -19,7 +19,7 @@ namespace DeltaV
         {
             // 原版删图时先移除旧图，后调用此 setter。旧索引此时可能越界。
             if (value != null && !__instance.Maps.Contains(value)) return true;
-            if (value != null && SpaceLifecycleService.IsUniverseHost(value))
+            if (value != null && SpaceMapStateManager.IsUniverseHost(value))
             {
                 Log.Warning("[DeltaV] Blocked an attempt to focus the universe host pocket map.");
                 return false;
@@ -28,9 +28,9 @@ namespace DeltaV
             UniverseManager universe = __instance.GetComponent<UniverseManager>();
             if (value != null)
             {
-                bool wasFrozen = universe?.Lifecycle.IsDormant(value) == true;
+                bool wasFrozen = universe?.MapStates.IsDormant(value) == true;
                 if (wasFrozen)
-                    universe.Lifecycle.Wake(value, "entering map (CurrentMap switch)");
+                    universe.MapStates.Wake(value, "entering map (CurrentMap switch)");
                 // 新档/读档的 setter 可在后台线程运行；Map.FinalizeInit 已安排主线程初次重建。
                 // 运行时切图仍立即恢复冻结期间的脏 section，不能在后台创建材质和网格。
                 if (UnityData.IsInMainThread && (wasFrozen || universe?.SpaceObjectOnMap(value) != null))

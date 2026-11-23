@@ -47,5 +47,14 @@ namespace DeltaV
                 MessageTypeDefOf.RejectInput, false);
             return false;
         }
+
+        private static void Postfix(bool __result, bool actuallyTraded)
+        {
+            if (!__result || !actuallyTraded
+                || TradeSession.trader is not Building_SpaceTradeTerminal terminal
+                || !terminal.Spawned) return;
+            Current.Game?.GetComponent<UniverseManager>()?.PublishPlayerMapActivity(
+                terminal.Map, PlayerContactKind.Trade, terminal);
+        }
     }
 }

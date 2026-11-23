@@ -54,6 +54,8 @@ namespace DeltaV
     /// </summary>
     public class CompPrefabMarker : ThingComp
     {
+        internal virtual bool IsExternalSpaceObjectMarker => false;
+
         public virtual void Expand(PrefabSpawnContext context)
         {
         }

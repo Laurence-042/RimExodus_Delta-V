@@ -91,6 +91,96 @@ namespace DeltaV
         }
         public static IEnumerable<SectorGenerationNode> Leaves(IEnumerable<SectorGenerationNode> roots)
             => AllNodes(roots).Where(node => node.IsLeaf);
+
+        internal static IEnumerable<(SectorGenerationNode node, List<string> path)> LeavesWithPaths(
+            IEnumerable<SectorGenerationNode> roots)
+        {
+            if (roots == null) yield break;
+            foreach (SectorGenerationNode root in roots)
+            {
+                if (root == null) continue;
+                foreach (var entry in LeavesWithPaths(root, new List<string>())) yield return entry;
+            }
+        }
+
+        private static IEnumerable<(SectorGenerationNode node, List<string> path)> LeavesWithPaths(
+            SectorGenerationNode node, List<string> parentPath)
+        {
+            var path = new List<string>(parentPath) { node.id };
+            if (node.IsLeaf)
+            {
+                yield return (node, path);
+                yield break;
+            }
+            foreach (SectorGenerationNode child in node.children ?? new List<SectorGenerationNode>())
+                if (child != null)
+                    foreach (var entry in LeavesWithPaths(child, path)) yield return entry;
+        }
+
+        internal static List<string> CategoryPathForPrefab(IEnumerable<SectorGenerationNode> roots,
+            string prefabPath)
+        {
+            string normalized = NormalizePrefabPath(prefabPath);
+            if (normalized == null) return new List<string>();
+            return LeavesWithPaths(roots)
+                .Where(entry => entry.node.prefabPaths?.Any(path => string.Equals(
+                    NormalizePrefabPath(path), normalized, StringComparison.OrdinalIgnoreCase)) == true)
+                .OrderBy(entry => string.Join("/", entry.path), StringComparer.Ordinal)
+                .Select(entry => new List<string>(entry.path)).FirstOrDefault() ?? new List<string>();
+        }
+
+        /// <summary>
+        /// Resolve one frozen prefab source. Exact path wins; then try the deepest surviving
+        /// classification prefix and each ancestor; finally use every valid configured prefab.
+        /// Candidate choice is seed-stable so retries and save/load cannot reroll the structure.
+        /// </summary>
+        internal static string ResolveFrozenPrefab(IEnumerable<SectorGenerationNode> roots,
+            string exactPath, IReadOnlyList<string> categoryPath, int seed)
+        {
+            string exact = MapPrefab.ResolvePoolPath(new List<string> { exactPath }, seed);
+            if (!exact.NullOrEmpty()) return NormalizePrefabPath(exact);
+
+            List<SectorGenerationNode> rootList = roots?.Where(node => node != null).ToList()
+                ?? new List<SectorGenerationNode>();
+            var matched = new List<SectorGenerationNode>();
+            IReadOnlyList<SectorGenerationNode> siblings = rootList;
+            foreach (string id in categoryPath ?? Array.Empty<string>())
+            {
+                SectorGenerationNode node = siblings.FirstOrDefault(candidate => string.Equals(
+                    candidate.id, id, StringComparison.OrdinalIgnoreCase));
+                if (node == null) break;
+                matched.Add(node);
+                siblings = node.children ?? new List<SectorGenerationNode>();
+            }
+            for (int depth = matched.Count - 1; depth >= 0; depth--)
+            {
+                string resolved = MapPrefab.ResolvePoolPath(PrefabsIn(matched[depth]),
+                    Gen.HashCombineInt(seed, depth + 1));
+                if (!resolved.NullOrEmpty()) return NormalizePrefabPath(resolved);
+            }
+            return NormalizePrefabPath(MapPrefab.ResolvePoolPath(
+                Leaves(rootList).SelectMany(node => node.prefabPaths ?? new List<string>()).ToList(),
+                Gen.HashCombineInt(seed, 7919)));
+        }
+
+        internal static bool ClassificationEquivalent(IEnumerable<SectorGenerationNode> left,
+            IEnumerable<SectorGenerationNode> right)
+        {
+            string Describe(IEnumerable<SectorGenerationNode> roots) => string.Join("\n",
+                LeavesWithPaths(roots).OrderBy(entry => string.Join("/", entry.path), StringComparer.Ordinal)
+                    .Select(entry => string.Join("/", entry.path) + "=" + string.Join("|",
+                        (entry.node.prefabPaths ?? new List<string>())
+                            .Select(NormalizePrefabPath).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))));
+            return string.Equals(Describe(left), Describe(right), StringComparison.Ordinal);
+        }
+
+        private static List<string> PrefabsIn(SectorGenerationNode node)
+            => node == null ? new List<string>() : node.IsLeaf
+                ? new List<string>(node.prefabPaths ?? new List<string>())
+                : Leaves(new[] { node }).SelectMany(leaf => leaf.prefabPaths ?? new List<string>()).ToList();
+
+        private static string NormalizePrefabPath(string path)
+            => path.NullOrEmpty() ? null : path.Replace('\\', '/').Trim('/');
         private static IEnumerable<SectorGenerationNode> Subtree(SectorGenerationNode node)
         {
             yield return node;

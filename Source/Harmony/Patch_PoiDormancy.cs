@@ -15,7 +15,7 @@ namespace DeltaV
             private static void Postfix(List<IIncidentTarget> __result)
             {
                 // 返回的是原版静态缓存列表，调用方即用即弃，原地 RemoveAll 安全（RimExodus 同款结论）。
-                SpaceLifecycleService lifecycle = Current.Game?.GetComponent<UniverseManager>()?.Lifecycle;
+                SpaceMapStateManager lifecycle = Current.Game?.GetComponent<UniverseManager>()?.MapStates;
                 if (lifecycle != null)
                     __result.RemoveAll(t => t is Map m && lifecycle.IsFrozen(m));
             }
@@ -87,8 +87,8 @@ namespace DeltaV
             {
                 UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
                 universe?.Generation?.NotifyExternalMapRemoval(map);
-                universe?.Lifecycle.NotifyMapRemoved(map);
-                universe?.Lifecycle.Forget(map);
+                universe?.MapStates.NotifyMapRemoved(map);
+                universe?.MapStates.Forget(map);
             }
         }
 

@@ -77,18 +77,6 @@ namespace DeltaV
         internal const float MaxRadius = 5000f;
         internal const float MaxDensity = 100f;
 
-        internal static bool TryRegister(PrefabSpawnContext context, PrefabObjectSpawnPlan plan,
-            out PoiState marker, out string error)
-        {
-            if (!TryLoadDocument(context, plan.prefabPath, out SpaceObject host,
-                out MapPrefabDocument document, out error))
-            {
-                marker = null;
-                return false;
-            }
-            return TryRegister(context, host, document, plan, out marker, out error);
-        }
-
         internal static bool TryLoadDocument(PrefabSpawnContext context, string prefabPath,
             out SpaceObject host, out MapPrefabDocument document, out string error)
         {
@@ -141,7 +129,12 @@ namespace DeltaV
                 pose = pose,
                 faction = plan.inheritFaction ? context.Faction : null,
                 clusterChild = InheritsClusterChild(host.clusterChild, plan.clusterChild),
-                sourcePrefabPath = plan.prefabPath?.Replace('\\', '/')
+                sourcePrefabPath = plan.prefabPath?.Replace('\\', '/'),
+                sourcePrefabCategoryPath = SectorGenerationTable.CategoryPathForPrefab(
+                    DeltaVMod.CurrentSettings?.sectorGenerationRoots ?? SectorGenerationTable.Defaults(),
+                    plan.prefabPath),
+                sourcePrefabSeed = plan.seed,
+                externalPrefabGenerationCompleted = false
             };
             context.Universe.RegisterObject(marker);
             if (context.Universe.ObjectById(objectId) != marker)
@@ -238,6 +231,7 @@ namespace DeltaV
 
     public sealed class CompPrefabObjectSpawner : CompPrefabMarker
     {
+        internal override bool IsExternalSpaceObjectMarker => true;
         internal string prefabPath;
         internal float distance;
         internal float bearingDegrees;
@@ -317,15 +311,12 @@ namespace DeltaV
             PrefabMarkerPreviewCache.Draw(parent, plan, new Color(0.25f, 0.9f, 1f, 0.42f));
         }
 
-        public override void Expand(PrefabSpawnContext context)
+        internal PrefabObjectSpawnPlan Plan(PrefabSpawnContext context)
         {
             if (prefabPath.NullOrEmpty())
-            {
-                Log.Error($"[DeltaV] Exact prefab object marker at {parent.Position} has no prefab path.");
-                return;
-            }
+                throw new InvalidDataException($"Exact prefab object marker at {parent.Position} has no prefab path.");
             float bearing = bearingDegrees * Mathf.Deg2Rad;
-            var plan = new PrefabObjectSpawnPlan
+            return new PrefabObjectSpawnPlan
             {
                 prefabPath = prefabPath,
                 localOffset = SpaceTransform.Rotate(Vector2.right * Mathf.Max(0f, distance), bearing),
@@ -333,17 +324,14 @@ namespace DeltaV
                 inheritFaction = inheritFaction,
                 seed = Gen.HashCombineInt(parent.thingIDNumber, context.OwnerId) & ~3
             };
-            if (!PrefabObjectMarkerUtility.TryRegister(context, plan, out _, out string error))
-            {
-                Log.Error($"[DeltaV] Exact prefab object marker at {parent.Position} failed: {error}.");
-                return;
-            }
-            PrefabObjectMarkerUtility.DestroyMarker(parent);
         }
+
+        public override void Expand(PrefabSpawnContext context) { }
     }
 
     public sealed class CompPrefabClusterSpawner : CompPrefabMarker
     {
+        internal override bool IsExternalSpaceObjectMarker => true;
         internal List<PrefabClusterEntry> entries = new List<PrefabClusterEntry>();
         internal float innerRadius;
         internal float outerRadius;
@@ -445,62 +433,6 @@ namespace DeltaV
                 PrefabMarkerPreviewCache.Draw(parent, plans[i], new Color(1f, 0.72f, 0.2f, 0.28f));
         }
 
-        public override void Expand(PrefabSpawnContext context)
-        {
-            List<PrefabObjectSpawnPlan> plans = Plans();
-            if (plans.Count == 0)
-            {
-                Log.Error($"[DeltaV] Prefab cluster marker at {parent.Position} has no generated objects; "
-                    + "check its prefab weights and density.");
-                return;
-            }
-            if (context?.Universe == null || context.Map == null)
-            {
-                Log.Error($"[DeltaV] Prefab cluster marker at {parent.Position} was not spawned "
-                    + "in a Delta-V universe map.");
-                return;
-            }
-            SpaceObject host = context.Universe.SpaceObjectOnMap(context.Map);
-            if (host == null)
-            {
-                Log.Error($"[DeltaV] Prefab cluster marker at {parent.Position}: "
-                    + $"{UniverseManager.MapTag(context.Map)} has no registered SpaceObject.");
-                return;
-            }
-            if (host.clusterChild)
-            {
-                PrefabObjectMarkerUtility.DestroyMarker(parent);
-                return;
-            }
-            var documents = new Dictionary<string, MapPrefabDocument>(StringComparer.OrdinalIgnoreCase);
-            foreach (PrefabObjectSpawnPlan plan in plans)
-            {
-                if (documents.ContainsKey(plan.prefabPath)) continue;
-                if (!PrefabObjectMarkerUtility.TryLoadDocument(context, plan.prefabPath,
-                    out SpaceObject checkedHost, out MapPrefabDocument document, out string error))
-                {
-                    Log.Error($"[DeltaV] Prefab cluster marker at {parent.Position} cannot expand "
-                        + $"'{plan.prefabPath}': {error}.");
-                    return;
-                }
-                host = checkedHost;
-                documents.Add(plan.prefabPath, document);
-            }
-            var registered = new List<PoiState>(plans.Count);
-            foreach (PrefabObjectSpawnPlan plan in plans)
-            {
-                if (PrefabObjectMarkerUtility.TryRegister(context, host, documents[plan.prefabPath],
-                    plan, out PoiState child, out string error))
-                {
-                    registered.Add(child);
-                    continue;
-                }
-                foreach (PoiState created in registered) context.Universe.UnregisterObject(created);
-                Log.Error($"[DeltaV] Prefab cluster marker at {parent.Position} rolled back after "
-                    + $"'{plan.prefabPath}' failed: {error}.");
-                return;
-            }
-            PrefabObjectMarkerUtility.DestroyMarker(parent);
-        }
+        public override void Expand(PrefabSpawnContext context) { }
     }
 }

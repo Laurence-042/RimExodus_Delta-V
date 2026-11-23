@@ -94,7 +94,7 @@ prefab 将恢复后的实体直接交给 `GenSpawn.Spawn(Thing, …)`。原版�
 
 双船测试在排队重建前读取「保留 Prefab 标记」开关，两张图共用本次取值。开启时沿用舰船试装的落位流程，设施照常重链，随后跳过 `CompPrefabMarker.Expand`。两边的人员标记都可在 God 模式配置。2026-11-13 用户在新档确认开关、标记保留和重新导出均正常。设置用法见 [README](../README.md#测试)。
 
-聚焦图原地替换由 `SpaceLifecycleService.ReplaceFocusedMapFromPrefab` 总装：调试菜单选定文件与派系后显式传入，派系只确定一次，新容器与 `MapPrefab.Spawn` 共用该值（null 表示无派系）。先解析所选文件，再经 `ShipPocketMapFactory` 建空图、注册新容器和独立结构归属，调用同一 `MapPrefab.Spawn`。原图保留到放置成功；长事件结束后的帧边界经 `SetFocusedWithCamera` 交接，再走生命周期删图与旧容器注销。新容器继承原 `SpacePose`，旧图局部尺寸与新图局部尺寸的差异由 `SpaceTransform` 换算相机位置。失败的新图也在帧边界清理；不回退程序布局。用户入口与适用范围见 README「通用地图 prefab」。
+聚焦图原地替换由 `SpaceMapStateManager.ReplaceFocusedMapFromPrefab` 总装：调试菜单选定文件与派系后显式传入，派系只确定一次，新容器与 `MapPrefab.Spawn` 共用该值（null 表示无派系）。先解析所选文件，再经 `ShipPocketMapFactory` 建空图，用原 `SpaceObjectId` 替换容器表示并建立独立结构归属，调用同一 `MapPrefab.Spawn`。原图保留到放置成功；长事件结束后的帧边界经 `SetFocusedWithCamera` 交接，再由同一 manager 删除旧图。新容器继承原 `SpacePose`，旧图局部尺寸与新图局部尺寸的差异由 `SpaceTransform` 换算相机位置。失败的新图也在帧边界清理；不回退程序布局。用户入口与适用范围见 README「通用地图 prefab」。
 
 Scribe 对同一份 prefab 内的引用在整批读取时解析。对外部 Pawn、任务或旧地图 Thing 的引用无法在新副本成立，解析后为空。第三方 Comp 只要按 RimWorld `ExposeData` 持久化且不依赖旧地图或全局注册表，即可一同恢复；状态缺失、读取抛错、实例数量或 Def 不匹配均中止，不回退到 Def 默认状态。跨地图原始坐标、原始 Thing ID 数值等自定义字段不具有通用语义，具体模组须适配。
 
@@ -168,6 +168,6 @@ Scribe 对同一份 prefab 内的引用在整批读取时解析。对外部 Pawn
 
 `DeltaV_PrefabClusterMarker` 是批量生成入口。每项保存 prefab 相对路径和非负权重；公共参数保存环带内外半径、每 10000 格对象密度、最小中心间距、对象上限、派系继承和确定性种子。数量按环带面积乘密度取整并受上限约束；半径按面积均匀分布，角度均匀分布，带权抽样只使用正权重项。最小间距采用有限次拒绝采样，区域过密时可能少于理论数量，不把预览或屏幕坐标回写为生成事实。重新掷种子会改变整组布局；同一配置与种子在重建、存读档间保持一致。
 
-两种标记都在宿主 prefab 全部落位、设施重链完成后展开。精确标记仅在目标 prefab 解析并成功登记后销毁；cluster 先解析所有唯一 prefab，再原子登记整批子对象，任一步失败会回滚本批登记并保留标记供作者修正。批量登记的子 `PoiState` 写入 `clusterChild`，物化、归档、恢复及后续精确标记生成的后代都传递该来源事实；`CompPrefabClusterSpawner` 发现宿主带此标记时不执行分布，直接销毁自身。因此 cluster prefab 可以保留普通内容和精确子对象，但无论经过多少层精确引用都不能再次展开 cluster。普通读档、归档恢复和 `PoiSnapshot.ApplyTo` 不展开标记，因此不会因加载同一地图重复生成。
+两种外部 SpaceObject 标记都在宿主 prefab 全部落位、设施重链完成后，由 `SpaceMapStateManager` 作为一个批事务展开。manager 先解析全部唯一 prefab，再登记全部子 A 对象；任一步失败会注销本批登记、保留标记并使宿主物化失败。成功后宿主写入 `externalPrefabGenerationCompleted`。冷退役后的同 ID A 保留该事实，再次物化时只消费精确／cluster 标记而不重新生成子对象；人员标记仍正常展开。没有 marker UUID、来源 lineage 或退役墓碑。批量登记的子 `PoiState` 仍写入 `clusterChild`，仅作为错误模板递归生成 cluster 的安全门，不作为身份。
 
 选中标记或打开配置窗口时，`PrefabMarkerPreviewCache` 从 prefab 基架脚印生成半透明剪影；没有基架时回退到非真空地形与占格 Thing。剪影按同一相对位姿绘制，可用于调整距离、方位、朝向、环带和随机种子，但它是可丢弃渲染缓存，不参与碰撞、落点、数量、生命周期或存档。换档时由 `UniverseManager.ResetRuntimeServices` 清空。算法专项入口为 `scripts/PrefabMarkerRegression/run.ps1`；它直接引用生产 DLL，覆盖密度换算、`clusterChild` 产生／继承、配置上限、确定性、带权抽样、面积均匀、环带、间距、种子和单一朝向来源，不代替游戏内的导出、预览、物化及归档恢复验收。

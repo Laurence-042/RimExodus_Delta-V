@@ -58,6 +58,12 @@ internal static partial class Program
             "sealed consignments are valueless and excluded from trade by native Def");
         Check(source["stackLimit"].InnerText == "1", "consignment identity cannot merge across missions");
 
+        var stableEndpoint = new MissionTarget { objectId = 303, label = "stable endpoint" };
+        string endpointSave = Scribe.saver.DebugOutputFor(stableEndpoint);
+        Check(endpointSave.Contains("<objectId>303</objectId>")
+            && !endpointSave.Contains("terminalUuid") && !endpointSave.Contains("cachedThingId"),
+            "mission endpoint persistence contains no terminal or runtime Thing identity");
+
         var universe = game.GetComponent<UniverseManager>();
         foreach (Type patch in typeof(SpaceMission).Assembly.GetTypes().Where(t => t.Name.StartsWith("Patch_Mission")))
         { harmony.CreateClassProcessor(patch).Patch(); checks++; }

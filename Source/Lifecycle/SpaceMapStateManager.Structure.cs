@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
 using RimWorld.Planet;
@@ -7,23 +6,21 @@ using Verse;
 
 namespace DeltaV
 {
-    public sealed partial class SpaceLifecycleService
+    public sealed partial class SpaceMapStateManager
     {
-        private readonly HashSet<Map> pendingStructureChecks = new HashSet<Map>();
-
         /// <summary>建筑/地形事件合并到帧边界；复核搬运、生成后的最终内容。</summary>
         internal void QueueStructureCheck(Map map)
         {
-            if (map == null || pendingStructureChecks.Contains(map)) return;
+            if (map == null) return;
             SpaceObject owner = universe.FrameOf(map);
             // Do not discover members/roles while publishing a structural mutation.
             // The full eligibility query belongs at the coalesced frame boundary.
             if (!IsOrdinaryStructureMap(owner)) return;
-            pendingStructureChecks.Add(map);
             int version = owner.RepresentationVersion;
+            if (!TryBeginTransition(owner, MapTransitionKind.StructureReview, map)) return;
             universe.QueueFrameAction(() =>
             {
-                if (!pendingStructureChecks.Contains(map)) return;
+                if (!TransitionStillCurrent(owner.objectId, MapTransitionKind.StructureReview, version, map)) return;
                 try
                 {
                     if (universe.ObjectById(owner.objectId) == owner && owner.RepresentationVersion == version
@@ -34,7 +31,7 @@ namespace DeltaV
                         RecycleUnsupportedMap(map);
                     }
                 }
-                finally { pendingStructureChecks.Remove(map); }
+                finally { CompleteTransition(owner.objectId, MapTransitionKind.StructureReview, version); }
             });
         }
 

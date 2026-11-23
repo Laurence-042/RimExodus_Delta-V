@@ -165,7 +165,7 @@ namespace DeltaV
             {
                 foreach (SpaceObject container in containers)
                 {
-                    universe.Lifecycle.DestroyPocketMap(container.map);
+                    universe.MapStates.DestroyPocketMap(container.map);
                     universe.UnregisterObject(container);
                 }
             });

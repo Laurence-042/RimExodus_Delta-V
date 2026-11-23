@@ -90,7 +90,6 @@ namespace DeltaV
             return OrbitSphere.Move(own.pose.position, away * 1500f);
         }
 
-        private readonly HashSet<int> retirementQueued = new HashSet<int>();
 
         private void RecordBaseline(ShipBase ship, SpaceObject own)
         {
@@ -235,30 +234,26 @@ namespace DeltaV
             if (!archived.npcRetreating || archived.npcHomeObjectId == 0) return;
             SpaceObject home = universe.ObjectById(archived.npcHomeObjectId);
             if (home == null || OrbitSphere.ArcCells(archived.pose.position, home.pose.position)
-                > ShipyardArrivalRadius || !retirementQueued.Add(archived.objectId)) return;
-            universe.QueueFrameAction(() =>
+                > ShipyardArrivalRadius) return;
+            var obj = universe.ObjectById(id) as ArchivedSpaceObject;
+            try
             {
-                var obj = universe.ObjectById(id) as ArchivedSpaceObject;
-                try
-                {
-                    if (obj == null || obj.RepresentationVersion != version || obj.map != null
-                        || !obj.npcRetreating || !obj.IsArchived) return;
-                    if (!EvaluateRetreat(obj, out _)) return;
-                    SpaceObject currentHome = ResolveRetreatHome(obj);
-                    if (currentHome == null || OrbitSphere.ArcCells(obj.pose.position, currentHome.pose.position)
-                        > ShipyardArrivalRadius) return;
-                    // AI 决定返厂退役；生命周期仅执行通用移除，恢复请求与玩家保护优先。
-                    if (!universe.Missions.Protects(obj) && universe.Lifecycle.TryRemoveArchivedContainer(obj)
-                        && DeltaVLog.Enabled(DeltaVLogModule.AI))
-                        DeltaVLog.Message(DeltaVLogModule.AI,
-                            $"NPC container #{obj.objectId} retired at shipyard #{currentHome.objectId}; crew passed to world");
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"[DeltaV] NPC retirement failed for #{id}: {ex}");
-                }
-                finally { retirementQueued.Remove(id); }
-            });
+                if (obj == null || obj.RepresentationVersion != version || obj.map != null
+                    || !obj.npcRetreating || !obj.IsArchived) return;
+                if (!EvaluateRetreat(obj, out _)) return;
+                SpaceObject currentHome = ResolveRetreatHome(obj);
+                if (currentHome == null || OrbitSphere.ArcCells(obj.pose.position, currentHome.pose.position)
+                    > ShipyardArrivalRadius) return;
+                if (!universe.Missions.Protects(obj)
+                    && universe.MapStates.RequestPermanentRetirement(obj, "NPC shipyard retirement")
+                    && DeltaVLog.Enabled(DeltaVLogModule.AI))
+                    DeltaVLog.Message(DeltaVLogModule.AI,
+                        $"NPC container #{obj.objectId} requested retirement at shipyard #{currentHome.objectId}");
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[DeltaV] NPC retirement request failed for #{id}: {ex}");
+            }
         }
 
         public void Tick()
@@ -337,7 +332,7 @@ namespace DeltaV
         private void LogUnclaimedConsoleEdge(SpaceObject obj)
         {
             if (!DeltaVLog.Enabled(DeltaVLogModule.AI)
-                || universe.Lifecycle.IsFrozen(obj.map)
+                || universe.MapStates.IsFrozen(obj.map)
                 || noMainReportedObjects.Contains(obj.objectId)) return;
             if (!HasUnclaimedNpcConsole(obj)) return;
             noMainReportedObjects.Add(obj.objectId);
@@ -370,9 +365,9 @@ namespace DeltaV
             if (obj.projectileRoleOverride || universe.Approach.FlowTarget.Identity == ship.Identity)
                 return NpcShipAiGate.ApproachConflict;
             if (obj.HasTag(SpaceObjectTag.Ship) != true) return NpcShipAiGate.NotShipContainer;
-            if (universe.Lifecycle.IsFrozen(obj.map))
+            if (universe.MapStates.IsFrozen(obj.map))
                 return NpcShipAiGate.FrozenMap;
-            if (universe.Lifecycle.MinPlayerDistance(obj)
+            if (universe.MapStates.MinPlayerDistance(obj)
                 > DeltaVMod.CurrentSettings.poiActiveRadius)
                 return NpcShipAiGate.OutsideActiveRadius;
             if (controller != null && (!controller.Active
@@ -402,7 +397,7 @@ namespace DeltaV
                 $"NPC ship #{ship.Identity} {UniverseManager.MapTag(obj.map)} "
                 + $"AI gate {gate}; relation={ship.State} "
                 + $"faction={ship.Faction?.Name ?? "none"} "
-                + $"playerDist={universe.Lifecycle.MinPlayerDistance(obj):F0}");
+                + $"playerDist={universe.MapStates.MinPlayerDistance(obj):F0}");
         }
     }
 

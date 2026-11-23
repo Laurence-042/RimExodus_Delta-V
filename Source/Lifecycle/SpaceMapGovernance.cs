@@ -71,6 +71,33 @@ namespace DeltaV
                 && container.HasFaction(Faction.OfPlayerSilentFail);
         }
 
+        public static bool HasPlayerBuildings(Map map)
+        {
+            if (map == null || map.Disposed) return false;
+            return map.listerBuildings.allBuildingsColonist.Any(building => !building.Destroyed);
+        }
+
+        /// <summary>冷退役提交前的纯查询；普通散落物品不构成阻塞。</summary>
+        public static string ColdRetirementBlockReason(Map map, UniverseManager universe)
+        {
+            if (map == null || map.Disposed) return "map unavailable";
+            if (map == Find.CurrentMap) return "current map";
+            if (HasPlayerPawn(map)) return "player pawn or prisoner";
+            if (map.IsPlayerHome) return "player home";
+            if (HasPlayerBuildings(map)) return "player building";
+            SpaceObject container = universe?.FrameOf(map);
+            if (container?.HasTag(SpaceObjectTag.Ship) == true
+                && container.HasFaction(Faction.OfPlayerSilentFail)) return "player ship";
+            if (container != null && universe?.Missions.Protects(container) == true) return "active mission";
+            if (universe?.Generation?.IsGenerating(map) == true) return "map generation";
+            if (universe?.ShipTransitions.IsAwaitingDockingCleanup(map) == true
+                || universe?.Approach.ApproachShipMap == map
+                || universe?.Approach.ActivePlan?.targetMap == map
+                || universe?.SoftDock.UsesMap(map) == true) return "map transfer or docking";
+            if (!ArchivedMapStore.CanUnloadLosslessly(map)) return "external map reference";
+            return null;
+        }
+
         public static IntVec3 GenerationSize(MapParent parent)
         {
             if (parent is Site site) return site.PreferredMapSize;
@@ -134,7 +161,7 @@ namespace DeltaV
             foreach (PoiState poi in universe.objects.OfType<PoiState>()
                 .Where(p => p.kind == PoiKind.NativeParent && p.nativeParent == parent).ToList())
             {
-                universe.Lifecycle.Forget(poi.map);
+                universe.MapStates.Forget(poi.map);
                 universe.UnregisterObject(poi);
             }
         }
@@ -154,7 +181,7 @@ namespace DeltaV
                 .Where(p => p.kind == PoiKind.NativeParent
                     && (p.nativeParent == null || p.nativeParent.Destroyed || !live.Contains(p.nativeParent))).ToList())
             {
-                universe.Lifecycle.Forget(stale.map);
+                universe.MapStates.Forget(stale.map);
                 universe.UnregisterObject(stale);
             }
         }

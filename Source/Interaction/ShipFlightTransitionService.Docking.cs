@@ -470,7 +470,7 @@ namespace DeltaV
             Gravship gravship = GravshipInterop.CaptureDomain(sourceMap, cells, mainConsole, faction, includeTerrain, includeItems, buildings);
             if (gravship == null)
             {
-                universe.Lifecycle.DestroyPocketMap(pocketMap);
+                universe.MapStates.DestroyPocketMap(pocketMap);
                 return null;
             }
             gravship.Rotation = rotation;
@@ -605,6 +605,9 @@ namespace DeltaV
             GravshipInterop.PlaceIntoMap(gravship, landingRoot, targetMap, structureId);
             sourceMap = pocketMap;
             RegisterDockingCleanup(pocketMap);
+            if (target.Vessel?.PlayerMayOperate == true)
+                universe.PublishPlayerMapActivity(targetMap, PlayerContactKind.Docking,
+                    target.Vessel.Anchor);
             return true;
         }
 
@@ -698,6 +701,9 @@ namespace DeltaV
                 Messages.Message("DeltaV_DockFailBusy".Translate(), MessageTypeDefOf.RejectInput, false);
                 return;
             }
+            ShipBase departed = ship;
+            if (departed.PlayerMayOperate)
+                universe.PublishPlayerMapActivity(sourceMap, PlayerContactKind.Docking, departed.Anchor);
             Messages.Message("DeltaV_FreeFlightSuccess".Translate(universe.LabelForOwner(ship.ownerId)),
                 MessageTypeDefOf.PositiveEvent, false);
             DeltaVLog.Message(DeltaVLogModule.Core,
@@ -799,22 +805,22 @@ namespace DeltaV
                 || !Find.Maps.Contains(sourceMap)) return;
             if (sourceMap.Tile.Valid) return; // worldtile 图：不受转换影响
             FinishEmptyWorksite(sourceMap);
-            if (universe.Lifecycle.RecycleUnsupportedMap(sourceMap)) return;
+            if (universe.MapStates.RecycleUnsupportedMap(sourceMap)) return;
             if (sourceMap == Find.CurrentMap)
             {
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"{sourceMap.Parent?.Label ?? sourceMap.ToString()}: pocket cleanup skipped (currently focused)");
                 return;
             }
-            if (SpaceLifecycleService.IsUniverseHost(sourceMap)) return;
+            if (SpaceMapStateManager.IsUniverseHost(sourceMap)) return;
             // 无承载图已先回收；有承载结构的宿主保留其零散内容。
             if (ShipRegistry.HasLooseContents(sourceMap)) return;
             SpaceObject owner = universe.SpaceObjectOnMap(sourceMap);
             if (owner is PoiState poi && SpaceMapGovernance.IsBlankLandingCanvas(sourceMap))
             {
                 ConvertLeftoverSubstructureToWreck(universe, sourceMap, poi.pose);
-                universe.Lifecycle.Forget(sourceMap);
-                universe.Lifecycle.DestroyPocketMap(sourceMap);
+                universe.MapStates.Forget(sourceMap);
+                universe.MapStates.DestroyPocketMap(sourceMap);
                 universe.UnregisterObject(poi);
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"{poi.label}: emptied pocket interior removed with its object");
@@ -826,8 +832,8 @@ namespace DeltaV
                 // 等距离归档（空图与船同位同速漂移，永不触发距离清理 → 常驻加载泄漏）。
                 // 非空白图（有滞留物/断片）仍交给距离生命周期。
                 ConvertLeftoverSubstructureToWreck(universe, sourceMap, owner.pose);
-                universe.Lifecycle.Forget(sourceMap);
-                universe.Lifecycle.DestroyPocketMap(sourceMap);
+                universe.MapStates.Forget(sourceMap);
+                universe.MapStates.DestroyPocketMap(sourceMap);
                 universe.UnregisterObject(owner);
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"{owner.label}: emptied pocket interior removed with its object");
@@ -965,7 +971,7 @@ namespace DeltaV
                     ConvertLeftoverSubstructureToWreck(universe, sourceMap,
                         pose ?? new SpacePose(Vector3.right, 0f));
                     MapOverlayRenderer.Release(sourceMap);
-                    universe.Lifecycle.DestroyPocketMap(sourceMap);
+                    universe.MapStates.DestroyPocketMap(sourceMap);
                     universe.UnregisterObject(ownPocket);
                     ShipPhysics.Forget(sourceMap);
                     DeltaVLog.Message(DeltaVLogModule.Lifecycle,
@@ -989,7 +995,7 @@ namespace DeltaV
                 // 先放焦点；作为锚保留 worldtile 图的源图不在此列。
                 if (ownPocket == null && sourceMap != sectorMap && sourceMap == Find.CurrentMap)
                     Current.Game.CurrentMap = null;
-                universe.Lifecycle.PackDepartedSectorPois(address, sectorMap);
+                universe.MapStates.PackDepartedSectorPois(address, sectorMap);
             });
         }
 
@@ -1030,7 +1036,7 @@ namespace DeltaV
                     $"{mapLabel}: unanchored abandon skipped (currently focused)");
                 return;
             }
-            if (SpaceLifecycleService.IsUniverseHost(map))
+            if (SpaceMapStateManager.IsUniverseHost(map))
             {
                 DeltaVLog.Message(DeltaVLogModule.Lifecycle,
                     $"{mapLabel}: unanchored abandon skipped (universe host)");

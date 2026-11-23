@@ -136,10 +136,17 @@ namespace DeltaV
                     try
                     {
                         MapContentSpawner.RelinkGravshipComponents(target);
-                        if (!expandMarkers) return;
-                        var context = new PrefabSpawnContext(target, faction, ownerId, root, rotation, universe);
-                        foreach (Thing thing in things.ToList()) thing.TryGetComp<CompPrefabMarker>()?.Expand(context);
-                        things.RemoveAll(t => t.Destroyed);
+                        if (expandMarkers)
+                        {
+                            var context = new PrefabSpawnContext(target, faction, ownerId, root, rotation, runtime);
+                            if (runtime != null) runtime.MapStates.ExpandPrefabMarkers(context, things);
+                            else foreach (Thing thing in things.ToList())
+                            {
+                                CompPrefabMarker marker = thing.TryGetComp<CompPrefabMarker>();
+                                if (marker?.IsExternalSpaceObjectMarker == false) marker.Expand(context);
+                            }
+                            things.RemoveAll(t => t.Destroyed);
+                        }
                     }
                     finally
                     {

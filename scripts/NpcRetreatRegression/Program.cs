@@ -104,6 +104,8 @@ internal static partial class Program
         new HarmonyLib.Harmony("DeltaV.Regression.SceneLanguage").Patch(
             HarmonyLib.AccessTools.PropertyGetter(typeof(Find), nameof(Find.ActiveLanguageWorker)),
             prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(ReadSceneLanguage)));
+        if (Environment.GetCommandLineArgs().Contains("--map-state-only"))
+        { CheckMapStateManager(universe); return; }
         if (Environment.GetCommandLineArgs().Contains("--hull-collision-performance"))
         { RunHullCollisionPerformance(universe, faction); return; }
         if (Environment.GetEnvironmentVariable("DELTAV_CRUISE_BENCHMARK") == "1")
@@ -217,6 +219,7 @@ internal static partial class Program
         CheckSharedPdCandidates(universe, faction, other);
         CheckDriveExecutionReuse(faction);
         CheckNonCombatCruise(universe);
+        CheckMapStateManager(universe);
         CheckWeaponExecution(universe, faction);
         CheckSpaceTurretPlacement(faction);
         if (drivePerformanceOnly) { CheckMotionFeedback(universe); return; }

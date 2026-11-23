@@ -37,7 +37,7 @@ namespace DeltaV
             foreach (SpaceObject obj in um.objects)
             {
                 if (obj is PoiState || obj.map == null || obj.map == player.Map) continue;
-                float distance = um.Lifecycle.MinPlayerDistance(obj);
+                float distance = um.MapStates.MinPlayerDistance(obj);
                 if (distance < bestDist)
                 {
                     bestDist = distance;
@@ -88,7 +88,7 @@ namespace DeltaV
         {
             UniverseManager universe = Um();
             SpaceObject source = universe.FrameOf(Find.CurrentMap);
-            if (!universe.Lifecycle.CanReplaceFocusedMap(source, out string reason))
+            if (!universe.MapStates.CanReplaceFocusedMap(source, out string reason))
             {
                 Messages.Message(reason, MessageTypeDefOf.RejectInput, false);
                 return;
@@ -99,7 +99,7 @@ namespace DeltaV
 
         private static void SelectPrefabReplacementFaction(UniverseManager universe, SpaceObject source, string path)
         {
-            if (!universe.Lifecycle.CanReplaceFocusedMap(source, out string reason))
+            if (!universe.MapStates.CanReplaceFocusedMap(source, out string reason))
             {
                 Messages.Message(reason, MessageTypeDefOf.RejectInput, false);
                 return;
@@ -116,14 +116,14 @@ namespace DeltaV
             {
                 new DebugMenuOption("DeltaV_PrefabReplaceKeepFaction".Translate(currentFaction?.Name ?? noFaction),
                     DebugMenuOptionMode.Action,
-                    () => universe.Lifecycle.ReplaceFocusedMapFromPrefab(source, path, currentFaction)),
+                    () => universe.MapStates.ReplaceFocusedMapFromPrefab(source, path, currentFaction)),
                 new DebugMenuOption(noFaction, DebugMenuOptionMode.Action,
-                    () => universe.Lifecycle.ReplaceFocusedMapFromPrefab(source, path, null))
+                    () => universe.MapStates.ReplaceFocusedMapFromPrefab(source, path, null))
             };
             foreach (Faction faction in Find.FactionManager.AllFactionsListForReading.OrderBy(f => f.Name))
             {
                 options.Add(new DebugMenuOption(faction.Name, DebugMenuOptionMode.Action,
-                    () => universe.Lifecycle.ReplaceFocusedMapFromPrefab(source, path, faction)));
+                    () => universe.MapStates.ReplaceFocusedMapFromPrefab(source, path, faction)));
             }
             Find.WindowStack.Add(new Dialog_DebugOptionListLister(options,
                 "DeltaV_PrefabReplaceSelectFaction".Translate(path)));
@@ -294,7 +294,7 @@ namespace DeltaV
         {
             // 只绕过距离门禁；聚焦图、玩家图和原生 MapParent 仍受保护。
             SpaceObject container = NearestMaterializedContainer();
-            if (container?.map != null) Um().Lifecycle.ArchiveContainer(container, container.map, force: true);
+            if (container?.map != null) Um().MapStates.ArchiveContainer(container, container.map, force: true);
         }
 
         [DebugAction("Delta-V", "Player ship: teleport +1500 east (cross lifecycle ranges)", actionType = DebugActionType.Action, allowedGameStates = AllowedGameStates.PlayingOnMap)]
@@ -340,8 +340,8 @@ namespace DeltaV
             var sb = new StringBuilder("[DeltaV:Diag] Focused map");
             sb.AppendLine($"\n- map: {map?.Parent?.Label ?? "null"} tile={map?.Tile.ToString() ?? "-"} size={map?.Size.x}x{map?.Size.z}");
             sb.AppendLine($"- frame: {um?.FrameOf(map)?.label ?? "(none)"}");
-            sb.AppendLine($"- frozen={um?.Lifecycle.IsFrozen(map) == true} (dormant={um?.Lifecycle.IsDormant(map) == true}" +
-                $" generating={um?.Generation?.IsGenerating(map) == true} host={SpaceLifecycleService.IsUniverseHost(map)})");
+            sb.AppendLine($"- frozen={um?.MapStates.IsFrozen(map) == true} (dormant={um?.MapStates.IsDormant(map) == true}" +
+                $" generating={um?.Generation?.IsGenerating(map) == true} host={SpaceMapStateManager.IsUniverseHost(map)})");
             sb.AppendLine($"- wantedMode={Find.World?.renderer?.wantedMode} drawingMap={RimWorld.Planet.WorldRendererUtility.DrawingMap}");
             sb.AppendLine($"- camera rootSize={Find.CameraDriver?.RootSize:F0} pos={Find.CameraDriver?.MapPosition}");
             map?.mapDrawer.RegenerateEverythingNow();
@@ -401,8 +401,8 @@ namespace DeltaV
                     sb.AppendLine($"    ship #{ship.Identity} '{ship.Label}' " +
                         $"relation={ship.State} faction={ship.Faction?.Name ?? "none"} " +
                         $"anchor#{ship.Anchor.thingIDNumber} hull={ship.HullCells.Count()} cells " +
-                        $"frozen={um.Lifecycle.IsFrozen(map)} zeroG={FreeFlightBootstrap.IsZeroGravity(um, map)} " +
-                        $"playerDist={(frame == null ? float.PositiveInfinity : um.Lifecycle.MinPlayerDistance(frame)):F0} " +
+                        $"frozen={um.MapStates.IsFrozen(map)} zeroG={FreeFlightBootstrap.IsZeroGravity(um, map)} " +
+                        $"playerDist={(frame == null ? float.PositiveInfinity : um.MapStates.MinPlayerDistance(frame)):F0} " +
                         $"mapThrust={(frame?.MotionInfo.AvailableThrust ?? 0f):F0} hostileTargets={hostileTargets} " +
                         $"AI gate={um.NpcShips.GateFor(frame, ship)} " +
                         $"autopilot={um.Autopilot.IsActive(DriveSubject.Of(ship))}");
@@ -449,13 +449,13 @@ namespace DeltaV
         private static void AppendSpaceObjectSummary(StringBuilder sb, UniverseManager um, SpaceObject obj)
         {
             string lifecycle = obj is PoiState poi
-                ? (poi.map == null ? "packed" + (poi.snapshot != null ? " (snapshot)" : " (fresh)") : um.Lifecycle.IsDormant(poi.map) ? "dormant" : "active")
+                ? (poi.map == null ? "packed" + (poi.snapshot != null ? " (snapshot)" : " (fresh)") : um.MapStates.IsDormant(poi.map) ? "dormant" : "active")
                 : (obj.map == null ? "mapless" : "container");
             Vector3 direction = obj.pose.position;
             float lat = Mathf.Asin(Mathf.Clamp(direction.y, -1f, 1f)) * Mathf.Rad2Deg;
             float lon = Mathf.Atan2(direction.z, direction.x) * Mathf.Rad2Deg;
             string playerDist = obj is PoiState poi2
-                ? $" playerDist={um.Lifecycle.MinPlayerDistance(poi2):F0}"
+                ? $" playerDist={um.MapStates.MinPlayerDistance(poi2):F0}"
                 : "";
             string sector = OrbitSphere.Valid ? $" sector={OrbitSphere.TileFromDirection(direction)}" : "";
             sb.AppendLine($"\n- #{obj.objectId} {obj.label} [{obj.GetType().Name}] tag={obj.Tag} {lifecycle}" +

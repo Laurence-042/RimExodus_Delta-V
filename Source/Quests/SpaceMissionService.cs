@@ -28,30 +28,36 @@ namespace DeltaV
             && e.def.HasComp<CompDeltaVPilotConsole>());
         private MissionBoard BoardFor(Building_SpaceTradeTerminal terminal)
         {
-            MissionTarget address = MissionTarget.Of(universe, terminal);
-            return Data.boards.FirstOrDefault(b => b.faction == terminal.Faction && (address.shipId > 0
-                ? b.terminal.shipId == address.shipId : b.terminal.shipId == 0 && b.terminal.objectId == address.objectId));
+            int hostObjectId = universe.FrameOf(terminal.Map)?.objectId ?? 0;
+            return Data.boards.FirstOrDefault(board => board.hostObjectId == hostObjectId);
         }
+
+        private static MissionTarget TargetFor(MissionBoard board) => board == null ? null
+            : new MissionTarget { objectId = board.hostObjectId, label = board.label };
+
         private bool DestinationAvailable(MissionTarget address, Faction faction)
         {
             if (address.Resolve(universe) is Building_SpaceTradeTerminal terminal)
                 return terminal.MissionIssuer && terminal.Faction == faction;
-            var archived = universe.objects.OfType<ArchivedSpaceObject>().FirstOrDefault(o => address.shipId > 0
-                ? o.globe?.ships.Any(s => !s.shuttle && s.key == address.shipId) == true : o.objectId == address.objectId);
-            if (archived == null) return false;
-            address.objectId = archived.objectId;
-            return Data.boards.Any(b => b.terminal.thingId == address.thingId && b.faction == faction);
+            SpaceObject host = universe.objects.FirstOrDefault(address.References);
+            if (host == null) return false;
+            address.objectId = host.objectId;
+            return Data.boards.Any(b => b.hostObjectId == address.objectId && b.faction == faction);
         }
 
         internal MissionBoard Board(Building_SpaceTradeTerminal terminal)
         {
             // Discover only at an interaction boundary. Addresses survive unloading and docking.
+            Data.boards.RemoveAll(board => universe.ObjectById(board.hostObjectId) == null
+                && !Active.Any(m => m.source?.objectId == board.hostObjectId
+                    || m.destination?.objectId == board.hostObjectId));
             foreach (var t in Terminals.Where(t => t.MissionIssuer).OrderBy(t => t.thingIDNumber))
             {
                 var known = BoardFor(t);
-                if (known == null) Data.boards.Add(new MissionBoard { terminal = MissionTarget.Of(universe, t), faction = t.Faction });
-                else if (known.terminal.thingId == t.thingIDNumber || known.terminal.Resolve(universe) == null)
-                    known.terminal = MissionTarget.Of(universe, t);
+                MissionTarget target = MissionTarget.Of(universe, t);
+                if (known == null) Data.boards.Add(new MissionBoard
+                    { hostObjectId = target.objectId, label = target.label, faction = t.Faction });
+                else { known.label = target.label; known.faction = t.Faction; }
             }
             MissionBoard board = BoardFor(terminal);
             if (board == null || !terminal.MissionIssuer) return board;
@@ -62,14 +68,14 @@ namespace DeltaV
             int tier = settings.Tier(MissionWealth.Total(universe), terminal.Faction.GoodwillWith(Faction.OfPlayer));
             SpaceMissionTier limits = settings.tiers[tier];
             var destinations = Data.boards.Where(b => b != board && b.faction == terminal.Faction
-                && (b.terminal.shipId != board.terminal.shipId || b.terminal.objectId != board.terminal.objectId)
-                && DestinationAvailable(b.terminal, terminal.Faction)).ToList();
+                && b.hostObjectId != board.hostObjectId
+                && DestinationAvailable(TargetFor(b), terminal.Faction)).ToList();
             if (destinations.Count > 0)
             {
                 for (int i = 0; i < 2; i++)
                 {
                     SpaceMission m = Offer(board, tier, (SpaceMissionKind)i);
-                    m.destination = destinations.RandomElement().terminal;
+                    m.destination = TargetFor(destinations.RandomElement());
                     m.quantity = Rand.RangeInclusive(i == 0 ? 2 : 1, i == 0 ? limits.boxes : limits.passengers);
                     m.rewardEach = i == 0 ? settings.freightReward : settings.passengerReward;
                     if (i == 0)
@@ -112,7 +118,7 @@ namespace DeltaV
         {
             SpaceMissionDef s = SpaceMissionDef.Settings;
             return new SpaceMission { id = Data.nextId++, tier = tier, kind = kind, faction = board.faction,
-                source = board.terminal, successGoodwill = s.successGoodwill, failureGoodwill = s.failureGoodwill,
+                source = TargetFor(board), successGoodwill = s.successGoodwill, failureGoodwill = s.failureGoodwill,
                 passengerGoodwill = s.passengerGoodwill };
         }
 
@@ -205,6 +211,7 @@ namespace DeltaV
                 board.offers.Remove(m);
                 committed = true;
                 foreach (var held in escrow) held.item.Destroy();
+                universe.PublishPlayerMapActivity(terminal.Map, PlayerContactKind.Mission, terminal);
                 Messages.Message("DeltaV_Mission_Accepted".Translate(m.Title), MessageTypeDefOf.PositiveEvent, false);
             }
             finally
@@ -230,7 +237,7 @@ namespace DeltaV
                     {
                         SpaceObject enemyObject = universe.FrameOf(enemyMap);
                         if (enemyObject != null) universe.UnregisterObject(enemyObject);
-                        universe.Lifecycle.DestroyPocketMap(enemyMap);
+                        universe.MapStates.DestroyPocketMap(enemyMap);
                     }
                     Data.missions.Remove(m); m.quest = null; m.passengers.Clear(); m.cargoIds.Clear(); m.settled = false;
                     m.goodwillApplied = false; m.deadline = m.expires = m.settledAt = -1;
