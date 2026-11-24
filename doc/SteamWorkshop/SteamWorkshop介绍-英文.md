@@ -62,7 +62,17 @@ Put simply, it treats a ship map as a “SpaceObject”, a container that can ho
 
 [h1]Mod compatibility[/h1]
 
-In principle, the basic features should work with mods that do not alter space mechanics or store their own state on maps. Delta-V implements its own space-combat system in a way similar to Combat Extended, so ordinary turrets cannot serve as Delta-V space weapons without dedicated support. Automatic adaptation is planned, but even when implemented it will only provide flavor-level support. It cannot guarantee reliable balance or automatically reproduce unique weapon mechanics.
+In principle, the basic features should work with mods that do not alter space mechanics or store their own state on maps.
+
+Delta-V can automatically add a space mode to eligible vanilla and modded turrets. The default Recommended mode skips turrets when its analysis flags a potential compatibility issue, such as a custom firing mechanic. If a turret passes the basic checks and is flagged with a warning, you can select “Enable weapon” under Mod Settings → Auto-adaptation. Changes take effect after restarting the game. Balance and the behavior of special weapon mechanics still need playtesting.
+
+[b]Modded turrets firing in space[/b]
+[img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/compat_other_mod_turret.png[/img]
+
+Recommended mode skipped many of the modded turrets shown above. I enabled them manually and saw no obvious issues when I test-fired them.
+
+[b]Two ships exchanging fire in IsoRim’s 3D view[/b]
+[img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/compat_isorim.png[/img]
 
 See “兼容性与已知限制 / Compatibility and Known Limitations” in Discussions for details.
 
