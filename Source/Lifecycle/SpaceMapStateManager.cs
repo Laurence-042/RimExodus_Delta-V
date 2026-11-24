@@ -780,9 +780,10 @@ namespace DeltaV
         /// SpaceObject 地图一律按「距离 = 超删除半径」处理——复用距离生命周期同一条
         /// 收纳/删除路径（TryPack：快照 POI 收快照销毁口袋图、对象保留为 packed 可
         /// 重访；MustStayActive 与滞留 Pawn 守卫照常生效，删不掉的只休眠）。
-        /// worldtile 图由锚规则（HandleStrategicTravelDeparture 第 ② 段）另行处理，
-        /// 经 excludeMap 排除。旅行期间 MinPlayerDistance 为 +Infinity 且评估整体
-        /// 跳过，不能依赖自然距离触发——离场时刻必须显式执行。
+        /// 实际 worldtile 源图由 HandleStrategicTravelDeparture 按锚规则另行处理；星区
+        /// 地址对应的 worldtile POI 经 excludeMap 排除本轮强制收纳，待到达后由正常距离
+        /// 生命周期处理。旅行期间 MinPlayerDistance 为 +Infinity 且评估整体跳过，不能
+        /// 依赖自然距离触发——离场时刻必须显式执行。
         /// </summary>
         public void PackDepartedSectorPois(PlanetTile sector, Map excludeMap)
         {

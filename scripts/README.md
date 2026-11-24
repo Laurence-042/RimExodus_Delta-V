@@ -58,7 +58,7 @@ $harmony = '<Lib.Harmony/lib/net8.0/0Harmony.dll>'
 | `RailgunRegression/run.ps1 -EquipmentOnly` | 1.6 电池隔离与短路、反应堆、货柜温控和生命周期、ASF 图形与库存、终端交易。交易夹具提供船域与信标覆盖，使用生产选船、原版信标枚举和成交复核，覆盖货源断开、主台或派系变化及库存离开信标覆盖 |
 | `RailgunRegression/run.ps1 -EnergyOnly` | 兼容入口，仍按顺序运行轨道炮组和设备组，并提示改用各自入口 |
 | `CombatStrategyRegression/` | 使用最小占位类型的策略、曲线与文件校验；不替代游戏运行时验证 |
-| `NpcRetreatRegression/run.ps1` | 1.6 的战斗、驾驶、结构和生命周期专项；已接 REF，名称不代表只测撤退；`-PlayerFlightOnly` 验证驾驶权限、显式驾驶和原版按键抑制边界、导航参考与任务替换（2026-11-02 共 72 项通过；模拟焦点／按键绑定环境，不启动游戏）；`-SeparationOnly` 验证实际 Mod DLL 的归属、增量断裂检查与出力分离门禁；`-TractorOnly` 验证自动跨船独占与过滤、手动叠力、残骸分离请求、点防伤害分配及坐标／存读档 |
+| `NpcRetreatRegression/run.ps1` | 1.6 的战斗、驾驶、结构和生命周期专项；已接 REF，名称不代表只测撤退；`-PlayerFlightOnly` 验证驾驶权限、显式驾驶和原版按键抑制边界、导航参考与任务替换（2026-11-02 共 72 项通过；模拟焦点／按键绑定环境，不启动游戏）；`-SeparationOnly` 验证实际 Mod DLL 的归属、增量断裂检查与出力分离门禁；`-DockingOnly` 验证作业图、对接及战略离场只选择实际 worldtile 源图，不把口袋源的星区地址 POI 当成弃置目标；`-TractorOnly` 验证自动跨船独占与过滤、手动叠力、残骸分离请求、点防伤害分配及坐标／存读档 |
 | `MpcRegression`、`EngineeringRegression`、`RailgunRegression` | 1.6 控制器、工程与碰撞链回归；轨道炮数值现状以武器基线及 1.7 回归为准 |
 | `RailgunRegression/run.ps1` 默认入口 | 守卫归属使用原版建筑登记和实际基架拓扑。以扣容前后的差值检查同图隔离、断裂与接回、失去与替换主台、归属转移及发生器移除 |
 | `PrefabRegression`、`MoonPoolRoofRegression`、`SubstructureDamageRegression` | 1.6 的 prefab、屋顶及基架破坏检查；公共 prefab 实现已迁入 REF |

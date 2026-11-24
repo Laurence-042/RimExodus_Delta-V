@@ -1,4 +1,3 @@
-using System;
 using HarmonyLib;
 using RimWorld;
 using RimWorld.Planet;
@@ -84,42 +83,6 @@ namespace DeltaV
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             PlanetTile address = universe?.ShipTransitions.StrategicSourceAddress(universe, map) ?? PlanetTile.Invalid;
             if (address.Valid) from = address;
-        }
-    }
-
-    /// <summary>
-    /// 无 tile 源图战略发射的弃置警告补全（2026-09-19 用户决策；2026-09-20 星区标准
-    /// 流程扩展到一切无 tile 源）：原版 PreLaunchConfirmation 文案只覆盖「当前地图」，
-    /// 战略发射善后会按无锚语义弃置所在星区 tile 的图——自有飞行口袋图与停靠 POI
-    /// 口袋图（wreck 等）统一，先弹星区弃置确认，确认后链回原版弹窗（滞留者列表
-    /// 口径经捕获域 patch，准确）。chaining 标志防递归：链回的调用直接放行原方法。
-    /// </summary>
-    [HarmonyPatch(typeof(GravshipUtility), nameof(GravshipUtility.PreLaunchConfirmation))]
-    public static class Patch_GravshipUtility_PreLaunchConfirmation_Sector
-    {
-        public static bool Prefix(Building_GravEngine engine, Action launchAction)
-        {
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (universe == null) return true;
-            if (universe.ShipTransitions.preLaunchConfirmationChaining)
-            {
-                universe.ShipTransitions.preLaunchConfirmationChaining = false;
-                return true;
-            }
-            Map sourceMap = engine?.Map;
-            if (sourceMap == null || sourceMap.Tile.Valid) return true;
-            // 星区标准流程第 ② 段对任意源执行锚规则弃置；发射前船仍注册（自有口袋
-            // 或停靠），DepartedSectorMapFor 的地址解析链有效。
-            Map sectorMap = universe.ShipTransitions.DepartedSectorMapFor(universe, sourceMap);
-            if (!universe.ShipTransitions.SectorMapWillBeAbandoned(universe, sectorMap)) return true;
-            string label = sectorMap.Parent?.Label ?? sectorMap.ToString();
-            Find.WindowStack.Add(new Dialog_MessageBox(
-                "DeltaV_SectorMapAbandonConfirm".Translate(label), null, delegate
-                {
-                    universe.ShipTransitions.preLaunchConfirmationChaining = true;
-                    GravshipUtility.PreLaunchConfirmation(engine, launchAction);
-                }));
-            return false;
         }
     }
 

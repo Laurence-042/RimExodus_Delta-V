@@ -68,6 +68,7 @@ internal static partial class Program
         CheckRigidMotion();
         CheckSoftDockInterpolation();
         CheckDockingCompState(universe);
+        CheckStrategicDepartureSourceIdentity();
 
         var cargo = NewMaplessCargo("scattered_cargo");
         var scattered = universe.CapturePayload(cargo, original, null);
@@ -86,6 +87,28 @@ internal static partial class Program
         CheckFocusedScatterAndMapSetter(universe);
         CheckTractorReceive(universe);
         CheckUndockHeading(universe);
+    }
+
+    static void CheckStrategicDepartureSourceIdentity()
+    {
+        var worldtile = TestMap(49806);
+        var pocket = TestMap(49807);
+        var parent = (Settlement)Raw(typeof(Settlement));
+        AccessTools.PropertySetter(typeof(WorldObject), nameof(WorldObject.Tile))
+            .Invoke(parent, new object[] { new PlanetTile(0, 0) });
+        worldtile.info.parent = parent;
+        pocket.info.parent = null;
+        try
+        {
+            Check(ShipFlightTransitionService.StrategicDepartureWorldtileSource(worldtile) == worldtile
+                && ShipFlightTransitionService.StrategicDepartureWorldtileSource(pocket) == null,
+                "strategic departure selects only the actual worldtile source, never a same-sector POI for a pocket source");
+        }
+        finally
+        {
+            Find.Maps.Remove(worldtile);
+            Find.Maps.Remove(pocket);
+        }
     }
 
     sealed class OrbitalWorkTestShip : FoundationShip

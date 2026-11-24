@@ -925,15 +925,15 @@ namespace DeltaV
         /// 的 Postfix 调用），预存的源图/战略地址/位姿经帧边界延迟执行（时序约束：
         /// 必须排在 TravelTo 放行后，排队过早会卡守卫——旧 bug 勿回退）。
         ///
-        /// 统一标准流程（2026-09-20 用户决策，§19 保留）：
+        /// 统一标准流程：
         /// ① 发射船的自有飞行口袋容器 → **总是销毁口袋图**（遗弃滞留者、遗留基架转无主
         ///    残骸——整船捕获已带走船体，容器无意义）；
-        /// ② 归属星区（战略源地址 tile）的 worldtile 图 → **按逆重锚决定去留**
-        ///    （无锚 → 原版 AbandonMap 弃置 + 基架转残骸；有锚/有其他停靠船保留），
-        ///    任意源图类型统一执行；无 worldtile 图则跳过；
+        /// ② 实际源图本身是轨道 worldtile 图时 → **按逆重锚决定去留**（无锚 → 原版
+        ///    AbandonMap 弃置 + 基架转残骸；有锚/有其他停靠船保留）。战略源地址只负责
+        ///    导航与星区记账，绝不能用 MapParentAt(address) 代替源图身份；
         /// ③ 星区内**其余 SpaceObject 地图** → 一律按超删除距离处理（休眠 + 快照收纳/
-        ///    删除，守卫照常生效）——旅行期间距离评估因无玩家参考点整体跳过，离场时刻
-        ///    必须显式执行。
+        ///    删除，守卫照常生效）。地址对应的 worldtile POI 本轮排除，待到达后由正常
+        ///    距离生命周期处理，避免同一 tile 地址被误当成发射源图。
         /// </summary>
         internal void HandleStrategicTravelDeparture()
         {
@@ -978,56 +978,50 @@ namespace DeltaV
                         "flight pocket map removed after strategic takeoff (leftovers converted)");
                 }
 
-                // ② 归属星区 worldtile 图：按锚配置决定去留。将弃置前先放焦点（同 ①
-                // 理由）；有锚保留时不动焦点（原版锚定前哨）。
-                Map sectorMap = address.Valid && address.LayerDef.isSpace
+                // 地址对应图只用于排除本轮强制收纳；它可能是与发射源完全不同的 POI。
+                Map sectorAddressMap = address.Valid && address.LayerDef.isSpace
                     ? Find.WorldObjects.MapParentAt(address)?.Map
                     : null;
-                if (sectorMap != null && !sectorMap.Disposed && Find.Maps.Contains(sectorMap)
-                    && SectorMapWillBeAbandoned(universe, sectorMap))
+                // ② 只有实际源图本身是轨道 worldtile 时才按锚配置决定去留。
+                Map sourceWorldtileMap = StrategicDepartureWorldtileSource(sourceMap);
+                if (sourceWorldtileMap != null && !sourceWorldtileMap.Disposed
+                    && Find.Maps.Contains(sourceWorldtileMap)
+                    && SourceWorldtileWillBeAbandoned(universe, sourceWorldtileMap))
                 {
-                    if (sectorMap == Find.CurrentMap)
+                    if (sourceWorldtileMap == Find.CurrentMap)
                         Current.Game.CurrentMap = null;
-                    AbandonUnanchoredSectorMap(universe, sectorMap);
+                    AbandonUnanchoredSourceWorldtile(universe, sourceWorldtileMap);
                 }
 
                 // ③ 星区其余 SpaceObject 地图：按超删除距离休眠 + 收纳。源图即将打包时
-                // 先放焦点；作为锚保留 worldtile 图的源图不在此列。
-                if (ownPocket == null && sourceMap != sectorMap && sourceMap == Find.CurrentMap)
+                // 先放焦点；地址对应的 worldtile POI 留给到达后的正常距离生命周期。
+                if (ownPocket == null && sourceMap != sectorAddressMap && sourceMap == Find.CurrentMap)
                     Current.Game.CurrentMap = null;
-                universe.MapStates.PackDepartedSectorPois(address, sectorMap);
+                universe.MapStates.PackDepartedSectorPois(address, sectorAddressMap);
             });
         }
 
         /// <summary>
-        /// 逆重起飞的弃置目标图（2026-09-19 用户方案）：源图有 worldtile 且在轨道层
-        /// 即源图本身；口袋图起飞 = 战略源地址 tile 上的图（严格按所在星区）。返回
-        /// null = 无弃置目标。
+        /// 战略离场的 worldtile 弃置身份只可能是实际源图。口袋图的战略地址不得反查
+        /// MapParent 充当弃置目标；tile 是导航地址，不是 Map 身份。
         /// </summary>
-        internal Map DepartedSectorMapFor(UniverseManager universe, Map sourceMap)
-        {
-            if (sourceMap == null) return null;
-            if (sourceMap.Tile.Valid)
-                return sourceMap.Tile.LayerDef.isSpace ? sourceMap : null;
-            PlanetTile address = StrategicSourceAddress(universe, sourceMap);
-            if (!address.Valid || !address.LayerDef.isSpace) return null;
-            return Find.WorldObjects.MapParentAt(address)?.Map;
-        }
+        internal static Map StrategicDepartureWorldtileSource(Map sourceMap) =>
+            sourceMap != null && sourceMap.Tile.Valid ? sourceMap : null;
 
-        /// <summary>该图将在逆重起飞后按无锚语义弃置（无锚、无其他船）。</summary>
-        internal bool SectorMapWillBeAbandoned(UniverseManager universe, Map map)
+        /// <summary>实际 worldtile 源图将在逆重起飞后按无锚语义弃置。</summary>
+        internal bool SourceWorldtileWillBeAbandoned(UniverseManager universe, Map sourceMap)
         {
-            return map != null && Find.Maps.Contains(map)
-                && !map.listerThings.AnyThingWithDef(ThingDefOf.GravAnchor)
-                && universe != null && !ShipRegistry.AllShipsOnMap(map).Any();
+            return StrategicDepartureWorldtileSource(sourceMap) == sourceMap
+                && Find.Maps.Contains(sourceMap)
+                && !sourceMap.listerThings.AnyThingWithDef(ThingDefOf.GravAnchor)
+                && universe != null && !ShipRegistry.AllShipsOnMap(sourceMap).Any();
         }
 
         /// <summary>
-        /// 无锚弃置（星区标准流程第 ② 段，任意发射源统一）：图上无逆重锚 → 遗留基架
-        /// 先转无主残骸，再走原版 AbandonMap（含滞留 Pawn 遗弃——发射链路的确认弹窗
-        /// 已警告）。有锚保留（原版锚定前哨）。
+        /// 实际 worldtile 源图无锚时弃置：遗留基架先转无主残骸，再走原版 AbandonMap
+        ///（含滞留 Pawn 遗弃——原版发射确认已警告）。有锚保留（原版锚定前哨）。
         /// </summary>
-        private void AbandonUnanchoredSectorMap(UniverseManager universe, Map map)
+        private void AbandonUnanchoredSourceWorldtile(UniverseManager universe, Map map)
         {
             string mapLabel = map.Parent?.Label ?? map.ToString();
             if (map == Find.CurrentMap)
@@ -1060,7 +1054,7 @@ namespace DeltaV
             GravshipUtility.AbandonMap(map);
             ShipPhysics.Forget(map);
             DeltaVLog.Message(DeltaVLogModule.Lifecycle,
-                $"{mapLabel}: unanchored sector map abandoned after strategic takeoff");
+                $"{mapLabel}: unanchored source worldtile map abandoned after strategic takeoff");
         }
 
         /// <summary>
