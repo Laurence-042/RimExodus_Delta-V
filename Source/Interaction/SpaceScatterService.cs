@@ -4,7 +4,6 @@ using System.Linq;
 using RimWorld;
 using UnityEngine;
 using Verse;
-using Verse.AI.Group;
 
 namespace DeltaV
 {
@@ -237,7 +236,8 @@ namespace DeltaV
             });
         }
 
-        internal bool TryQueueTransporterEjection(CompTransporter transporter, Thing item, int count, IntVec3 dropOffset)
+        internal bool TryQueueTransporterEjection(CompTransporter transporter, Thing item, int count,
+            IntVec3 dropOffset, bool confirm)
         {
             Thing parent = transporter?.parent;
             Map map = parent?.Map;
@@ -275,16 +275,65 @@ namespace DeltaV
                     if (!ReleaseTransporterCargo(item, count, holder,
                         EjectionPose(owner, map, origin, default, default))) return;
 
-                    if (item is Pawn pawn && pawn.GetLord() is Lord lord
-                        && lord.LordJob is LordJob_LoadAndEnterTransporters)
-                        lord.Notify_PawnLost(pawn, PawnLostCondition.LeftVoluntarily);
-                    transporter.Notify_ThingRemoved(item);
+                    TransporterDropService.NotifyRemoved(transporter, item);
                 });
             }
 
-            if (item is Pawn passenger && passenger.RaceProps.Humanlike)
+            if (confirm)
                 Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
-                    "DeltaV_EjectPassengerConfirm".Translate(passenger.LabelShortCap), QueueRelease, destructive: true));
+                    "DeltaV_EjectPassengerConfirm".Translate(item.LabelShortCap), QueueRelease, destructive: true));
+            else QueueRelease();
+            return true;
+        }
+
+        internal bool TryQueueTransporterEjection(CompTransporter transporter,
+            IReadOnlyList<Pawn> passengers, IntVec3 dropOffset, bool confirm)
+        {
+            Thing parent = transporter?.parent;
+            Map map = parent?.Map;
+            if (parent?.Spawned != true || map.Disposed || passengers == null) return false;
+
+            List<Pawn> snapshot = passengers.Where(pawn => pawn != null).Distinct().ToList();
+            if (snapshot.Count == 0 || snapshot.Any(pawn => !ShuttleOccupantExitService.CanExitFrom(transporter, pawn)))
+                return false;
+
+            IntVec3 position = parent.Position;
+            Rot4 rotation = parent.Rotation;
+            IntVec3 origin = position + dropOffset;
+            if (origin.InBounds(map)) return false;
+            SpaceObject owner = universe.SpaceObjectOnMap(map);
+            if (owner == null || owner.IsScattered) return false;
+
+            ThingOwner holder = transporter.innerContainer;
+            bool PassengersStillHeld() => transporter.innerContainer == holder
+                && snapshot.All(pawn => ShuttleOccupantExitService.CanExitFrom(transporter, pawn));
+            if (universe.IsResettingScene || !PassengersStillHeld()) return true;
+
+            int version = owner.RepresentationVersion;
+            bool queued = false;
+            void QueueRelease()
+            {
+                if (queued) return;
+                queued = true;
+                universe.QueueFrameAction(() =>
+                {
+                    if (universe.IsResettingScene || !parent.Spawned || parent.Map != map || map.Disposed
+                        || parent.Position != position || parent.Rotation != rotation
+                        || universe.SpaceObjectOnMap(map) != owner || owner.RepresentationVersion != version
+                        || !PassengersStillHeld()) return;
+
+                    SpacePose pose = EjectionPose(owner, map, origin, default, default);
+                    foreach (Pawn pawn in snapshot)
+                    {
+                        if (!ReleaseTransporterCargo(pawn, 1, holder, pose)) continue;
+                        TransporterDropService.NotifyRemoved(transporter, pawn);
+                    }
+                });
+            }
+
+            if (confirm)
+                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
+                    "DeltaV_EjectOwnPersonnelConfirm".Translate(snapshot.Count), QueueRelease, destructive: true));
             else QueueRelease();
             return true;
         }

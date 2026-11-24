@@ -560,12 +560,14 @@ internal static partial class Program
         var offset = new IntVec3(map.Size.x, 0, 0);
         IntVec3 hatch = transporter.parent.Position + offset;
         Check(!hatch.InBounds(map), "EVA discard fixture puts the hatch outside the flight map");
-        Check(!universe.Scatter.TryQueueTransporterEjection(transporter, item, 2, IntVec3.Zero)
+        Check(!universe.Scatter.TryQueueTransporterEjection(
+                transporter, item, 2, IntVec3.Zero, confirm: false)
             && item.stackCount == 5 && transporter.innerContainer.Contains(item),
             "an in-bounds cargo drop stays on the native unloading path");
 
         var existing = universe.Scatter.Candidates.ToHashSet();
-        Check(universe.Scatter.TryQueueTransporterEjection(transporter, item, 2, offset)
+        Check(universe.Scatter.TryQueueTransporterEjection(
+                transporter, item, 2, offset, confirm: false)
             && item.stackCount == 5 && transporter.innerContainer.Contains(item),
             "the cargo remains owned until the safe frame");
         receiver.RepresentationVersion++;
@@ -576,8 +578,10 @@ internal static partial class Program
         float dryMass = ShipPhysics.GetReport(receiver).mass - transporter.MassUsage;
         SpacePose previousPose = receiver.pose;
         receiver.pose.velocity = new Vector2(2f, 3f);
-        Check(universe.Scatter.TryQueueTransporterEjection(transporter, item, 2, offset), "EVA accepts partial cargo jettison");
-        Check(universe.Scatter.TryQueueTransporterEjection(transporter, item, 2, offset), "a duplicate partial request is safely intercepted");
+        Check(universe.Scatter.TryQueueTransporterEjection(
+            transporter, item, 2, offset, confirm: false), "EVA accepts partial cargo jettison");
+        Check(universe.Scatter.TryQueueTransporterEjection(
+            transporter, item, 2, offset, confirm: false), "a duplicate partial request is safely intercepted");
         Call(universe, "RunFrameActions");
         SpaceObject part = universe.Scatter.Candidates.Single(obj => !existing.Contains(obj));
         var point = new Vector2(hatch.x + .5f, hatch.z + .5f);
@@ -590,7 +594,8 @@ internal static partial class Program
         Check(transporter.MassUsage == 6f && ShipPhysics.GetReport(receiver).mass == dryMass + 6f,
             "partial jettison updates the remaining stack and the flight mass");
 
-        Check(universe.Scatter.TryQueueTransporterEjection(transporter, item, 3, offset), "EVA accepts whole-stack jettison");
+        Check(universe.Scatter.TryQueueTransporterEjection(
+            transporter, item, 3, offset, confirm: false), "EVA accepts whole-stack jettison");
         Call(universe, "RunFrameActions");
         Check(!transporter.innerContainer.Any && universe.Scatter.Candidates.Any(obj => obj.Payload?.Entity == item)
             && transporter.MassUsage == 0 && ShipPhysics.GetReport(receiver).mass == dryMass,
@@ -600,7 +605,16 @@ internal static partial class Program
 
     static Lord ejectionLoadLord;
     static int ejectionLordExits;
+    static int ejectionDialogs;
+    static Map ejectionGroundMap;
+    static int ejectionGroundDrops;
     static bool EjectionSceneGraphics() => false;
+    static bool EjectionOpenWindow(Window window)
+    {
+        tractorWindow = window;
+        ejectionDialogs++;
+        return false;
+    }
     static bool EjectionPawnLost(Lord __instance, Pawn pawn, PawnLostCondition cond)
     {
         if (__instance != ejectionLoadLord) return true;
@@ -611,6 +625,17 @@ internal static partial class Program
         return false;
     }
     static bool EjectionCaptureDenied(ref SpaceObject __result) { __result = null; return false; }
+    static bool EjectionGroundDrop(Thing thing, IntVec3 dropCell, Map map,
+        ref Thing resultingThing, ref bool __result)
+    {
+        if (map != ejectionGroundMap || thing is not Pawn) return true;
+        thing.holdingOwner?.Remove(thing);
+        ProbeSpawnCargo(thing, dropCell, map);
+        resultingThing = thing;
+        __result = true;
+        ejectionGroundDrops++;
+        return false;
+    }
 
     static void CheckPassengerEjection(UniverseManager universe)
     {
@@ -618,6 +643,7 @@ internal static partial class Program
         var hull = (Building)Raw(typeof(Building));
         hull.def = TestBuildingDef("passengerEjectionHull");
         hull.def.interactionCellOffset = new IntVec3(1, 0, 0);
+        hull.def.hasInteractionCell = true;
         Set(typeof(Thing), hull, "positionInt", IntVec3.Zero);
         Set(typeof(Thing), hull, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
         var transporter = new CompTransporter { parent = hull, props = new CompProperties_Transporter() };
@@ -627,7 +653,7 @@ internal static partial class Program
         var frame = new MapSpaceObject(58040, map, new SpacePose(Vector3.forward, .4f));
         var tab = new ITab_ContentsTransporter();
         MethodInfo drop = AccessTools.Method(typeof(ITab_ContentsTransporter), "OnDropThing");
-        Pawn Passenger(string name, Intelligence intelligence)
+        Pawn Passenger(string name, Intelligence intelligence, Faction faction = null)
         {
             var pawn = (Pawn)Raw(typeof(Pawn));
             pawn.def = TestBuildingDef(name + "Species");
@@ -636,6 +662,7 @@ internal static partial class Program
             pawn.Name = new NameSingle(name);
             pawn.stackCount = 1;
             pawn.health = new Pawn_HealthTracker(pawn);
+            if (faction != null) pawn.SetFactionDirect(faction);
             Set(typeof(Thing), pawn, "mapIndexOrState", (sbyte)-1);
             transporter.innerContainer.TryAdd(pawn, canMergeWithExistingStacks: false);
             return pawn;
@@ -646,22 +673,43 @@ internal static partial class Program
         patch.Patch(typeof(Lord).TypeInitializer, prefix: new HarmonyMethod(typeof(Program), nameof(EjectionSceneGraphics)));
         patch.Patch(AccessTools.PropertyGetter(typeof(Find), "Selector"), prefix: new HarmonyMethod(typeof(Program), nameof(TractorSelector)));
         patch.Patch(AccessTools.PropertyGetter(typeof(Find), "WindowStack"), prefix: new HarmonyMethod(typeof(Program), nameof(TractorWindowStack)));
-        patch.Patch(AccessTools.Method(typeof(WindowStack), "Add"), prefix: new HarmonyMethod(typeof(Program), nameof(TractorOpenWindow)));
+        patch.Patch(AccessTools.Method(typeof(WindowStack), "Add"), prefix: new HarmonyMethod(typeof(Program), nameof(EjectionOpenWindow)));
         patch.Patch(AccessTools.Method(typeof(Lord), nameof(Lord.Notify_PawnLost)), prefix: new HarmonyMethod(typeof(Program), nameof(EjectionPawnLost)));
+        patch.Patch(AccessTools.Method(typeof(GenDrop), nameof(GenDrop.TryDropSpawn)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(EjectionGroundDrop)));
         patch.CreateClassProcessor(typeof(Patch_TransporterCargoDrop)).Patch();
+        patch.CreateClassProcessor(typeof(Patch_TransporterOccupantExit)).Patch();
         tractorSelector = (Selector)Raw(typeof(Selector));
         Set(tractorSelector, "selected", new List<object> { hull });
         try
         {
             Pawn person = Passenger("Pyrrha", Intelligence.Humanlike);
             var offset = new IntVec3(1, 0, 0);
-            Check(!universe.Scatter.TryQueueTransporterEjection(transporter, person, 1, offset),
+            Check(!universe.Scatter.TryQueueTransporterEjection(
+                    transporter, person, 1, offset, confirm: false),
                 "an unregistered map cannot redirect a passenger into space");
             universe.RegisterObject(frame);
             Check(tab.DropOffset == offset && !(hull.Position + tab.DropOffset).InBounds(map),
                 "the native transporter tab points outside the real 1x1 fixture map");
-            Check(!universe.Scatter.TryQueueTransporterEjection(transporter, person, 1, IntVec3.Zero),
+            Check(!universe.Scatter.TryQueueTransporterEjection(
+                    transporter, person, 1, IntVec3.Zero, confirm: false),
                 "an in-bounds passenger drop stays on the native unloading path");
+
+            var silentCargo = (EvaCargoItem)Raw(typeof(EvaCargoItem));
+            silentCargo.def = TestBuildingDef("silentEjectionCargo");
+            silentCargo.def.category = ThingCategory.Item;
+            silentCargo.def.stackLimit = 75;
+            silentCargo.stackCount = 2;
+            Set(typeof(Thing), silentCargo, "mapIndexOrState", (sbyte)-1);
+            transporter.innerContainer.TryAdd(silentCargo, canMergeWithExistingStacks: false);
+            tractorWindow = null;
+            drop.Invoke(tab, new object[] { silentCargo, 1 });
+            Check(tractorWindow == null && silentCargo.stackCount == 2
+                && transporter.innerContainer.Contains(silentCargo),
+                "the unified transporter drop queues space cargo without a warning");
+            Call(universe, "RunFrameActions");
+            Check(silentCargo.stackCount == 1 && transporter.innerContainer.Contains(silentCargo),
+                "the unified transporter drop ejects only the requested cargo count");
 
             ejectionLoadLord = (Lord)Raw(typeof(Lord));
             Set(ejectionLoadLord, "curJob", new LordJob_LoadAndEnterTransporters());
@@ -705,7 +753,8 @@ internal static partial class Program
                 cargo.stackCount = 5;
                 Set(typeof(Thing), cargo, "mapIndexOrState", (sbyte)-1);
                 transporter.innerContainer.TryAdd(cargo, canMergeWithExistingStacks: false);
-                Check(universe.Scatter.TryQueueTransporterEjection(transporter, cargo, 2, offset), "a partial stack enters the ejection transaction");
+                Check(universe.Scatter.TryQueueTransporterEjection(
+                    transporter, cargo, 2, offset, confirm: false), "a partial stack enters the ejection transaction");
                 Call(universe, "RunFrameActions");
                 Check(transporter.innerContainer.Where(t => t.def == cargo.def).Sum(t => t.stackCount) == 5,
                     "a failed split-stack handoff restores every item to the original hold");
@@ -724,11 +773,76 @@ internal static partial class Program
             Pawn animal = Passenger("AnimalPassenger", Intelligence.Animal);
             tractorWindow = null;
             drop.Invoke(tab, new object[] { animal, 1 });
-            Check(tractorWindow == null && transporter.innerContainer.Contains(animal),
-                "a non-humanlike passenger uses the same safe-frame handoff without a human warning");
+            warning = tractorWindow as Dialog_MessageBox;
+            Check(warning?.buttonADestructive == true && transporter.innerContainer.Contains(animal),
+                "a living animal receives the same space-ejection warning as other pawns");
+            warning.buttonAAction();
             Call(universe, "RunFrameActions");
             Check(universe.Scatter.Candidates.Count(obj => obj.Payload?.Entity == animal) == 1
                 && !transporter.innerContainer.Contains(animal), "the native tab also ejects a non-humanlike passenger exactly once");
+
+            Pawn first = Passenger("OwnPassengerA", Intelligence.Humanlike, Faction.OfPlayer);
+            Pawn second = Passenger("OwnPassengerB", Intelligence.Humanlike, Faction.OfPlayer);
+            Pawn ally = Passenger("AlliedPassenger", Intelligence.Humanlike);
+            shuttle.requiredPawns.Add(first);
+            Check(shuttle.AllRequiredThingsLoaded, "the quest shuttle initially contains its required player pawn");
+
+            var hostile = (Faction)Raw(typeof(Faction));
+            hostile.def = new FactionDef();
+            Set(hostile, "relations", new List<FactionRelation> {
+                new FactionRelation { other = Faction.OfPlayer, kind = FactionRelationKind.Hostile }
+            });
+            hull.SetFactionDirect(hostile);
+            Check(!ShuttleOccupantExitService.CanShow(transporter),
+                "a hostile shuttle never exposes the player-personnel exit command");
+            hull.SetFactionDirect(null);
+            Check(ShuttleOccupantExitService.CanShow(transporter),
+                "a factionless quest shuttle exposes the command when it contains player personnel");
+
+            var exitGizmos = Patch_TransporterOccupantExit.Append(
+                Enumerable.Empty<Gizmo>(), transporter, icon: null);
+            Command_Action exit = exitGizmos.OfType<Command_Action>().Single();
+            Check(exit.defaultLabel == "DeltaV_ExitOwnPersonnelFromVehicle".Translate(),
+                "the transporter gizmo appends the player-personnel exit command");
+            ejectionLoadLord = (Lord)Raw(typeof(Lord));
+            Set(ejectionLoadLord, "curJob", new LordJob_LoadAndEnterTransporters());
+            ejectionLoadLord.ownedPawns = new List<Pawn> { first, second };
+            first.lord = second.lord = ejectionLoadLord;
+            ejectionLordExits = 0;
+            ejectionDialogs = 0;
+            tractorWindow = null;
+            exit.action();
+            warning = tractorWindow as Dialog_MessageBox;
+            Check(ejectionDialogs == 1 && warning?.buttonADestructive == true
+                && transporter.innerContainer.Contains(first) && transporter.innerContainer.Contains(second),
+                "one destructive confirmation covers every player pawn in the vehicle");
+            frame.RepresentationVersion++;
+            warning.buttonAAction();
+            Call(universe, "RunFrameActions");
+            Check(transporter.innerContainer.Contains(first) && transporter.innerContainer.Contains(second)
+                && ejectionLordExits == 0, "a stale group request preserves every player passenger");
+
+            exit.action();
+            ((Dialog_MessageBox)tractorWindow).buttonAAction();
+            Call(universe, "RunFrameActions");
+            Check(!transporter.innerContainer.Contains(first) && !transporter.innerContainer.Contains(second)
+                && transporter.innerContainer.Contains(ally) && ejectionLordExits == 2,
+                "the vehicle command ejects all and only player-faction pawns");
+            Check(shuttle.requiredPawns.Contains(first) && !shuttle.AllRequiredThingsLoaded,
+                "leaving a quest shuttle does not erase required pawns or satisfy its launch condition");
+
+            Pawn groundPassenger = Passenger("GroundPassenger", Intelligence.Humanlike, Faction.OfPlayer);
+            hull.def.interactionCellOffset = IntVec3.Zero;
+            shuttle.shipParent = null;
+            ejectionGroundMap = map;
+            ejectionGroundDrops = 0;
+            ejectionDialogs = 0;
+            ShuttleOccupantExitService.CommandFor(transporter, icon: null).action();
+            Check(shuttle.shipParent == null && ejectionDialogs == 0 && ejectionGroundDrops == 1
+                && !transporter.innerContainer.Contains(groundPassenger)
+                && groundPassenger.Spawned && groundPassenger.Map == map
+                && transporter.innerContainer.Contains(ally),
+                "an in-bounds local shuttle unloads through its transporter without creating a transport ship");
 
             foreach (string language in new[] { "English", "ChineseSimplified" })
             {
@@ -736,8 +850,17 @@ internal static partial class Program
                 string text = (string)xml.Root.Element("DeltaV_EjectPassengerConfirm");
                 Check(!string.IsNullOrEmpty(text) && string.Format(text, "Pyrrha").Contains("Pyrrha"),
                     language + " provides a passenger warning with their name");
+                string label = (string)xml.Root.Element("DeltaV_ExitOwnPersonnelFromVehicle");
+                string group = (string)xml.Root.Element("DeltaV_EjectOwnPersonnelConfirm");
+                Check(!string.IsNullOrEmpty(label) && !string.IsNullOrEmpty(group)
+                    && string.Format(group, 2).Contains("2"),
+                    language + " provides the vehicle command and group space-exit warning");
             }
         }
-        finally { patch.UnpatchAll(patch.Id); }
+        finally
+        {
+            ejectionGroundMap = null;
+            patch.UnpatchAll(patch.Id);
+        }
     }
 }
