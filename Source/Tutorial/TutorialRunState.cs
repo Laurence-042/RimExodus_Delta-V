@@ -25,6 +25,7 @@ namespace DeltaV
         internal int trainingShipId, salvageObjectId;
         internal int forwardTicks, lateralTicks, turnTicks;
         internal bool recoveryDocked;
+        internal bool portableCommunicatorGranted;
 
         public void ExposeData()
         {
@@ -51,6 +52,7 @@ namespace DeltaV
             Scribe_Values.Look(ref lateralTicks, "lateralTicks");
             Scribe_Values.Look(ref turnTicks, "turnTicks");
             Scribe_Values.Look(ref recoveryDocked, "recoveryDocked");
+            Scribe_Values.Look(ref portableCommunicatorGranted, "portableCommunicatorGranted");
         }
     }
 }

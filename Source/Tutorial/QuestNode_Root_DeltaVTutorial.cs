@@ -68,22 +68,15 @@ namespace DeltaV
         public override void Cleanup() => Service?.Ended(quest);
         public override IEnumerable<Gizmo> ExtraGizmos(ISelectable target)
         {
-            if (!IsCurrent || !Service.CanShowFor(target)) yield break;
+            if (!IsCurrent || !Service.CanShowOpeningNote(target)) yield break;
             yield return new Command_Action
             {
-                defaultLabel = "DeltaV_Tutorial_Open".Translate(),
-                defaultDesc = "DeltaV_Tutorial_OpenDesc".Translate(),
-                icon = TexCommand.OpenLinkedQuestTex,
-                action = Service.ShowBriefing
+                defaultLabel = "DeltaV_Tutorial_Note".Translate(),
+                defaultDesc = "DeltaV_Tutorial_NoteDesc".Translate(),
+                icon = TexButton.OpenStatsReport,
+                action = () => Find.WindowStack.Add(new Dialog_MessageBox(
+                    "DeltaV_Tutorial_NoteText".Translate(), title: "DeltaV_Tutorial_Note".Translate()))
             };
-            if (Service.HasNavigationStage)
-                yield return new Command_Action
-                {
-                    defaultLabel = "DeltaV_NavCourse".Translate(),
-                    defaultDesc = "DeltaV_NavCourseDesc".Translate(),
-                    icon = TexCommand.OpenLinkedQuestTex,
-                    action = Service.LocateNavigationTarget
-                };
         }
     }
 }

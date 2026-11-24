@@ -25,7 +25,19 @@ namespace DeltaV
         private static bool Prefix(Faction __instance, Pawn negotiator)
         {
             var universe = Current.Game?.GetComponent<UniverseManager>();
-            return universe?.tutorialRun == null || !universe.Tutorial.ReceiveComms(__instance, negotiator);
+            Thing source = negotiator?.CurJob?.targetA.Thing;
+            return universe?.tutorialRun == null || !universe.Tutorial.ReceiveComms(
+                __instance, negotiator, DeltaVCommsSource.ExternalConsole, source);
+        }
+    }
+
+    [HarmonyPatch(typeof(ApparelUtility), nameof(ApparelUtility.HasPartsToWear))]
+    internal static class Patch_ExternalAccessoryHasPartsToWear
+    {
+        private static void Postfix(ThingDef apparel, ref bool __result)
+        {
+            if (__result || apparel?.apparel?.bodyPartGroups.NullOrEmpty() != true) return;
+            __result = apparel.apparel.layers?.Contains(DeltaVDefOf.DeltaV_ExternalAccessory) == true;
         }
     }
 }

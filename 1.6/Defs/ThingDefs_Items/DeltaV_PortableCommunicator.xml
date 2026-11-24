@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef ParentName="ApparelNoQualityBase">
+    <defName>DeltaV_PortableCommunicator</defName>
+    <label>portable communicator</label>
+    <description>A compact communicator tuned to Starbound's internal channel. Its external-accessory mount occupies no body part and does not interfere with other external accessories.</description>
+    <graphicData>
+      <texPath>Things/Item/DeltaV_PortableCommunicator</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <drawSize>(0.7,0.7)</drawSize>
+    </graphicData>
+    <statBases>
+      <Mass>0.2</Mass>
+      <MarketValue>80</MarketValue>
+      <Flammability>0.4</Flammability>
+      <EquipDelay>0.5</EquipDelay>
+    </statBases>
+    <thingCategories>
+      <li>ApparelUtility</li>
+    </thingCategories>
+    <smeltable>false</smeltable>
+    <apparel>
+      <countsAsClothingForNudity>false</countsAsClothingForNudity>
+      <careIfWornByCorpse>false</careIfWornByCorpse>
+      <careIfDamaged>false</careIfDamaged>
+      <wearPerDay>0</wearPerDay>
+      <bodyPartGroups Inherit="False" />
+      <layers Inherit="False">
+        <li>Belt</li>
+        <li>DeltaV_ExternalAccessory</li>
+      </layers>
+    </apparel>
+    <comps>
+      <li Class="DeltaV.CompProperties_PortableCommunicator" />
+    </comps>
+  </ThingDef>
+</Defs>

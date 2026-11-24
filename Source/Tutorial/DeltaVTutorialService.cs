@@ -79,15 +79,15 @@ namespace DeltaV
 
         internal string Description => Run == null ? null : ("DeltaV_Tutorial_Stage_" + Run.stage).Translate();
 
-        internal bool HasNavigationStage => Active && (Run.stage == TutorialStage.Salvage
-            || Run.stage == TutorialStage.Range || Run.stage == TutorialStage.Visit);
         private SpaceObject RecoveryTarget => Run?.salvageObjectId > 0 ? universe.ObjectById(Run.salvageObjectId) : null;
 
+        // 星象仪通用目标列表读取此属性；教程不再提供额外的“设定航线”Gizmo。
         internal GlobeTarget NavigationTarget
         {
             get
             {
-                if (!HasNavigationStage) return null;
+                if (!Active || (Run.stage != TutorialStage.Salvage && Run.stage != TutorialStage.Range
+                    && Run.stage != TutorialStage.Visit)) return null;
                 if (Run.stage == TutorialStage.Salvage && !Run.recoveryDocked)
                     return RecoveryTarget is SpaceObject target ? new GlobeTarget { objectId = target.objectId } : null;
                 Thing role = Run.stage switch
@@ -98,15 +98,6 @@ namespace DeltaV
                 };
                 return role?.Spawned == true ? MissionTarget.Of(universe, role).Navigation : null;
             }
-        }
-
-        internal void LocateNavigationTarget()
-        {
-            GlobeTarget target = NavigationTarget;
-            if (target == null) return;
-            universe.GlobeNavigation.MissionSelection = target;
-            universe.GlobeNavigation.Refresh(universe);
-            GlobeNavigationPanel.Open(universe, universe.GlobeNavigation.MissionSelection);
         }
 
         internal IEnumerable<GlobalTargetInfo> Targets
@@ -126,11 +117,8 @@ namespace DeltaV
             }
         }
 
-        internal bool CanShowFor(ISelectable target) => Active && target is Thing thing
-            && ((thing.Faction == Faction.OfPlayer && thing.MapHeld == Run.station)
-                || (thing.Faction == Faction.OfPlayer && (FlightRoles().Any(t => t?.Spawned == true && t.Map == thing.MapHeld)
-                    || (thing.MapHeld != null && thing.MapHeld == RecoveryTarget?.map)))
-                || FlightRoles().Contains(thing) || Run.colonists.Contains(thing as Pawn));
+        internal bool CanShowOpeningNote(ISelectable target) => Active && Run.stage == TutorialStage.Welcome
+            && Run.colonists?.Count > 0 && ReferenceEquals(target, Run.colonists[0]);
 
         internal void ShowBriefing()
         {
@@ -146,6 +134,8 @@ namespace DeltaV
         internal void Receive(Quest quest, string tag)
         {
             if (!Active || Run.quest != quest) return;
+            if (Run.stage == TutorialStage.Inquiry && (tag == Signal(quest, "AskPurpose")
+                || tag == Signal(quest, "DeferInquiry"))) GrantPortableCommunicator();
             // Acknowledgement leaves the captain free to act; only real communication advances arrival.
             if (tag == Signal(quest, "Defer" + Run.stage)) return;
             if (tag == Signal(quest, "AcceptWelcome") && Run.stage == TutorialStage.Welcome)
@@ -160,16 +150,69 @@ namespace DeltaV
             else if (ReceiveFlight(tag)) { }
         }
 
-        internal bool ReceiveComms(Faction faction, Pawn negotiator)
+        internal bool ReceiveComms(Faction faction, Pawn negotiator, DeltaVCommsSource source, Thing sourceThing)
         {
-            if (!Active || faction != Run.mentors || Run.comms?.Spawned != true
-                || negotiator?.CurJobDef != JobDefOf.UseCommsConsole
-                || negotiator.CurJob.targetA.Thing != Run.comms || !Run.colonists.Contains(negotiator)
-                || !Run.comms.CanUseCommsNow || negotiator.Position != Run.comms.InteractionCell
-                || (Run.stage != TutorialStage.Welcome && Run.stage != TutorialStage.Inquiry && Run.stage != TutorialStage.Briefing)) return false;
+            if (!Active || faction != Run.mentors || !HasCommsDialogue(Run.stage)
+                || (negotiator?.IsColonistPlayerControlled != true
+                    && !Run.colonists.Any(p => ReferenceEquals(p, negotiator)))
+                || !ValidCommsSource(negotiator, source, sourceThing)) return false;
             if (Run.stage == TutorialStage.Welcome) Run.stage = TutorialStage.Inquiry;
             ShowBriefing();
             return true;
+        }
+
+        private static bool HasCommsDialogue(TutorialStage stage) => stage == TutorialStage.Welcome
+            || stage == TutorialStage.Inquiry || stage == TutorialStage.Briefing || stage == TutorialStage.Design
+            || stage == TutorialStage.Flight || stage == TutorialStage.Salvage || stage == TutorialStage.Range
+            || stage == TutorialStage.Visit;
+
+        private static bool ValidCommsSource(Pawn negotiator, DeltaVCommsSource source, Thing sourceThing)
+        {
+            if (source == DeltaVCommsSource.InternalCommunicator)
+                return sourceThing?.def == DeltaVDefOf.DeltaV_PortableCommunicator
+                    && sourceThing.ParentHolder is Pawn_ApparelTracker apparel && apparel.pawn == negotiator;
+            if (sourceThing is not Building_CommsConsole console) return false;
+            return negotiator.CurJobDef == JobDefOf.UseCommsConsole && negotiator.CurJob.targetA.Thing == console
+                && console.Spawned && console.CanUseCommsNow && negotiator.Position == console.InteractionCell;
+        }
+
+        private void GrantPortableCommunicator()
+        {
+            if (Run.portableCommunicatorGranted) return;
+            if (Run.comms?.Spawned != true)
+            {
+                Fail("DeltaV_Tutorial_CommsLost");
+                return;
+            }
+            Thing communicator = ThingMaker.MakeThing(DeltaVDefOf.DeltaV_PortableCommunicator);
+            if (!GenPlace.TryPlaceThing(communicator, Run.comms.InteractionCell, Run.comms.Map, ThingPlaceMode.Near))
+            {
+                communicator.Destroy();
+                Messages.Message("DeltaV_Tutorial_CommunicatorDropFailed".Translate(), Run.comms,
+                    MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            Run.portableCommunicatorGranted = true;
+            Messages.Message("DeltaV_Tutorial_CommunicatorDropped".Translate(), communicator,
+                MessageTypeDefOf.PositiveEvent, false);
+        }
+
+        private Faction MentorFaction => Run?.mentors ?? Find.FactionManager?.AllFactions
+            .FirstOrDefault(f => f.def == DeltaVDefOf.DeltaV_OrbitalPioneers);
+
+        internal bool CanContactMentors => MentorFaction != null;
+
+        internal void ContactMentors(Pawn negotiator, Thing communicator)
+        {
+            Faction faction = MentorFaction;
+            if (faction == null)
+            {
+                Messages.Message("DeltaV_PortableCommunicator_NoContact".Translate(), communicator,
+                    MessageTypeDefOf.RejectInput, false);
+                return;
+            }
+            if (!ReceiveComms(faction, negotiator, DeltaVCommsSource.InternalCommunicator, communicator))
+                faction.TryOpenComms(negotiator);
         }
 
         internal void Ended(Quest quest)

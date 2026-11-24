@@ -452,6 +452,8 @@ def build(data, name="ArrivalStation", *, layout_override=None, output=None, eva
                 ET.SubElement(filt,'disallowedSpecialFilters')
                 allowed = ET.SubElement(filt,'allowedDefs')
                 for item in value: ET.SubElement(allowed,'li').text=item
+                field(filt,'allowedHitPointsPercents','0~1')
+                field(filt,'allowedQualityLevels','Awful~Legendary')
             else: field(state,key,value)
         if range_layout: combat_range_layout.prepare_state(r, state, field, prop)
         elif detailed: layout.prepare_state(r, state, field, prop)

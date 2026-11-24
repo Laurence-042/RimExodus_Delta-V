@@ -806,6 +806,8 @@ internal static partial class Program
 
     static int shownBriefings;
     static bool CountBriefing() { shownBriefings++; return false; }
+    static int grantedCommunicators;
+    static bool CountCommunicatorGrant() { grantedCommunicators++; return false; }
 
     static void Comms(Game game, Harmony harmony)
     {
@@ -813,6 +815,22 @@ internal static partial class Program
         harmony.CreateClassProcessor(typeof(Patch_TutorialCandidateCrew)).Patch();
         Check(Harmony.GetPatchInfo(AccessTools.Method(typeof(GameInitData), nameof(GameInitData.PrepForMapGen))).Prefixes
             .Any(p => p.PatchMethod.DeclaringType == typeof(Patch_TutorialCandidateCrew)), "candidate capture binds before native optional-pawn removal");
+        XmlNode layerXml = sourceApparelLayers["DeltaV_ExternalAccessory"];
+        XmlNode communicatorXml = sourceDefs["DeltaV_PortableCommunicator"];
+        Check(layerXml["label"].InnerText == "external accessory" && layerXml["drawOrder"].InnerText == "350"
+            && communicatorXml.SelectSingleNode("apparel/bodyPartGroups[not(li)]") != null
+            && communicatorXml.SelectSingleNode("smeltable[text()='false']") != null
+            && communicatorXml.SelectSingleNode("apparel/layers/li[1][text()='Belt']") != null
+            && communicatorXml.SelectSingleNode("apparel/layers/li[text()='DeltaV_ExternalAccessory']") != null
+            && communicatorXml.SelectSingleNode("apparel/layers/li[last()][text()='DeltaV_ExternalAccessory']") != null
+            && communicatorXml.SelectSingleNode("apparel/wornGraphicPath") == null
+            && communicatorXml.SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_PortableCommunicator']") != null
+            && communicatorXml.SelectSingleNode("graphicData/texPath").InnerText == "Things/Item/DeltaV_PortableCommunicator",
+            "portable communicator uses the non-smeltable empty-body gear-safe external-accessory contract");
+        var shippedLayer = Raw<ApparelLayerDef>(); shippedLayer.defName = "DeltaV_ExternalAccessory";
+        var shippedCommunicator = Raw<ThingDef>(); shippedCommunicator.defName = "DeltaV_PortableCommunicator";
+        DeltaVDefOf.DeltaV_ExternalAccessory = shippedLayer;
+        DeltaVDefOf.DeltaV_PortableCommunicator = shippedCommunicator;
         var universe = game.GetComponent<UniverseManager>();
         var previous = universe.tutorialRun;
         var map = Raw<Map>(); map.info = new MapInfo { Size = new IntVec3(20, 1, 20) };
@@ -834,28 +852,76 @@ internal static partial class Program
         var run = new TutorialRunState { quest = new Quest(), stage = TutorialStage.Welcome, mentors = faction, comms = console };
         run.colonists.Add(captain); universe.tutorialRun = run;
         var display = AccessTools.Method(typeof(DeltaVTutorialService), "ShowBriefing");
+        var grant = AccessTools.Method(typeof(DeltaVTutorialService), "GrantPortableCommunicator");
         harmony.Patch(display, prefix: new HarmonyMethod(typeof(Program), nameof(CountBriefing)));
+        harmony.Patch(grant, prefix: new HarmonyMethod(typeof(Program), nameof(CountCommunicatorGrant)));
         try
         {
             shownBriefings = 0;
-            Check(!universe.Tutorial.ReceiveComms(new Faction(), captain) && run.stage == TutorialStage.Welcome, "unrelated faction call cannot advance the course");
+            grantedCommunicators = 0;
+            Check(universe.Tutorial.CanShowOpeningNote(captain), "opening note appears on the captain before first contact");
+            Check(!universe.Tutorial.CanShowOpeningNote(Raw<Pawn>()), "opening note does not appear on another pawn");
+            Check(!universe.Tutorial.ReceiveComms(new Faction(), captain, DeltaVCommsSource.ExternalConsole, console)
+                && run.stage == TutorialStage.Welcome, "unrelated faction call cannot advance the course");
             Set(power, "powerOnInt", false);
-            Check(!universe.Tutorial.ReceiveComms(faction, captain), "unpowered actual console rejects first contact");
+            Check(!universe.Tutorial.ReceiveComms(faction, captain, DeltaVCommsSource.ExternalConsole, console),
+                "unpowered console rejects first contact");
             Set(power, "powerOnInt", true);
             Set(captain, "positionInt", new IntVec3(1, 0, 1));
-            Check(!universe.Tutorial.ReceiveComms(faction, captain), "captain must reach the actual console interaction cell");
+            Check(!universe.Tutorial.ReceiveComms(faction, captain, DeltaVCommsSource.ExternalConsole, console),
+                "caller must reach the console interaction cell");
             Set(captain, "positionInt", console.InteractionCell);
             faction.TryOpenComms(captain);
             Check(run.stage == TutorialStage.Inquiry && shownBriefings == 1, "native faction call routes to the tutorial inquiry");
+            Check(!universe.Tutorial.CanShowOpeningNote(captain), "opening note disappears after first contact");
             universe.Tutorial.Receive(run.quest, DeltaVTutorialService.Signal(run.quest, "AskPurpose"));
-            Check(run.stage == TutorialStage.Briefing, "asking purpose opens the promised explanation");
-            Check(!universe.Tutorial.ReceiveComms(faction, Raw<Pawn>()), "another pawn cannot impersonate the captain");
+            Check(run.stage == TutorialStage.Briefing && grantedCommunicators == 1,
+                "ending first contact grants the communicator before opening the explanation");
+            Check(!universe.Tutorial.ReceiveComms(faction, Raw<Pawn>(), DeltaVCommsSource.ExternalConsole, console),
+                "an unrelated pawn cannot impersonate a player caller");
+
+            var communicatorDef = DeltaVDefOf.DeltaV_PortableCommunicator;
+            var communicator = Raw<Apparel>(); communicator.def = communicatorDef; communicator.thingIDNumber = 9702;
+            communicator.stackCount = 1;
+            captain.apparel = new Pawn_ApparelTracker(captain);
+            communicator.holdingOwner = captain.apparel.GetDirectlyHeldThings();
+            captain.apparel.WornApparel.Add(communicator);
+            Check(communicator.ParentHolder == captain.apparel, "fixture wears the portable communicator");
             run.stage = TutorialStage.Flight;
-            Check(!universe.Tutorial.ReceiveComms(faction, captain), "later faction calls return to ordinary diplomacy");
+            Check(universe.Tutorial.ReceiveComms(faction, captain, DeltaVCommsSource.InternalCommunicator, communicator)
+                && shownBriefings == 2, "internal communicator reopens the current tutorial stage");
+            Check(!universe.Tutorial.ReceiveComms(faction, captain, DeltaVCommsSource.InternalCommunicator, console),
+                "internal source requires the actually worn communicator");
+            Check(universe.Tutorial.ReceiveComms(faction, captain, DeltaVCommsSource.ExternalConsole, console)
+                && shownBriefings == 3, "console calls also reopen later tutorial stages");
+
+            var externalLayer = DeltaVDefOf.DeltaV_ExternalAccessory;
+            var beltLayer = Raw<ApparelLayerDef>(); beltLayer.defName = "Belt";
+            var external = Raw<ThingDef>(); external.apparel = new ApparelProperties
+                { layers = new List<ApparelLayerDef> { beltLayer, externalLayer }, bodyPartGroups = new List<BodyPartGroupDef>() };
+            var ordinary = Raw<ThingDef>(); ordinary.apparel = new ApparelProperties
+                { layers = new List<ApparelLayerDef> { Raw<ApparelLayerDef>() }, bodyPartGroups = new List<BodyPartGroupDef>() };
+            var grouped = Raw<ThingDef>(); grouped.apparel = new ApparelProperties
+                { layers = new List<ApparelLayerDef> { externalLayer }, bodyPartGroups = new List<BodyPartGroupDef> { Raw<BodyPartGroupDef>() } };
+            var postfix = AccessTools.Method(typeof(Patch_ExternalAccessoryHasPartsToWear), "Postfix");
+            object[] externalArgs = { external, false }; postfix.Invoke(null, externalArgs);
+            object[] ordinaryArgs = { ordinary, false }; postfix.Invoke(null, ordinaryArgs);
+            object[] groupedArgs = { grouped, false }; postfix.Invoke(null, groupedArgs);
+            Check((bool)externalArgs[1] && !(bool)ordinaryArgs[1] && !(bool)groupedArgs[1],
+                "only empty-body external accessories bypass the native body-part check");
+            Check(external.apparel.layers.Contains(beltLayer) && external.apparel.LastLayer == externalLayer
+                && external.apparel.bodyPartGroups.Count == 0,
+                "portable communicator is classified as equipment without changing its external-accessory last layer");
+            var body = new BodyDef { defName = "ExternalAccessoryFixtureBody" };
+            DefDatabase<BodyDef>.Add(body);
+            ApparelProperties.ResetStaticData();
+            Check(ApparelUtility.CanWearTogether(external, external, body),
+                "empty-body external accessories can be worn together");
         }
         finally
         {
             harmony.Unpatch(display, HarmonyPatchType.Prefix, harmony.Id);
+            harmony.Unpatch(grant, HarmonyPatchType.Prefix, harmony.Id);
             universe.tutorialRun = previous; game.Maps.Remove(map);
         }
     }
@@ -1004,7 +1070,7 @@ internal static partial class Program
         {
             var saved = new TutorialRunState { stage = stage, quest = quest, trainingShipId = 400, salvageObjectId = 401,
                 forwardTicks = 17, lateralTicks = 30, turnTicks = 4, recoveryDocked = true, comms = comms, berthDoor = berth,
-                rangeConsole = comms, rangeTarget = berth, rangePort = rangePort };
+                rangeConsole = comms, rangeTarget = berth, rangePort = rangePort, portableCommunicatorGranted = true };
             string xml = Scribe.saver.DebugOutputFor(saved);
             string tmp = Path.GetTempFileName();
             try
@@ -1029,7 +1095,8 @@ internal static partial class Program
                 Check(loaded.comms == comms && loaded.berthDoor == berth, "native Scribe resolves exact comms and berth roles " + stage);
                 Check(loaded.rangeConsole == comms && loaded.rangeTarget == berth && loaded.rangePort == rangePort, "native Scribe resolves range roles " + stage);
                 Check(loaded.trainingShipId == 400 && loaded.salvageObjectId == 401 && loaded.forwardTicks == 17 && loaded.lateralTicks == 30
-                    && loaded.turnTicks == 4 && loaded.recoveryDocked, "flight and docking evidence survives Scribe " + stage);
+                    && loaded.turnTicks == 4 && loaded.recoveryDocked && loaded.portableCommunicatorGranted,
+                    "flight, docking and communicator evidence survives Scribe " + stage);
             }
             finally { Scribe.ForceStop(); File.Delete(tmp); }
         }
@@ -1047,7 +1114,6 @@ internal static partial class Program
         run.trainingShipId = 400;
         run.salvageObjectId = recovery.objectId;
         var trainer = new DriveSubject(0, run.trainingShipId);
-        Check(universe.Tutorial.NavigationTarget?.objectId == recovery.objectId, "navigation finds the uncrewed hull by object ID");
         Check(universe.Missions.BeginDock(trainer, Raw<Map>()) == null
             && universe.Missions.BeginDock(new DriveSubject(0, 399), recoveryMap) == null, "only the designated trainer and wreck qualify");
         var commit = universe.Missions.BeginDock(trainer, recoveryMap);

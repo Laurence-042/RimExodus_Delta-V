@@ -441,6 +441,20 @@ internal static partial class Program
             }
             if (tutorial && name == "PrototypeShip")
             {
+                var cargo = xml.SelectNodes("/MapPrefab/thingStates/li[def='DeltaV_CargoStorage']").Cast<XmlNode>().ToList();
+                var expectedCargoDefs = new HashSet<string> { "Steel", "ComponentIndustrial", "ComponentSpacer", "Chemfuel",
+                    "MealSurvivalPack", "MealSimple", "MedicineIndustrial", "Silver", "RawRice" };
+                Check(cargo.Count == 4, "gift has four cargo storages");
+                foreach (var storage in cargo)
+                {
+                    var filter = storage.SelectSingleNode("state/saveable/settings/filter");
+                    var allowed = filter?.SelectNodes("allowedDefs/li").Cast<XmlNode>().Select(n => n.InnerText).ToHashSet();
+                    Check(filter != null && filter.SelectSingleNode("disallowedSpecialFilters") != null
+                        && filter.SelectSingleNode("allowedHitPointsPercents")?.InnerText == "0~1"
+                        && filter.SelectSingleNode("allowedQualityLevels")?.InnerText == "Awful~Legendary"
+                        && allowed != null && allowed.SetEquals(expectedCargoDefs),
+                        "gift cargo storage keeps full hit-point and quality ranges with the authored supply filter");
+                }
                 var moon = xml.SelectNodes("/MapPrefab/foundations/li[def='DeltaV_MoonPool']/pos")
                     .Cast<XmlNode>().Select(n => IntVec3.FromString(n.InnerText)).ToHashSet();
                 var roofs = xml.SelectNodes("/MapPrefab/roofs/li/pos").Cast<XmlNode>()
@@ -507,6 +521,7 @@ internal static partial class Program
 
     static readonly Dictionary<string, XmlNode> sourceDefs = new();
     static readonly Dictionary<string, XmlNode> sourceParents = new();
+    static readonly Dictionary<string, XmlNode> sourceApparelLayers = new();
     static readonly HashSet<string> checkedDefs = new();
 
     static void ReadSourceDefs(string data, string modDefs)
@@ -530,6 +545,8 @@ internal static partial class Program
                 }
                 if (node.Attributes["Name"] != null) sourceParents[node.Attributes["Name"].Value] = node;
             }
+            foreach (XmlNode node in xml.SelectNodes("/Defs/ApparelLayerDef[defName]"))
+                sourceApparelLayers[node["defName"].InnerText] = node;
         }
     }
 
