@@ -82,6 +82,13 @@ namespace DeltaV
         internal PlanetTile pendingStrategicSourceAddress;
         internal SpacePose? pendingStrategicSourcePose;
 
+        /// <summary>
+        /// 原版战略起飞从捕获源图开始到 TravelTo 放行前仍要用该图绘制过场；此窗口内
+        /// 结构移除造成的暂时无承载状态不能触发地图生命周期回收。
+        /// </summary>
+        internal bool IsAwaitingStrategicTakeoff(Map map) => map != null
+            && pendingStrategicSourceMap == map;
+
         /// <summary>战略发射源 = 发射船的自有口袋容器（发射后按离场标准流程销毁）。</summary>
         private int pendingStrategicOwnPocketId;
         internal SpaceObject pendingStrategicOwnPocket { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(pendingStrategicOwnPocketId); set => pendingStrategicOwnPocketId = value?.objectId ?? 0; }

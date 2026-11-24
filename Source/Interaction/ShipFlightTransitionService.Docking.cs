@@ -791,19 +791,28 @@ namespace DeltaV
         internal void QueueEmptyDepartedMapCleanup(UniverseManager universe, Map map)
         {
             if (map == null) return;
-            universe.QueueFrameAction(delegate { HandleDepartedSourceMap(universe, map); });
+            universe.QueueFrameAction(() => HandleDepartedSourceMap(universe, map));
         }
 
         /// <summary>
-        /// 脱离与读档清扫的源图善后：**worldtile 图不受影响**——保留，去留交给锚对象
-        /// 配置与距离生命周期；非 worldtile 图空白则立刻删除（遗留基架转无主残骸），
-        /// 无承载结构的普通图优先交给生命周期回收；仍有承载时才执行既有残留处置。
+        /// 脱离与读档清扫的源图善后：worldtile 图通常不受转换影响；唯一例外是原版
+        /// 战略降落创建且已彻底清空的临时 Space 作业画布，按原版阻塞条件删除 Map 与
+        /// WorldObject。非 worldtile 图空白则立刻删除（遗留基架转无主残骸），无承载
+        /// 结构的普通图优先交给生命周期回收；仍有承载时才执行既有残留处置。
         /// </summary>
         internal void HandleDepartedSourceMap(UniverseManager universe, Map sourceMap)
         {
             if (universe == null || sourceMap == null || sourceMap.Disposed
                 || !Find.Maps.Contains(sourceMap)) return;
-            if (sourceMap.Tile.Valid) return; // worldtile 图：不受转换影响
+            if (sourceMap.Tile.Valid)
+            {
+                if (universe.FrameOf(sourceMap)?.IsWorksite == true)
+                {
+                    FinishEmptyWorksite(sourceMap);
+                    universe.MapStates.TryRemoveEmptyLandingWorksite(sourceMap);
+                }
+                return;
+            }
             FinishEmptyWorksite(sourceMap);
             if (universe.MapStates.RecycleUnsupportedMap(sourceMap)) return;
             if (sourceMap == Find.CurrentMap)

@@ -24,4 +24,17 @@ namespace DeltaV
             MoonPoolUtility.SyncRoofAt(map, cell);
         }
     }
+
+    // GravshipUtility and Delta-V's mirror remove the roof after removing the terrain layer.
+    // If a normal ship roof covered restored moon-pool terrain, the terrain callback correctly
+    // preserves that roof and cannot install the field roof until this final raw removal occurs.
+    [HarmonyPatch(typeof(RoofGrid), nameof(RoofGrid.RemoveRoofUnsafe))]
+    public static class Patch_MoonPool_GravshipRoofRemoved
+    {
+        public static void Postfix(Map ___map, int index)
+        {
+            if (___map == null) return;
+            MoonPoolUtility.SyncRoofAt(___map, ___map.cellIndices.IndexToCell(index));
+        }
+    }
 }

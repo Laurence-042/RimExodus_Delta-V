@@ -187,7 +187,7 @@ namespace DeltaV
             IntVec3 shift = new IntVec3(margin - union.minX, 0, margin - union.minZ);
             Map workmap = ShipPocketMapFactory.Generate(new IntVec3(union.Width + margin * 2, 1, union.Height + margin * 2), universe);
             if (workmap == null) return;
-            workmap.GetComponent<DeltaVPocketMapMetadata>().worksite = true;
+            DeltaVPocketMapMetadata.MarkWorksite(workmap);
             Vector2 newOriginInBasis = SpaceTransform.ShipLocalOrigin(workmap) - new Vector2(shift.x, shift.z);
             SpacePose pose = SpaceTransform.RigidPointPose(basis.pose, SpaceTransform.MapToShipLocal(basis.map, newOriginInBasis), 0f);
             var work = new MapSpaceObject(universe.AllocateOwnerId(), workmap, pose) { faction = own.faction };

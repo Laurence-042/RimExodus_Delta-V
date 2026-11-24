@@ -7,6 +7,8 @@ This file records player-visible changes in released versions and the near-term 
 
 - 修复从星区内口袋图或同地址的其他地图发射时，误将星区对应 POI 当作出发图并摧毁的问题；现在只有实际出发的同一张世界地图会进入放弃流程。
   Fixed launches from pocket maps or other maps at the same sector address incorrectly treating and destroying the sector POI as the departure map; only the actual source world map can now be abandoned.
+- 修复逆重飞船搬运通过原始屋顶清除入口时未刷新船体结构缓存的问题；月池上的普通船顶移除后会立即恢复力场顶。
+  Fixed gravship transfer through the native roof-removal path leaving the ship structure cache stale; removing an ordinary roof over a moon pool now immediately restores its force-field roof.
 
 @@UTcurtain：加重一下开门引导。在新手教程开局试了好几次，一直在怼通讯台，打开任何和定位任务都摁过检查过，太空站进去过钢铁也捡过，最后发现是按征召右边的太空生存指导来推进任务。(:steamfacepalm:)
 - 准备在下个版本把教程引导统一做到通讯台的星界边境派系交互里，然后让通讯台掉一个附件类型的便携通讯器，然后让装备通讯器的人员可以直接等价于用通讯台呼叫星界边境。同时初次对话末尾也会提及这个通讯器。
@@ -19,7 +21,8 @@ This file records player-visible changes in released versions and the near-term 
 - 合理，我会给他加插件槽，并添加其专用的货箱插件
 
 @UTcurtain：标准姿态-手动驾驶-挪动几下逆重飞船后发射-确认着陆区-切换手动驾驶-尝试移动和选择 。推进器正常发力，但此时我通过定位坐标发现自己根本无法移动，旋转时开始抽搐(角度倾斜和高频角度归正)，这个问题我通过新存档复现了。(之前那份评论是因为我开自动导航就开始抽搐，应该飞船的姿态判断问题)， 解决问题也不是切换驾驶台而是重新进行舱内/外作业按钮切换。
-- 降落到空位时，降落地图被当成星区核心poi地图了，而且没有标记作业图，导致飞船被当做星区核心poi重设了位置
+- 已修复：战略降落图现标记为舱外作业图，首次真实出力会将飞船提取到独立飞行图；空轨道降落临时创建的玩家 Home 会在最后一艘船脱离且没有遗留人员、建筑、物品或在途运输后自动删除。
+  Fixed: strategic landing maps are now marked as orbital worksites, and first real thrust extracts the ship into an independent flight map. A temporary player Home created by landing on an empty orbital tile is automatically removed after the last ship departs when no pawns, buildings, items, or incoming transports remain.
 
 
 - 武器和护盾适配

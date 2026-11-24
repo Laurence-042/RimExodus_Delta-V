@@ -57,6 +57,7 @@ namespace DeltaV
             SpaceObject owner = universe.FrameOf(map);
             if (!IsOrdinaryStructureMap(owner) || map.Disposed || !Find.Maps.Contains(map)
                 || universe.IsResettingScene || universe.Generation?.IsGenerating(map) == true
+                || universe.ShipTransitions.IsAwaitingStrategicTakeoff(map)
                 || universe.ShipTransitions.IsAwaitingDockingCleanup(map) || HasMapSupport(owner)) return false;
 
             bool wasFocused = Find.CurrentMap == map;

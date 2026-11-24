@@ -318,6 +318,15 @@ internal static partial class Program
             harmony.Patch(AccessTools.Method(typeof(ThingGrid), "DeregisterInCell"),
                 postfix: new HarmonyMethod(typeof(Patch_SpaceScatterCargo_Deregister), "Postfix"));
             var scatter = AccessTools.Method(typeof(SpaceScatterService), "TryScatter", new[] { typeof(Thing) });
+            universe.ShipTransitions.pendingStrategicSourceMap = map;
+            Check(universe.ShipTransitions.IsAwaitingStrategicTakeoff(map),
+                "a strategic takeoff source enters the shared lifecycle protection window");
+            Current.Game.currentMapIndex = (sbyte)Find.Maps.IndexOf(map);
+            Check(!universe.MapStates.RecycleUnsupportedMap(map) && Find.CurrentMap == map
+                && Find.Maps.Contains(map) && universe.ObjectById(frame.objectId) == frame,
+                "structure loss cannot recycle the current source during the strategic takeoff cutscene");
+            universe.ShipTransitions.pendingStrategicSourceMap = null;
+            Current.Game.currentMapIndex = -1;
             harmony.Patch(scatter, prefix: new HarmonyMethod(typeof(Program), nameof(RejectFixtureItem)));
             Check(!universe.MapStates.RecycleUnsupportedMap(map) && item.Spawned && Find.Maps.Contains(map)
                 && universe.ObjectById(frame.objectId) == frame,
@@ -337,6 +346,7 @@ internal static partial class Program
         }
         finally
         {
+            universe.ShipTransitions.pendingStrategicSourceMap = null;
             Current.Game.currentMapIndex = oldMapIndex;
             harmony.UnpatchAll(harmony.Id);
             foreach (SpaceObject obj in universe.objects.Where(obj =>
@@ -435,8 +445,9 @@ internal static partial class Program
             SubstructureOwnership.For(map).Assign(IntVec3.Zero, 999);
             Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
             Check(!ShipRegistry.RequiresOwnPocket(main.Ship), "foreign wreck ownership does not force extraction either");
-            metadata.worksite = true;
-            Check(ShipRegistry.RequiresOwnPocket(main.Ship), "worksite always extracts the ship to a compact map");
+            Check(DeltaVPocketMapMetadata.MarkWorksite(map)
+                && ShipRegistry.RequiresOwnPocket(main.Ship),
+                "worksite marking forces extraction to a compact map before thrust");
             metadata.worksite = false;
             int far = map.cellIndices.CellToIndex(new IntVec3(4, 0, 4));
             map.terrainGrid.topGrid[far] = soil;

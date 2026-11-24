@@ -105,6 +105,29 @@ namespace DeltaV
             Patch_TerrainGrid_RemoveFoundation_Ownership.NotifyRemoval(TerrainGridOwnershipAccess.MapOf(__instance), cell, __state);
     }
 
+    /// <summary>
+    /// 原版 Gravship 批量剥离在 RemoveGravshipTerrainUnsafe 返回后才调用
+    /// RemoveRoofUnsafe。前一段基架通知会在屋顶仍存在时把该格记为 loose terrain；
+    /// raw 屋顶写入本身不触发 SetRoof、MapEvents 或结构版本，因此必须在最终清除后
+    /// 补发同一套屋顶缓存通知。原版战略起飞与 Delta-V StripDomain 共用此入口。
+    /// </summary>
+    [HarmonyPatch(typeof(RoofGrid), nameof(RoofGrid.RemoveRoofUnsafe))]
+    public static class Patch_RoofGrid_RemoveRoofUnsafe_Structure
+    {
+        private static void Prefix(Map ___map, int index, out RoofDef __state)
+        {
+            __state = ___map?.roofGrid?.RoofAt(index);
+        }
+
+        public static void Postfix(Map ___map, int index, RoofDef __state)
+        {
+            if (___map == null || __state == null) return;
+            IntVec3 cell = ___map.cellIndices.IndexToCell(index);
+            Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.NotifyRoof(
+                ___map, cell, __state, ___map.roofGrid.RoofAt(index));
+        }
+    }
+
         /// <summary>
         /// 引擎基架连通域的归属过滤收口：引擎的「自己的 ID」= 其中心格基架归属。
         /// 命中时以同构的归属过滤 flood-fill 替换原版遍历（镜像 GravshipUtility.

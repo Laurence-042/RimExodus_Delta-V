@@ -489,6 +489,49 @@ namespace DeltaV
                 $"{poi.label}: POI map removed (worldObject={parent.Destroyed})");
         }
 
+        /// <summary>
+        /// 回收原版战略降落在空轨道 tile 创建的临时 Space/SpaceSettlement worldtile。
+        /// 1.7 的 AddNewHome 产物会永久报告 IsPlayerHome，Settlement.ShouldRemoveMapNow
+        /// 因而不可能放行；这里只对同 tick 新建的降落 Settlement 绕过 Home 条件，仍
+        /// 逐项执行原版建筑、Pawn 与在途运输阻塞检查。旧 Space 锚继续走自身原版复核。
+        /// </summary>
+        internal bool TryRemoveEmptyLandingWorksite(Map map)
+        {
+            if (!SpaceMapGovernance.IsEmptyLandingWorksite(map, universe)
+                || map == Find.CurrentMap
+                || universe.IsResettingScene
+                || universe.Generation?.IsGenerating(map) == true
+                || universe.ShipTransitions.IsAwaitingDockingCleanup(map)
+                || universe.FrameOf(map) is not PoiState poi)
+            {
+                return false;
+            }
+            MapParent parent = poi.nativeParent;
+            if (parent == null || parent.Destroyed) return false;
+            bool alsoRemoveWorldObject;
+            if (SpaceMapGovernance.IsLandingCreatedSettlement(map, parent))
+            {
+                alsoRemoveWorldObject = true;
+                if (map.AnyBuildingBlockingMapRemoval
+                    || map.mapPawns.AnyPawnBlockingMapRemoval
+                    || TransporterUtility.IncomingTransporterPreventingMapRemoval(map))
+                {
+                    return false;
+                }
+            }
+            else if (!parent.ShouldRemoveMapNow(out alsoRemoveWorldObject)
+                || !(alsoRemoveWorldObject || parent.forceRemoveWorldObjectWhenMapRemoved))
+            {
+                return false;
+            }
+            poi.map = null;
+            DeinitMap(map, true);
+            if (!parent.Destroyed) parent.Destroy();
+            DeltaVLog.Message(DeltaVLogModule.Lifecycle,
+                $"{poi.label}: empty strategic landing worksite removed with its world object");
+            return true;
+        }
+
         internal void ReleaseForCapacity(int targetCount, float admissionScore)
         {
             if (MapGenerator.mapBeingGenerated != null || RimExodus.Maps.MapRuntime.Current.Generation.IsBusy) return;

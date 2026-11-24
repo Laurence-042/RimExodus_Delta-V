@@ -81,6 +81,7 @@ internal static partial class Program
         Check(!universe.Scatter.Candidates.Contains(scattered), "scattered retirement releases the tractor candidate index");
         Check(!CombatTarget.ForContainer(scattered).TryResolve(universe, out _), "retired scattered identity cannot resolve a stale tractor lock");
         CheckSoftDockReference(universe);
+        CheckStrategicLandingWorksite(universe);
         CheckOrbitalWork(universe);
         if (dockingOnly) return;
         CheckScatteredRetirement(universe);
@@ -126,6 +127,7 @@ internal static partial class Program
     static bool worksiteLandingValid;
     static Map worksiteDockMap;
     static IntVec3 worksiteRequestedSize;
+    static TerrainDef worksiteFoundation;
 
     static bool RecordWorksiteRejection(string key) { worksiteRejection = key; return false; }
     static bool PlaceWorksiteProbe(PilotTarget target, SpaceObject host,
@@ -139,6 +141,153 @@ internal static partial class Program
     { worksiteDockMap = placement.targetMap; return false; }
     static bool RecordWorksiteGeneration(IntVec3 size, ref Map __result)
     { worksiteRequestedSize = size; __result = null; return false; }
+    static bool ReadWorksiteSubstructure(TerrainDef __instance, ref bool __result)
+    {
+        if (__instance != worksiteFoundation) return true;
+        __result = true;
+        return false;
+    }
+    static bool SetWorksiteRoof(RoofGrid __instance, IntVec3 c, RoofDef def)
+    {
+        Map map = (Map)AccessTools.Field(typeof(RoofGrid), "map").GetValue(__instance);
+        var roofs = (RoofDef[])AccessTools.Field(typeof(RoofGrid), "roofGrid").GetValue(__instance);
+        roofs[map.cellIndices.CellToIndex(c)] = def;
+        return false;
+    }
+
+    static void CheckStrategicLandingWorksite(UniverseManager universe)
+    {
+        var unsafeRoofPatch = new Harmony("DeltaV.Regression.UnsafeRoofStructure");
+        unsafeRoofPatch.CreateClassProcessor(typeof(Patch_RoofGrid_RemoveRoofUnsafe_Structure)).Patch();
+        unsafeRoofPatch.CreateClassProcessor(typeof(Patch_MoonPool_GravshipTerrainRemoved)).Patch();
+        unsafeRoofPatch.CreateClassProcessor(typeof(Patch_MoonPool_GravshipRoofRemoved)).Patch();
+        unsafeRoofPatch.CreateClassProcessor(typeof(Patch_MoonPool_SetRoof)).Patch();
+        unsafeRoofPatch.Patch(AccessTools.Method(typeof(RoofGrid), nameof(RoofGrid.SetRoof)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(SetWorksiteRoof)) { priority = Priority.First });
+        unsafeRoofPatch.Patch(AccessTools.PropertyGetter(typeof(TerrainDef), nameof(TerrainDef.IsSubstructure)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(ReadWorksiteSubstructure)));
+        WorldGrid oldGrid = Find.World.grid;
+        TerrainDef oldSpace = TerrainDefOf.Space;
+        TerrainDef oldMoonPool = (TerrainDef)AccessTools.Field(typeof(MoonPoolUtility), "moonPoolDef").GetValue(null);
+        RoofDef oldFieldRoof = (RoofDef)AccessTools.Field(typeof(MoonPoolUtility), "fieldRoofDef").GetValue(null);
+        var fixtureSpace = (TerrainDef)Raw(typeof(TerrainDef));
+        fixtureSpace.defName = "regressionSpace";
+        var fixtureMoonPool = (TerrainDef)Raw(typeof(TerrainDef));
+        fixtureMoonPool.defName = "regressionMoonPool";
+        var fixtureFieldRoof = (RoofDef)Raw(typeof(RoofDef));
+        fixtureFieldRoof.defName = "regressionFieldRoof";
+        TerrainDefOf.Space = fixtureSpace;
+        AccessTools.Field(typeof(MoonPoolUtility), "moonPoolDef").SetValue(null, fixtureMoonPool);
+        AccessTools.Field(typeof(MoonPoolUtility), "fieldRoofDef").SetValue(null, fixtureFieldRoof);
+        var fixtureLayer = (PlanetLayer)Raw(typeof(PlanetLayer));
+        Set(fixtureLayer, "def", new PlanetLayerDef { isSpace = true });
+        Find.World.grid = (WorldGrid)Raw(typeof(WorldGrid));
+        Set(Find.World.grid, "planetLayers", new Dictionary<int, PlanetLayer> { [0] = fixtureLayer });
+        var landingMap = TestMap(49808);
+        var ordinaryMap = TestMap(49809);
+        landingMap.roofGrid = new RoofGrid(landingMap);
+        ordinaryMap.info.parent = null;
+        landingMap.generationTick = 13579;
+        var landingParent = new RegressionLandingMapParent("SpaceSettlement", 0, landingMap.generationTick);
+        landingMap.info.parent = landingParent;
+        Array.Fill(landingMap.terrainGrid.topGrid, TerrainDefOf.Space);
+        landingMap.wasSpawnedViaGravShipLanding = true;
+        var native = new PoiState(49808, (MapParent)null)
+        {
+            map = landingMap,
+            nativeParent = landingParent,
+            pose = new SpacePose(Vector3.forward, 0f)
+        };
+        var pocketSource = new MapSpaceObject(49809, ordinaryMap, native.pose);
+        universe.RegisterObject(native);
+        universe.RegisterObject(pocketSource);
+        try
+        {
+            Check(landingMap.GetComponent<DeltaVPocketMapMetadata>() == null,
+                "vanilla orbital landing maps start without Delta-V worksite metadata");
+            Check(Patch_GravshipController_LandingEnded.MarkStrategicLandingWorksite(universe, landingMap)
+                && landingMap.GetComponent<DeltaVPocketMapMetadata>()?.worksite == true
+                && native.IsWorksite,
+                "strategic landing settlement marks its native worldtile container as a worksite");
+            Check(landingMap.Tile.Valid && landingParent.Map == landingMap
+                && universe.FrameOf(landingMap) == native,
+                "strategic landing retirement fixture has a real worldtile NativeParent frame");
+            Check(!native.Ships.Any(ship => ship.IsValid),
+                "strategic landing retirement fixture has no remaining ship");
+            Check(SpaceMapGovernance.IsBlankLandingCanvas(landingMap),
+                "strategic landing retirement fixture has no remaining canvas entity");
+            Check(!ShipRegistry.HasLooseContents(landingMap),
+                "strategic landing retirement fixture has no loose content");
+            IntVec3 strippedCell = new IntVec3(2, 0, 2);
+            int strippedIndex = landingMap.cellIndices.CellToIndex(strippedCell);
+            var fixtureFoundation = (TerrainDef)Raw(typeof(TerrainDef));
+            fixtureFoundation.defName = "regressionSubstructure";
+            worksiteFoundation = fixtureFoundation;
+            var fixtureRoof = (RoofDef)Raw(typeof(RoofDef));
+            fixtureRoof.defName = "regressionRoof";
+            landingMap.terrainGrid.foundationGrid[strippedIndex] = fixtureFoundation;
+            ((RoofDef[])AccessTools.Field(typeof(RoofGrid), "roofGrid").GetValue(landingMap.roofGrid))[strippedIndex]
+                = fixtureRoof;
+            ShipStructureIndex.Read(landingMap).UpdateTerrain(strippedCell);
+            Check(!ShipRegistry.HasLooseContents(landingMap),
+                "roofed substructure is supported before Gravship stripping");
+            landingMap.terrainGrid.RemoveGravshipTerrainUnsafe(strippedCell, strippedIndex);
+            ShipStructureIndex.Read(landingMap).UpdateTerrain(strippedCell);
+            Check(ShipRegistry.HasLooseContents(landingMap),
+                "foundation removal observes the still-present roof as loose terrain");
+            landingMap.roofGrid.RemoveRoofUnsafe(strippedIndex);
+            Check(!ShipRegistry.HasLooseContents(landingMap),
+                "unsafe roof removal refreshes the ship structure cache after Gravship stripping");
+            landingMap.terrainGrid.topGrid[strippedIndex] = fixtureMoonPool;
+            landingMap.terrainGrid.foundationGrid[strippedIndex] = fixtureFoundation;
+            ((RoofDef[])AccessTools.Field(typeof(RoofGrid), "roofGrid").GetValue(landingMap.roofGrid))[strippedIndex]
+                = fixtureRoof;
+            landingMap.terrainGrid.RemoveGravshipTerrainUnsafe(strippedCell, strippedIndex);
+            Check(landingMap.roofGrid.RoofAt(strippedIndex) == fixtureRoof,
+                "Gravship terrain removal preserves a normal roof over restored moon-pool terrain");
+            landingMap.roofGrid.RemoveRoofUnsafe(strippedIndex);
+            Check(landingMap.roofGrid.RoofAt(strippedIndex) == fixtureFieldRoof,
+                "final unsafe roof removal restores the moon-pool field roof");
+            landingMap.terrainGrid.topGrid[strippedIndex] = fixtureSpace;
+            ((RoofDef[])AccessTools.Field(typeof(RoofGrid), "roofGrid").GetValue(landingMap.roofGrid))[strippedIndex]
+                = null;
+            ShipStructureIndex.Read(landingMap).UpdateTerrain(strippedCell);
+            Check(landingMap.wasSpawnedViaGravShipLanding,
+                "strategic landing retirement fixture records vanilla Gravship generation");
+            Check(landingParent is Settlement && landingParent.creationGameTicks == landingMap.generationTick,
+                "strategic landing retirement fixture records a same-tick landing Settlement");
+            Check(SpaceMapGovernance.IsLandingCreatedSettlement(landingMap, landingParent),
+                "same-tick Gravship Settlement is classified as landing-created");
+            Check(SpaceMapGovernance.IsEmptyLandingWorksite(landingMap, universe),
+                "an emptied landing-created SpaceSettlement is a native worksite retirement candidate");
+            Check(ShipFlightTransitionService.StrategicDepartureWorldtileSource(landingMap) == landingMap
+                && ShipFlightTransitionService.StrategicDepartureWorldtileSource(ordinaryMap) == null
+                && universe.FrameOf(landingMap) == native && universe.FrameOf(ordinaryMap) == pocketSource,
+                "strategic departure selects only the actual worldtile source, never a same-sector POI for a pocket source");
+            landingParent.creationGameTicks--;
+            Check(!SpaceMapGovernance.IsEmptyLandingWorksite(landingMap, universe),
+                "a pre-existing orbital Settlement is not retired as a temporary landing Home");
+            landingParent.creationGameTicks++;
+            Check(!Patch_GravshipController_LandingEnded.MarkStrategicLandingWorksite(universe, ordinaryMap)
+                && ordinaryMap.GetComponent<DeltaVPocketMapMetadata>() == null,
+                "landing settlement does not mark an unrelated map as a worksite");
+        }
+        finally
+        {
+            worksiteFoundation = null;
+            TerrainDefOf.Space = oldSpace;
+            AccessTools.Field(typeof(MoonPoolUtility), "moonPoolDef").SetValue(null, oldMoonPool);
+            AccessTools.Field(typeof(MoonPoolUtility), "fieldRoofDef").SetValue(null, oldFieldRoof);
+            unsafeRoofPatch.UnpatchAll(unsafeRoofPatch.Id);
+            Find.World.grid = oldGrid;
+            native.map = null;
+            pocketSource.map = null;
+            universe.UnregisterObject(pocketSource);
+            universe.UnregisterObject(native);
+            Find.Maps.Remove(landingMap);
+            Find.Maps.Remove(ordinaryMap);
+        }
+    }
 
     static void CheckOrbitalWork(UniverseManager universe)
     {

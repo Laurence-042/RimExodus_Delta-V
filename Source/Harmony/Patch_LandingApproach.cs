@@ -84,7 +84,19 @@ namespace DeltaV
         {
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
             universe?.ShipTransitions.ClearLandingCaptureScope();
+            MarkStrategicLandingWorksite(universe, __state);
             Building_DockingPort.NotifyLandingSettled(__state);
+        }
+
+        /// <summary>
+        /// 原版逆重战略降落进入 worldtile 的 NativeParent 内部图。该容器是固定的
+        /// 作业宿主，不是可由单船直接推动的飞行容器；首次真实出力应经既有门禁把
+        /// 船体提取到独立口袋图。地表与普通 Delta-V 口袋图不进入本标记。
+        /// </summary>
+        internal static bool MarkStrategicLandingWorksite(UniverseManager universe, Map map)
+        {
+            return universe?.FrameOf(map) is PoiState { kind: PoiKind.NativeParent }
+                && DeltaVPocketMapMetadata.MarkWorksite(map);
         }
     }
 

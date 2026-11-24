@@ -1,15 +1,81 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection.Emit;
 using DeltaV;
+using RimWorld;
+using RimWorld.Planet;
 using UnityEngine;
 using Verse;
 
+internal sealed class RegressionLandingMapParent : Settlement
+{
+    internal int removalProbeCalls;
+
+    internal RegressionLandingMapParent(string defName, int tile, int creationTick)
+    {
+        def = new WorldObjectDef { defName = defName, label = defName, canBePlayerHome = true };
+        creationGameTicks = creationTick;
+        var field = HarmonyLib.AccessTools.Field(typeof(WorldObject), "tile");
+        var write = new DynamicMethod("InitializeLandingWorksiteTile", typeof(void),
+            new[] { field.DeclaringType, field.FieldType }, typeof(RegressionLandingMapParent), true);
+        var il = write.GetILGenerator();
+        il.Emit(OpCodes.Ldarg_0);
+        il.Emit(OpCodes.Ldarg_1);
+        il.Emit(OpCodes.Stfld, field);
+        il.Emit(OpCodes.Ret);
+        write.CreateDelegate<Action<WorldObject, PlanetTile>>()(this, new PlanetTile(tile, 0));
+    }
+
+    public override bool ShouldRemoveMapNow(out bool alsoRemoveWorldObject)
+    {
+        removalProbeCalls++;
+        alsoRemoveWorldObject = false;
+        return false;
+    }
+}
+
 internal static partial class Program
 {
+    static Map retiredLandingWorksiteMap;
+    static MapParent retiredLandingWorksiteParent;
+
     static bool ReadRegressionPrefabDirectory(ref string __result)
     {
         __result = Path.Combine(Path.GetTempPath(), "DeltaVRegressionPrefabs");
+        return false;
+    }
+
+    static bool RemoveLandingWorksiteMap(Map map, bool notifyPlayer)
+    {
+        retiredLandingWorksiteMap = map;
+        Find.Maps.Remove(map);
+        return false;
+    }
+
+    static bool DestroyLandingWorksiteParent(MapParent __instance)
+    {
+        retiredLandingWorksiteParent = __instance;
+        OrbitalPoiRegistry.NotifyDestroyed(__instance);
+        return false;
+    }
+
+    static bool EmptyLandingWorksiteHasNoBlockingBuilding(ref bool __result)
+    {
+        __result = false;
+        return false;
+    }
+
+    static bool EmptyLandingWorksiteHasNoBlockingPawn(ref bool __result)
+    {
+        __result = false;
+        return false;
+    }
+
+    static bool EmptyLandingWorksiteHasNoIncomingTransport(ref bool __result)
+    {
+        __result = false;
         return false;
     }
 
@@ -89,6 +155,7 @@ internal static partial class Program
             Check(universe.ObjectById(marker.objectId) == null
                 && universe.MapStates.StateOf(marker.objectId) == SpaceMapStateKind.Deleted,
                 "permanent retirement unregisters the object without a second identity or tombstone");
+            CheckEmptyLandingWorksiteRetirement(universe);
         }
         finally
         {
@@ -97,6 +164,73 @@ internal static partial class Program
             Set(Find.TickManager, "ticksGameInt", previousTick);
             DeltaVMod.CurrentSettings.exactMapRetentionDays = previousDays;
             prefabCatalogPatch.UnpatchAll(prefabCatalogPatch.Id);
+        }
+    }
+
+    static void CheckEmptyLandingWorksiteRetirement(UniverseManager universe)
+    {
+        var harmony = new HarmonyLib.Harmony("DeltaV.Regression.EmptyLandingWorksite");
+        sbyte oldMapIndex = Current.Game.currentMapIndex;
+        WorldGrid oldGrid = Find.World.grid;
+        var fixtureLayer = (PlanetLayer)Raw(typeof(PlanetLayer));
+        Set(fixtureLayer, "def", new PlanetLayerDef { isSpace = true });
+        Find.World.grid = (WorldGrid)Raw(typeof(WorldGrid));
+        Set(Find.World.grid, "planetLayers", new Dictionary<int, PlanetLayer> { [0] = fixtureLayer });
+        var map = TestMap(58902);
+        map.generationTick = 24680;
+        var parent = new RegressionLandingMapParent("SpaceSettlement", 0, map.generationTick);
+        map.info.parent = parent;
+        Array.Fill(map.terrainGrid.topGrid, TerrainDefOf.Space);
+        map.wasSpawnedViaGravShipLanding = true;
+        map.mapPawns = new MapPawns(map);
+        var native = new PoiState
+        {
+            objectId = 58902,
+            kind = PoiKind.NativeParent,
+            nativeParent = parent,
+            map = map,
+            envLabel = "landing worksite",
+            pose = new SpacePose(Vector3.forward, 0f),
+            baseTag = SpaceObjectTag.Marker | SpaceObjectTag.GravityRegion
+        };
+        retiredLandingWorksiteMap = null;
+        retiredLandingWorksiteParent = null;
+        Current.Game.currentMapIndex = -1;
+        universe.RegisterObject(native);
+        DeltaVPocketMapMetadata.MarkWorksite(map);
+        try
+        {
+            Check(SpaceMapGovernance.IsEmptyLandingWorksite(map, universe),
+                "empty landing-created SpaceSettlement is eligible for retirement despite its home origin");
+            harmony.Patch(HarmonyLib.AccessTools.PropertyGetter(typeof(Map), nameof(Map.AnyBuildingBlockingMapRemoval)),
+                prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(EmptyLandingWorksiteHasNoBlockingBuilding)));
+            harmony.Patch(HarmonyLib.AccessTools.PropertyGetter(typeof(MapPawns), nameof(MapPawns.AnyPawnBlockingMapRemoval)),
+                prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(EmptyLandingWorksiteHasNoBlockingPawn)));
+            harmony.Patch(HarmonyLib.AccessTools.Method(typeof(TransporterUtility),
+                    nameof(TransporterUtility.IncomingTransporterPreventingMapRemoval)),
+                prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(EmptyLandingWorksiteHasNoIncomingTransport)));
+            harmony.Patch(HarmonyLib.AccessTools.Method(typeof(Game), nameof(Game.DeinitAndRemoveMap),
+                    new[] { typeof(Map), typeof(bool) }),
+                prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(RemoveLandingWorksiteMap)));
+            harmony.Patch(HarmonyLib.AccessTools.Method(typeof(MapParent), nameof(MapParent.Destroy)),
+                prefix: new HarmonyLib.HarmonyMethod(typeof(Program), nameof(DestroyLandingWorksiteParent)));
+            Check(universe.MapStates.TryRemoveEmptyLandingWorksite(map)
+                && retiredLandingWorksiteMap == map && retiredLandingWorksiteParent == parent
+                && !Find.Maps.Contains(map) && universe.ObjectById(native.objectId) == null
+                && parent.removalProbeCalls == 0,
+                "retiring an empty landing Home bypasses only Settlement's permanent home veto and removes all mirrors");
+        }
+        finally
+        {
+            harmony.UnpatchAll(harmony.Id);
+            Current.Game.currentMapIndex = oldMapIndex;
+            if (universe.ObjectById(native.objectId) == native)
+            {
+                native.map = null;
+                universe.UnregisterObject(native);
+            }
+            Find.Maps.Remove(map);
+            Find.World.grid = oldGrid;
         }
     }
 }

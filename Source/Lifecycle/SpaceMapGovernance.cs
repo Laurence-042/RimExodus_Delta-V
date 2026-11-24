@@ -90,7 +90,8 @@ namespace DeltaV
                 && container.HasFaction(Faction.OfPlayerSilentFail)) return "player ship";
             if (container != null && universe?.Missions.Protects(container) == true) return "active mission";
             if (universe?.Generation?.IsGenerating(map) == true) return "map generation";
-            if (universe?.ShipTransitions.IsAwaitingDockingCleanup(map) == true
+            if (universe?.ShipTransitions.IsAwaitingStrategicTakeoff(map) == true
+                || universe?.ShipTransitions.IsAwaitingDockingCleanup(map) == true
                 || universe?.Approach.ApproachShipMap == map
                 || universe?.Approach.ActivePlan?.targetMap == map
                 || universe?.SoftDock.UsesMap(map) == true) return "map transfer or docking";
@@ -105,17 +106,49 @@ namespace DeltaV
         }
 
         /// <summary>
-        /// 空画布锚对象：原版通用降落目的地（Space def）或 Delta-V 历史遗留的
-        /// DeltaV_SpaceHostParent 站。二者都是「以 worldtile 地图为内部的 SpaceObject」，
-        /// 离港后若图彻底为空则按 §5 空降落图清理语义移除。
+        /// 旧空画布锚对象：原版通用降落目的地（Space def）或 Delta-V 历史遗留的
+        /// DeltaV_SpaceHostParent 站。1.7 空轨道层实际走 AddNewHome，另由
+        /// <see cref="IsLandingCreatedSettlement"/> 识别本次降落新建的 SpaceSettlement。
         /// </summary>
         public static bool IsBlankCanvasAnchor(MapParent parent)
         {
             if (parent == null) return false;
-            return parent is SpaceHostParent_DeltaV || parent.def.defName == "Space";
+            return parent is SpaceHostParent_DeltaV || parent.def?.defName == "Space";
+        }
+
+        /// <summary>
+        /// 1.7 GravshipUtility.ArriveNewMap 在空轨道层调用 SettleUtility.AddNewHome，生成
+        /// 玩家 SpaceSettlement，而非 SpaceMapParent。只有 WorldObject 与 Map 在同一游戏
+        /// tick 新建，才能证明它是本次降落产生的临时 Home；较早存在的真实 Settlement
+        /// 即使后来由逆重飞船首次生成地图，也不能按临时宿主回收。
+        /// </summary>
+        public static bool IsLandingCreatedSettlement(Map map, MapParent parent)
+        {
+            return map != null && parent is Settlement && map.wasSpawnedViaGravShipLanding
+                && parent.creationGameTicks == map.generationTick;
         }
 
         public static bool IsBlankLandingCanvas(Map map) => ShipStructureIndex.Read(map)?.IsBlankCanvas ?? true;
+
+        /// <summary>
+        /// 原版向空轨道 tile 战略降落时创建的 Space/SpaceSettlement worldtile 只是临时作业宿主。
+        /// 最后一艘船脱离后，仅在结构和散落内容均已交接完毕时允许回收；真实站点、
+        /// 小行星、任务图以及仍承载其他船的 worldtile 均不进入该路径。
+        /// </summary>
+        public static bool IsEmptyLandingWorksite(Map map, UniverseManager universe)
+        {
+            if (map == null || map.Disposed || !map.Tile.Valid || universe == null
+                || universe.FrameOf(map) is not PoiState poi
+                || poi.kind != PoiKind.NativeParent || poi.map != map
+                || poi.nativeParent is not MapParent parent || parent.Map != map
+                || !poi.IsWorksite || !map.wasSpawnedViaGravShipLanding
+                || !(IsBlankCanvasAnchor(parent) || IsLandingCreatedSettlement(map, parent)))
+            {
+                return false;
+            }
+            return !poi.Ships.Any(ship => ship.IsValid)
+                && IsBlankLandingCanvas(map) && !ShipRegistry.HasLooseContents(map);
+        }
     }
 
     /// <summary>把所有轨道 POI WorldObject 投影进持久化 Universe State。</summary>
