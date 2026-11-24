@@ -40,12 +40,39 @@
       ],
       "output": "1.6/Textures/Things/Building/SpaceWeapons/MiningBeam_Top.png",
       "menu_icon": "1.6/Textures/Things/Building/SpaceWeapons/MiningBeam_MenuIcon.png",
+      "menu_base": "1.6/Textures/Things/Building/SpaceWeapons/Turret2_Base.png",
+      "medium_menu_icon": "1.6/Textures/Things/Building/SpaceWeapons/MiningBeamMedium_MenuIcon.png",
+      "medium_menu_base": "1.6/Textures/Things/Building/SpaceWeapons/Turret3_Base.png",
       "prompt": "Make ONLY ONE small paint correction to this transparent right-facing mining laser turret sprite. On the broad LOWER-LEFT yellow rear armor plate, add ONE wide charcoal-black diagonal hazard stripe, mirroring the existing stripe on the UPPER-LEFT yellow rear armor plate across the horizontal firing axis through the central pivot. The existing upper stripe slopes / ; the new lower stripe must slope \\ so the pair are mirror-symmetric. Match stripe width, dark paint color, placement and interaction with the broad bevel shading. This is a missing paint-mark correction, NOT a redesign. Preserve every existing armor plate, grey connector, slot, orange muzzle, pivot, contour, shading, proportions, orientation, transparent margin and canvas placement. No new detail, no added rings, no text. Keep actual alpha transparency.",
       "edit_note": "Mirrored hazard stripe restored on the second rear armor plate; moderate-detail design retained."
+    },
+    {
+      "name": "MiningCargoAttachment",
+      "source": "MiningCargoAttachment_Source.png",
+      "output": "1.6/Textures/Things/Building/SpaceWeapons/MiningCargoAttachment.png",
+      "prompt": "Edit RailgunCapacitor into a mining cargo attachment in the exact existing Delta-V weapon-plugin family, using UraniumMagazine and LaserCapacitor as supporting references. Preserve the 512-square transparent canvas, centered placement, approximately 83% canvas width, symmetric four-corner beveled gray frame, charcoal line weight, hard edges and broad faceted shading. Replace only the central copper coil assembly with a large sealed neutral-gray cargo hatch, one horizontal seam, two stout latches and one wide muted mining-yellow panel. No grime, scratches, soft brushwork, perspective, cast shadow, text, micro-detail or background.",
+      "postprocess": "High-quality resize to 512x512; alpha at 8/255 or below cleared; content mechanically normalized to x=44..467 and y=45..466 (424x422), matching RailgunCapacitor."
+    },
+    {
+      "name": "MiningTargetIdentifier",
+      "source": "MiningTargetIdentifier_Source.png",
+      "output": "1.6/Textures/Things/Building/SpaceWeapons/MiningTargetIdentifier.png",
+      "prompt": "Edit AutoAimPlugin_I into a mining target-identifier attachment in the exact existing Delta-V weapon-plugin family, using AutoAimPlugin_II and LaserCapacitor as supporting references. Preserve the 512-square transparent canvas, centered placement, approximately 83% canvas width, symmetric eight-part beveled gray frame, charcoal line weight, hard edges and broad faceted shading. Replace only the central black hexagonal aiming window and purple line with a large dark recessed octagonal socket, centered round amber-gold lens, muted-yellow horizontal scan band and two simple dark rings. No grime, scratches, soft brushwork, asymmetry, perspective, cast shadow, text, micro-detail or background.",
+      "postprocess": "High-quality resize to 512x512; alpha at 8/255 or below cleared; content mechanically normalized to x=44..467 and y=56..454 (424x399), matching AutoAimPlugin_I."
     }
   ],
+  "attachment_preview": "doc/art/engineering/MiningAttachments_Preview.png",
+  "attachment_slot_contract": {
+    "draw_size": [1, 1],
+    "draw_offset": [0, -0.712, 0],
+    "small_draw_scale": 0.46,
+    "medium_draw_scale": 0.58
+  },
   "style_references": [
-    "1.6/Textures/Things/Building/SpaceWeapons/RapidTurret_Top.png",
-    "1.6/Textures/Things/Building/SpaceWeapons/LaserTurret_Top.png"
+    "1.6/Textures/Things/Building/SpaceWeapons/AutoAimPlugin_I.png",
+    "1.6/Textures/Things/Building/SpaceWeapons/AutoAimPlugin_II.png",
+    "1.6/Textures/Things/Building/SpaceWeapons/LaserCapacitor.png",
+    "1.6/Textures/Things/Building/SpaceWeapons/RailgunCapacitor.png",
+    "1.6/Textures/Things/Building/SpaceWeapons/UraniumMagazine.png"
   ]
 }

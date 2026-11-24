@@ -436,6 +436,9 @@ internal static partial class Program
     static bool IsEvaCutDrift((float angle, float speed) drift) =>
         Mathf.Abs(drift.angle) <= 40.05f && drift.speed is >= .399f and <= 1.801f;
 
+    static bool IsEvaOreDrift((float angle, float speed) drift) =>
+        Mathf.Abs(drift.angle) <= 40.05f && drift.speed is >= 1.999f and <= 4.001f;
+
     static void CheckEvaCutSpread(UniverseManager universe, SpaceObject frame, ThingDef steel)
     {
         frame.pose.angle = .4f;
@@ -456,6 +459,25 @@ internal static partial class Program
             && drifts.Min(drift => drift.speed) < .75f && drifts.Max(drift => drift.speed) > 1.45f,
             "individual cut stacks fan out to both sides with visibly different speeds");
         foreach (var cargo in returns)
+        {
+            cargo.Payload.GetDirectlyHeldThings().Remove(cargo.Payload.Entity);
+            universe.UnregisterObject(cargo);
+        }
+
+        for (int i = 0; i < 24; i++)
+        {
+            var mineral = new ReceivingItem { def = steel, stackCount = 1, thingIDNumber = 59100 + i };
+            universe.Scatter.QueueMiningEjection(mineral, frame, hitPoint, Vector2.left);
+        }
+        Call(universe, "RunFrameActions");
+        var ores = universe.Scatter.Candidates.Where(cargo => cargo.Payload.Entity.def == steel).ToList();
+        var oreDrifts = ores.Select(cargo => EvaReturnDrift(frame, cargo)).ToList();
+        Check(oreDrifts.Count == 24 && oreDrifts.All(IsEvaOreDrift),
+            "mined ore uses the common local cone while retaining its faster speed range");
+        Check(oreDrifts.Min(drift => drift.angle) < -15f && oreDrifts.Max(drift => drift.angle) > 15f
+            && oreDrifts.Min(drift => drift.speed) < 2.5f && oreDrifts.Max(drift => drift.speed) > 3.5f,
+            "individual ore stacks leave at visibly different angles and speeds");
+        foreach (var cargo in ores)
         {
             cargo.Payload.GetDirectlyHeldThings().Remove(cargo.Payload.Entity);
             universe.UnregisterObject(cargo);

@@ -3,7 +3,14 @@
   <DeltaV_InertiaCoupler.label>惯性耦合器</DeltaV_InertiaCoupler.label>
   <DeltaV_InertiaCoupler.description>让命中的结构逐渐与本船保持相近的移动和转动速度，不造成结构伤害。作用是双向的：目标也会推拉、带动本船旋转，需要配合本船推进器制动。护盾不会阻挡或偏转光束。\n\n将设备分配到武器组并启用该组，在手动集火模式下按住开火。持续照射会消耗蓄电，松开即停止。设备不会自动攻击、拖曳或对接。\n\n命中与其他结构同图的断开连通块时，会先将其分离再交换动量，不要求目标有引擎。可配合牵引光束减少目标旋转。</DeltaV_InertiaCoupler.description>
   <DeltaV_MiningBeam.label>采矿光束</DeltaV_MiningBeam.label>
-  <DeltaV_MiningBeam.description>切割岩石、建筑和裸露的基架，材料落在设备附近，可并入已有物品堆。受采矿效率影响的矿物按正常产量的 50% 回收。切割结构时，回收正常拆除返料的 50%。请提前腾出空间：即使无处堆放，光束仍会切割，放不下的材料会损失。\n\n将设备分配到武器组并启用该组，在手动集火模式下开火。每次切割消耗蓄电。</DeltaV_MiningBeam.description>
+  <DeltaV_MiningBeam.description>无人操作的 2×2 采矿激光，带一个专用插件槽，可安装采矿货箱或目标识别插件。它切割岩石、建筑和裸露基架，受采矿效率影响的矿物和结构拆除返料均按正常产量的 50% 回收。符合识别条件的材料优先装入货箱，溢出后落在设备附近；识别器拒绝的材料从实际命中点抛入宇宙。\n\n将设备分配到武器组并启用该组，在手动集火模式下开火。每次切割消耗蓄电。</DeltaV_MiningBeam.description>
+  <DeltaV_MiningBeamMedium.label>中型采矿光束</DeltaV_MiningBeamMedium.label>
+  <DeltaV_MiningBeamMedium.description>更大的 3×3 无人采矿激光，带两个专用插件槽。可以同时安装货箱与目标识别器，也可以安装两个货箱，将总容量提高到 16 个物品堆。射程与切割功率高于小型设备，采矿和拆除回收率仍为 50%。符合识别条件的材料按储物优先级装入货箱，溢出后落在设备附近；识别器拒绝的材料从实际命中点抛入宇宙。\n\n将设备分配到武器组并启用该组，在手动集火模式下开火。每次切割消耗蓄电。</DeltaV_MiningBeamMedium.description>
+  <DeltaV_Building_MiningCargoAttachment.label>采矿货箱插件</DeltaV_Building_MiningCargoAttachment.label>
+  <DeltaV_Building_MiningCargoAttachment.description>为采矿光束提供 8 个物品堆的储存空间。它使用原版储物、搬运、过滤和设置联动逻辑，并且可以存放岩块；采矿产物会主动放入符合当前过滤条件的货箱，装不下的部分落在发射器附近。默认优先级为“低”。中型采矿光束安装两个货箱时，优先装入储物优先级较高的货箱。</DeltaV_Building_MiningCargoAttachment.description>
+  <DeltaV_Building_MiningTargetIdentifier.label>采矿目标识别插件</DeltaV_Building_MiningTargetIdentifier.label>
+  <DeltaV_Building_MiningTargetIdentifier.description>在返料回收前按物品过滤器识别目标。使用“目标过滤”命令设置；多选识别插件时会合并成一个共同命令。允许的材料会送入采矿货箱或落在发射器附近；拒绝的材料从实际命中点抛入宇宙，成为可被牵引的物体。安装两个识别器时，任一过滤器允许的材料都会被回收。</DeltaV_Building_MiningTargetIdentifier.description>
   <DeltaV_Beam_InertiaCoupler.label>惯性耦合光束</DeltaV_Beam_InertiaCoupler.label>
   <DeltaV_Beam_Mining.label>采矿光束</DeltaV_Beam_Mining.label>
+  <DeltaV_Beam_MiningMedium.label>中型采矿光束</DeltaV_Beam_MiningMedium.label>
 </LanguageData>

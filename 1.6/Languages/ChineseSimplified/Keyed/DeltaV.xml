@@ -847,4 +847,7 @@
   <DeltaV_MapRetentionBlock_Transition>地图状态转移正在进行</DeltaV_MapRetentionBlock_Transition>
   <DeltaV_MapRetentionBlock_ManualKeep>已启用长期精确保留</DeltaV_MapRetentionBlock_ManualKeep>
   <DeltaV_MapRetentionBlock_Unavailable>地图不可用</DeltaV_MapRetentionBlock_Unavailable>
+  <DeltaV_MiningTargetFilter>目标过滤</DeltaV_MiningTargetFilter>
+  <DeltaV_MiningTargetFilterDesc>选择该识别器回收的采矿产物。多选识别器时，修改会应用到全部选中项。</DeltaV_MiningTargetFilterDesc>
+  <DeltaV_MiningTargetFilterTitle>采矿目标过滤</DeltaV_MiningTargetFilterTitle>
 </LanguageData>

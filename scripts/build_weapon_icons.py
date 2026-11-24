@@ -83,8 +83,12 @@ def missile_blueprint():
 
 
 def engineering_icons():
-    for name in ("InertiaCoupler", "MiningBeam"):
-        turret_icon("PointDefense_Base", name + "_Top", 2.4 / 2.6, name + "_MenuIcon")
+    turret_icon("PointDefense_Base", "InertiaCoupler_Top", 2.4 / 2.6,
+                "InertiaCoupler_MenuIcon")
+    turret_icon("Turret2_Base", "MiningBeam_Top", 2.4 / 2.6,
+                "MiningBeam_MenuIcon")
+    turret_icon("Turret3_Base", "MiningBeam_Top", 3.4 / 3.6,
+                "MiningBeamMedium_MenuIcon")
 
 
 def tractor_icon():

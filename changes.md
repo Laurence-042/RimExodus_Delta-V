@@ -18,7 +18,8 @@ This file records player-visible changes in released versions and the near-term 
   Added a “Let our personnel leave the vehicle” command to non-hostile EVAs, shuttles, and vanilla quest shuttles. In-bounds occupants use native container placement; out-of-bounds living occupants enter the recoverable space-drift chain after confirmation, while cargo and corpses require no warning.
 
 @UTcurtain：建议给采矿激光加一个货箱底座，这真空岩自填充塞满了我的飞船空间
-- 合理，我会给他加插件槽，并添加其专用的货箱插件
+- 已将采矿光束改为常规炮座：2×2 小型有一个专用槽，3×3 中型有两个专用槽，可安装采矿货箱或目标识别器。货箱复用原版储物、搬运、过滤与设置联动，默认低优先级、允许岩块并保存 8 堆；识别器用可合并 Gizmo 批量设置过滤。舰载与 EVA 采矿产物现共用同一输出入口，未识别材料从实际命中点以逐堆不同的速度和角度成为漂浮物。
+  Mining beams now use standard turret bases: the 2×2 model has one dedicated slot, while a new 3×3 model has two, accepting mining cargo boxes or target identifiers. Cargo boxes reuse native storage, hauling, filters, and linked settings, default to low priority, accept chunks, and hold eight stacks. Identifiers expose one mergeable batch-filter gizmo. Ship-mounted and EVA mining now share one output path, with rejected materials becoming drifting objects from the actual impact point with per-stack speed and angle variation.
 
 @UTcurtain：标准姿态-手动驾驶-挪动几下逆重飞船后发射-确认着陆区-切换手动驾驶-尝试移动和选择 。推进器正常发力，但此时我通过定位坐标发现自己根本无法移动，旋转时开始抽搐(角度倾斜和高频角度归正)，这个问题我通过新存档复现了。(之前那份评论是因为我开自动导航就开始抽搐，应该飞船的姿态判断问题)， 解决问题也不是切换驾驶台而是重新进行舱内/外作业按钮切换。
 - 已修复：战略降落图现标记为舱外作业图，首次真实出力会将飞船提取到独立飞行图；空轨道降落临时创建的玩家 Home 会在最后一艘船脱离且没有遗留人员、建筑、物品或在途运输后自动删除。

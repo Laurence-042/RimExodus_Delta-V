@@ -59,7 +59,7 @@ $harmony = '<Lib.Harmony/lib/net8.0/0Harmony.dll>'
 | `RailgunRegression/run.ps1 -EnergyOnly` | 兼容入口，仍按顺序运行轨道炮组和设备组，并提示改用各自入口 |
 | `CombatStrategyRegression/` | 使用最小占位类型的策略、曲线与文件校验；不替代游戏运行时验证 |
 | `NpcRetreatRegression/run.ps1` | 1.6 的战斗、驾驶、结构和生命周期专项；已接 REF，名称不代表只测撤退；`-PlayerFlightOnly` 验证驾驶权限、显式驾驶和原版按键抑制边界、导航参考与任务替换（2026-11-02 共 72 项通过；模拟焦点／按键绑定环境，不启动游戏）；`-SeparationOnly` 验证实际 Mod DLL 的归属、增量断裂检查与出力分离门禁；`-DockingOnly` 验证作业图、对接及战略离场只选择实际 worldtile 源图，不把口袋源的星区地址 POI 当成弃置目标；`-TractorOnly` 验证自动跨船独占与过滤、手动叠力、残骸分离请求、点防伤害分配及坐标／存读档 |
-| `MpcRegression`、`EngineeringRegression`、`RailgunRegression` | 1.6 控制器、工程与碰撞链回归；轨道炮数值现状以武器基线及 1.7 回归为准 |
+| `MpcRegression`、`EngineeringRegression`、`RailgunRegression` | 1.6 控制器、工程与碰撞链回归；工程专项校验小型／中型采矿光束的无人底座、专用槽、射程／DPS、货箱 8 堆、默认低优先级与默认岩块过滤，以及目标识别 Gizmo 接线；轨道炮数值现状以武器基线及 1.7 回归为准 |
 | `RailgunRegression/run.ps1` 默认入口 | 守卫归属使用原版建筑登记和实际基架拓扑。以扣容前后的差值检查同图隔离、断裂与接回、失去与替换主台、归属转移及发生器移除 |
 | `PrefabRegression`、`MoonPoolRoofRegression`、`SubstructureDamageRegression` | 1.6 的 prefab、屋顶及基架破坏检查；公共 prefab 实现已迁入 REF |
 | `PrefabMarkerRegression/run.ps1` | 直接引用生产 DLL，验证精确／批量 SpaceObject 标记的密度、配置上限、`clusterChild` 产生与后代继承、确定性、带权分布、面积均匀环带、最小间距、重掷种子及单一朝向来源；不启动游戏，也不替代实际 prefab 导出、半透明预览、懒物化和归档恢复验收 |
@@ -81,6 +81,8 @@ $harmony = '<Lib.Harmony/lib/net8.0/0Harmony.dll>'
 ### EVA 回归
 
 `NpcRetreatRegression/run.ps1 -EvaOnly -GameRoot <1.6 游戏目录> -HarmonyPath <Lib.Harmony net8.0 DLL>` 使用构建后的生产 DLL，覆盖虚拟挂载身份／Scribe／分组隔离、两态火控限制、旋转相机投影、零角速度与接触点速度、0/1/12 外延和多格旋转边界、原版拆除材料链、焊接后效、货舱部分接收／拒收回滚／帧边界取消。仅替代 Unity 场景端点，接收、容量、请求生命周期及后效使用生产实现。`-TractorOnly` 保留月池与点防专项；`EngineeringRegression` 增加 EVA 实际 XML 字段、枚举和继承验证。完整游戏起降、归档恢复及手感由新档验收覆盖。
+
+`NpcRetreatRegression/run.ps1 -SalvageOnly` 保留舰载／EVA 采矿返料、原版拆除链和战损散落检查，并验证未装目标识别器时全部回收、双识别器过滤并集、目标过滤 Gizmo 合组及多选过滤传播；`-EvaOnly` 另检查矿物与拆解返料各自速度范围内的逐堆出射角和速度差异。货箱夹具直接检查真实 SlotGroup 的 8 堆容量、非货箱格保持原版路径、防变质保护及原版过滤设置。`EngineeringRegression` 另检查 `Building_Storage`、岩块允许与默认过滤、默认优先级和源码接线契约；主动 Direct 入箱、原版 Pawn 搬运、满箱落地和存读档仍需游戏内新档验收。
 
 2026-11-04 历史问题专项：`NpcRetreatRegression -EvaOnly` 增加起飞能力／原版门禁转接、同格钢铁捕获差异、激光脉冲复用／相对端点／反射段／重复聚焦／停火和销图清理；`SubstructureDamageRegression` 增加切割十字清顶及建筑保护；`EngineeringRegression` 校验切割器基架必中。`RailgunRegression` 的持续束耗能夹具改用当前 XML 逐 tick 费用，避免沿用旧数值。用户本轮确认历史问题修复效果正常并授权提交。
 

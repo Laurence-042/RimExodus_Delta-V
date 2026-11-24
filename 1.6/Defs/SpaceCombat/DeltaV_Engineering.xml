@@ -35,15 +35,20 @@
     <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/InertiaCoupler_Top</topTexPath></li></modExtensions>
   </ThingDef>
 
-  <ThingDef ParentName="DeltaV_EngineeringTurret">
+  <ThingDef ParentName="DeltaV_SpaceTurret2">
     <defName>DeltaV_MiningBeam</defName>
     <researchPrerequisites Inherit="False"><li>DeltaV_ShipLasers</li></researchPrerequisites>
     <costList Inherit="False"><Steel>200</Steel><Plasteel>40</Plasteel><ComponentIndustrial>8</ComponentIndustrial></costList>
     <statBases><WorkToBuild>12000</WorkToBuild></statBases><label>mining beam</label><uiOrder>2101</uiOrder>
-    <description>Cuts through rocks, buildings and exposed substructure. Completed cuts drop materials near the emitter, merging them into existing stacks where possible. The beam recovers 50% of the normal yield for ores affected by mining efficiency and 50% of normal dismantling materials from structures; intact equipment, cargo and people are not transported. Keep room nearby for output: cutting continues when space runs out, and materials that cannot be placed are lost. Each pulse needs stored electricity. Assign an active weapon group and use manual fire-control mode.</description>
+    <designationCategory>Misc</designationCategory><hasInteractionCell>false</hasInteractionCell>
+    <surfaceType>Item</surfaceType>
+    <description>An unmanned mining laser with one attachment slot for a mining cargo module or target identifier. It cuts through rocks, buildings and exposed substructure, recovering 50% of affected ore yield and normal dismantling materials. Accepted output is stored in an attached cargo module before overflowing beside the emitter. A target identifier ejects rejected materials into space at the impact point. Each pulse needs stored electricity. Assign an active weapon group and use manual fire-control mode.</description>
     <uiIconPath>Things/Building/SpaceWeapons/MiningBeam_MenuIcon</uiIconPath>
     <building><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/MiningBeam_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(2.6,2.6)</drawSize></blueprintGraphicData></building>
-    <comps>
+    <comps Inherit="False">
+      <li Class="CompProperties_Forbiddable" />
+      <li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>200</basePowerConsumption><idlePowerDraw>5</idlePowerDraw></li>
+      <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>120</turnRateDegPerSec><fireToleranceDeg>2</fireToleranceDeg></li>
       <li Class="DeltaV.CompProperties_MiningBeam">
         <manualOnly>true</manualOnly><projectileDef>DeltaV_Beam_Mining</projectileDef>
         <cutDamage>240</cutDamage><miningYieldFactor>0.5</miningYieldFactor><dismantleYieldFactor>0.5</dismantleYieldFactor><deliverToEmitter>true</deliverToEmitter>
@@ -52,9 +57,97 @@
         <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>6</defaultGroupNumber>
         <topTurret>true</topTurret><turretMuzzleDistance>1.13</turretMuzzleDistance>
         <defaultFireDeviationDeg>2</defaultFireDeviationDeg>
+        <attachmentSlots><li><cell>(0,0,0)</cell><drawOffset>(-0.075,0.07)</drawOffset><drawScale>0.46</drawScale></li></attachmentSlots>
+        <allowedAttachmentDefs><li>DeltaV_Building_MiningCargoAttachment</li><li>DeltaV_Building_MiningTargetIdentifier</li></allowedAttachmentDefs>
       </li>
     </comps>
     <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/MiningBeam_Top</topTexPath></li></modExtensions>
+  </ThingDef>
+
+  <ThingDef ParentName="DeltaV_SpaceTurret3">
+    <defName>DeltaV_MiningBeamMedium</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipLasers</li></researchPrerequisites>
+    <costList Inherit="False"><Steel>320</Steel><Plasteel>80</Plasteel><ComponentIndustrial>12</ComponentIndustrial></costList>
+    <statBases><WorkToBuild>18000</WorkToBuild><MaxHitPoints>420</MaxHitPoints></statBases>
+    <label>medium mining beam</label><uiOrder>2102</uiOrder>
+    <designationCategory>Misc</designationCategory><hasInteractionCell>false</hasInteractionCell>
+    <surfaceType>Item</surfaceType>
+    <description>A larger unmanned mining laser with two attachment slots. Install a cargo module and target identifier together, or fit two cargo modules for 16 total stacks. It cuts through rocks, buildings and exposed substructure at greater range and power while retaining the same 50% recovery factors. Accepted output fills attached cargo modules by storage priority before overflowing beside the emitter; target identifiers eject rejected materials into space at the impact point. Assign an active weapon group and use manual fire-control mode.</description>
+    <uiIconPath>Things/Building/SpaceWeapons/MiningBeamMedium_MenuIcon</uiIconPath>
+    <building><blueprintGraphicData><texPath>Things/Building/SpaceWeapons/MiningBeamMedium_MenuIcon</texPath><graphicClass>Graphic_Single</graphicClass><shaderType>EdgeDetect</shaderType><drawSize>(3.6,3.6)</drawSize></blueprintGraphicData></building>
+    <comps Inherit="False">
+      <li Class="CompProperties_Forbiddable" />
+      <li Class="CompProperties_Power"><compClass>CompPowerTrader</compClass><basePowerConsumption>200</basePowerConsumption><idlePowerDraw>5</idlePowerDraw></li>
+      <li Class="DeltaV.CompProperties_SpaceWeaponTraverse"><turnRateDegPerSec>90</turnRateDegPerSec><fireToleranceDeg>2</fireToleranceDeg></li>
+      <li Class="DeltaV.CompProperties_MiningBeam">
+        <manualOnly>true</manualOnly><projectileDef>DeltaV_Beam_MiningMedium</projectileDef>
+        <cutDamage>360</cutDamage><miningYieldFactor>0.5</miningYieldFactor><dismantleYieldFactor>0.5</dismantleYieldFactor><deliverToEmitter>true</deliverToEmitter>
+        <intrinsicAimSkill>20</intrinsicAimSkill><baseSpreadDeg>0</baseSpreadDeg>
+        <cooldownTicks>30</cooldownTicks><range>80</range><shotEnergy>5</shotEnergy>
+        <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>6</defaultGroupNumber>
+        <topTurret>true</topTurret><turretMuzzleDistance>1.6</turretMuzzleDistance>
+        <defaultFireDeviationDeg>2</defaultFireDeviationDeg>
+        <attachmentSlots>
+          <li><cell>(-1,0,-1)</cell><drawOffset>(0.24,0.125)</drawOffset><drawScale>0.58</drawScale></li>
+          <li><cell>(1,0,-1)</cell><drawOffset>(-0.175,0.175)</drawOffset><drawScale>0.58</drawScale></li>
+        </attachmentSlots>
+        <allowedAttachmentDefs><li>DeltaV_Building_MiningCargoAttachment</li><li>DeltaV_Building_MiningTargetIdentifier</li></allowedAttachmentDefs>
+      </li>
+    </comps>
+    <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/MiningBeam_Top</topTexPath></li></modExtensions>
+  </ThingDef>
+
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_Building_MiningCargoAttachment</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipLasers</li></researchPrerequisites>
+    <label>mining cargo module</label><uiOrder>2103</uiOrder>
+    <description>An eight-stack storage module for a mining beam. It uses vanilla storage, hauling, filtering and settings-linking behavior while also accepting rock chunks; mining output is actively placed into modules that accept it. Overflow is placed beside the emitter. Storage priority determines which of two modules fills first. Defaults to Low priority.</description>
+    <thingClass>DeltaV.Building_MiningCargoAttachment</thingClass><drawerType>MapMeshAndRealTime</drawerType>
+    <passability>Standable</passability><size>(1,1)</size><terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded>
+    <surfaceType>Item</surfaceType>
+    <designationCategory>Misc</designationCategory><altitudeLayer>BuildingOnTop</altitudeLayer>
+    <graphicData><texPath>Things/Building/SpaceWeapons/MiningCargoAttachment</texPath><graphicClass>DeltaV.Graphic_SpaceWeaponAttachment</graphicClass><drawSize>(1,1)</drawSize><drawOffset>(0,-0.712,0)</drawOffset></graphicData>
+    <placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers>
+    <costList Inherit="False"><Steel>60</Steel><Plasteel>20</Plasteel><ComponentIndustrial>2</ComponentIndustrial></costList>
+    <statBases><WorkToBuild>2000</WorkToBuild><MaxHitPoints>100</MaxHitPoints><Mass>20</Mass><Flammability>0.2</Flammability></statBases>
+    <building>
+      <isEdifice>false</isEdifice><maxItemsInCell>8</maxItemsInCell>
+      <preventDeteriorationOnTop>true</preventDeteriorationOnTop><ignoreStoredThingsBeauty>true</ignoreStoredThingsBeauty>
+      <storageGroupTag>DeltaVMiningCargo</storageGroupTag>
+      <fixedStorageSettings><filter>
+        <disallowNotEverStorable>true</disallowNotEverStorable><categories><li>Root</li></categories>
+        <disallowedCategories><li>Plants</li><li>Buildings</li></disallowedCategories>
+        <disallowedThingDefs MayRequire="Ludeon.RimWorld.Biotech"><li MayRequire="Ludeon.RimWorld.Biotech">Wastepack</li></disallowedThingDefs>
+        <specialFiltersToDisallow><li>AllowLargeCorpses</li></specialFiltersToDisallow>
+      </filter></fixedStorageSettings>
+      <defaultStorageSettings><priority>Low</priority><filter><categories>
+        <li>Foods</li><li>Manufactured</li><li>ResourcesRaw</li><li>Items</li><li>Chunks</li>
+        <li>Weapons</li><li>Apparel</li><li>BodyParts</li>
+      </categories></filter></defaultStorageSettings>
+    </building>
+    <inspectorTabs><li>ITab_Storage</li></inspectorTabs>
+    <comps>
+      <li Class="CompProperties_Forbiddable" />
+      <li Class="DeltaV.CompProperties_MiningCargoAttachment"><allowedHostDefs><li>DeltaV_MiningBeam</li><li>DeltaV_MiningBeamMedium</li></allowedHostDefs></li>
+    </comps>
+  </ThingDef>
+
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_Building_MiningTargetIdentifier</defName>
+    <researchPrerequisites Inherit="False"><li>DeltaV_ShipLasers</li></researchPrerequisites>
+    <label>mining target identifier</label><uiOrder>2104</uiOrder>
+    <description>Filters mining output before recovery. Use its target-filter command to choose materials; selecting multiple identifiers provides one shared command. Allowed materials are routed to attached cargo modules or beside the emitter, while rejected materials are ejected into space at the impact point. Two installed identifiers combine their allowed filters.</description>
+    <thingClass>Building</thingClass><passability>Standable</passability><size>(1,1)</size>
+    <terrainAffordanceNeeded>Substructure</terrainAffordanceNeeded><designationCategory>Misc</designationCategory>
+    <altitudeLayer>BuildingOnTop</altitudeLayer><building><isEdifice>false</isEdifice></building>
+    <graphicData><texPath>Things/Building/SpaceWeapons/MiningTargetIdentifier</texPath><graphicClass>DeltaV.Graphic_SpaceWeaponAttachment</graphicClass><drawSize>(1,1)</drawSize><drawOffset>(0,-0.712,0)</drawOffset></graphicData>
+    <placeWorkers><li>DeltaV.PlaceWorker_SpaceWeaponAttachment</li></placeWorkers>
+    <costList Inherit="False"><Steel>40</Steel><Plasteel>20</Plasteel><ComponentIndustrial>4</ComponentIndustrial></costList>
+    <statBases><WorkToBuild>3000</WorkToBuild><MaxHitPoints>80</MaxHitPoints><Mass>10</Mass><Flammability>0.2</Flammability></statBases>
+    <comps>
+      <li Class="CompProperties_Forbiddable" />
+      <li Class="DeltaV.CompProperties_MiningTargetIdentifier"><allowedHostDefs><li>DeltaV_MiningBeam</li><li>DeltaV_MiningBeamMedium</li></allowedHostDefs></li>
+    </comps>
   </ThingDef>
 
   <ThingDef ParentName="BuildingBase" Name="DeltaV_EngineeringBeam" Abstract="True">
@@ -80,6 +173,14 @@
       <impactSoundMap>DeltaV_ImpactHitMap</impactSoundMap><impactSoundShell>DeltaV_ImpactHitShell</impactSoundShell>
     </li></comps>
   </ThingDef>
+  <ThingDef ParentName="DeltaV_EngineeringBeam">
+    <defName>DeltaV_Beam_MiningMedium</defName><label>medium mining beam</label>
+    <comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+      <hasMap>false</hasMap><speed>2000</speed><laserRange>80</laserRange><laserBeamWidth>0.32</laserBeamWidth>
+      <visualStyle>Mining</visualStyle><fireSoundMap>DeltaV_FireLaserMap</fireSoundMap><fireSoundShell>DeltaV_FireLaserShell</fireSoundShell>
+      <impactSoundMap>DeltaV_ImpactHitMap</impactSoundMap><impactSoundShell>DeltaV_ImpactHitShell</impactSoundShell>
+    </li></comps>
+  </ThingDef>
 
   <DeltaV.SpaceImpactEffectDef Name="DeltaV_CouplingImpact" Abstract="True">
     <projectileDefs><li>DeltaV_Beam_InertiaCoupler</li></projectileDefs>
@@ -91,7 +192,7 @@
   <DeltaV.SpaceImpactEffectDef ParentName="DeltaV_CouplingImpact"><defName>DeltaV_Impact_CouplingFoundation</defName><targetsSubstructure>true</targetsSubstructure><substructureHitChance>1</substructureHitChance></DeltaV.SpaceImpactEffectDef>
 
   <DeltaV.SpaceImpactEffectDef Name="DeltaV_MiningImpact" Abstract="True">
-    <projectileDefs><li>DeltaV_Beam_Mining</li></projectileDefs><buildingHitChance>1</buildingHitChance>
+    <projectileDefs><li>DeltaV_Beam_Mining</li><li>DeltaV_Beam_MiningMedium</li></projectileDefs><buildingHitChance>1</buildingHitChance>
     <defenderEffect><kind>CutStructure</kind></defenderEffect>
     <attackerEffect><kind>DestroySelf</kind></attackerEffect>
   </DeltaV.SpaceImpactEffectDef>
@@ -101,11 +202,12 @@
   <!-- 采矿束由守卫盾挡停；耦合束在共同碰撞入口跳过所有盾面。 -->
   <DeltaV.SpaceImpactEffectDef>
     <defName>DeltaV_Impact_EngineeringShield</defName>
-    <projectileDefs><li>DeltaV_Beam_Mining</li></projectileDefs>
+    <projectileDefs><li>DeltaV_Beam_Mining</li><li>DeltaV_Beam_MiningMedium</li></projectileDefs>
     <targetThingDefs><li>GravshipShieldGenerator</li><li>DeltaV_ShieldGenerator</li><li>DeltaV_ShieldGeneratorSmall</li></targetThingDefs>
     <defenderEffect><kind>ShieldDrain</kind><damage>0</damage></defenderEffect>
     <attackerEffect><kind>DestroySelf</kind></attackerEffect>
   </DeltaV.SpaceImpactEffectDef>
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_InertiaCoupler</defName><thingDef>DeltaV_InertiaCoupler</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
   <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_MiningBeam</defName><thingDef>DeltaV_MiningBeam</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
+  <DeltaV.ShellRenderRuleDef><defName>DeltaV_Shell_MiningBeamMedium</defName><thingDef>DeltaV_MiningBeamMedium</thingDef><render><source>TurretTop</source><layer>Exposed</layer></render></DeltaV.ShellRenderRuleDef>
 </Defs>

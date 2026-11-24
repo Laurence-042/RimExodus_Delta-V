@@ -188,16 +188,13 @@ namespace DeltaV
             Map map = source.map;
             Vector2 localPoint = SpaceTransform.MapToShipLocal(map, hitPoint) + outward * 0.5f;
             SpacePose pose = SpaceTransform.RigidPointPose(source.pose, localPoint, 0f);
-            Vector2 direction = outward;
-            float speed;
-            if (cutReturn)
-            {
-                int seed = item.thingIDNumber;
-                float angle = Rand.RangeSeeded(-40f, 40f, Gen.HashCombineInt(seed, 1)) * Mathf.Deg2Rad;
-                direction = SpaceTransform.Rotate(outward, angle);
-                speed = Rand.RangeSeeded(0.4f, 1.8f, seed);
-            }
-            else speed = Rand.Range(2f, 4f);
+            int seed = item.thingIDNumber;
+            float angle = Rand.RangeSeeded(-40f, 40f, Gen.HashCombineInt(seed, cutReturn ? 1 : 2))
+                * Mathf.Deg2Rad;
+            Vector2 direction = SpaceTransform.Rotate(outward, angle);
+            float speed = cutReturn
+                ? Rand.RangeSeeded(0.4f, 1.8f, seed)
+                : Rand.RangeSeeded(2f, 4f, Gen.HashCombineInt(seed, 3));
             pose.velocity = SpaceTransform.VelocityAtMovingLocalPoint(source.pose, localPoint, direction * speed, pose.position);
             if (universe.CapturePayload(item, pose, item.Faction, publishAtFrame: true) == null)
                 throw new InvalidOperationException("Could not capture the mining output.");

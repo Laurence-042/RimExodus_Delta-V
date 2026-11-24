@@ -847,4 +847,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_MapRetentionBlock_Transition>a map-state transition is already in progress</DeltaV_MapRetentionBlock_Transition>
   <DeltaV_MapRetentionBlock_ManualKeep>exact retention was manually enabled</DeltaV_MapRetentionBlock_ManualKeep>
   <DeltaV_MapRetentionBlock_Unavailable>the map is unavailable</DeltaV_MapRetentionBlock_Unavailable>
+  <DeltaV_MiningTargetFilter>Target filter</DeltaV_MiningTargetFilter>
+  <DeltaV_MiningTargetFilterDesc>Choose which mining outputs this identifier recovers. When multiple identifiers are selected, changes apply to all of them.</DeltaV_MiningTargetFilterDesc>
+  <DeltaV_MiningTargetFilterTitle>Mining target filter</DeltaV_MiningTargetFilterTitle>
 </LanguageData>

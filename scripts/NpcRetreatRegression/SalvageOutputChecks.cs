@@ -15,6 +15,13 @@ internal static partial class Program
     static Map salvageOutputMap;
     static Thing lastSalvageOutput;
     static bool useNativeDropLocation;
+    static Window miningFilterWindow;
+
+    static bool MiningFilterWindowStack(ref WindowStack __result)
+    { __result = (WindowStack)Raw(typeof(WindowStack)); return false; }
+    static bool MiningFilterOpenWindow(Window window) { miningFilterWindow = window; return false; }
+    static bool MiningFilterTexture(ref Texture2D __result) { __result = null; return false; }
+    static bool MiningFilterCommandSound() => false;
 
     // No Unity scene: substitute only final placement and UI, retaining production cutting,
     // vanilla material generation/ThingOwner/GenDrop and the actual Harmony result hook.
@@ -74,6 +81,12 @@ internal static partial class Program
             Check(mode == DestroyMode.Vanish, "mining suppresses duplicate vanilla rock drops");
             Set(typeof(Thing), this, "mapIndexOrState", (sbyte)-2);
         }
+    }
+
+    sealed class MiningIdentifierFixture : CompMiningTargetIdentifier
+    {
+        internal bool allowed;
+        internal override bool Allows(Thing thing) => allowed;
     }
 
     sealed class SalvageTestConduit : Building
@@ -339,6 +352,7 @@ internal static partial class Program
     static void CheckMiningRoutes(UniverseManager universe, Harmony harness, SpaceCollision.ImpactEvent hit,
         ImpactOutcomePart shipBeam, ThingDef ore, Map asteroid, Map receiver)
     {
+        CheckMiningAttachmentFilters(ore, receiver, hit.launcher.Faction);
         var rock = (MiningTestRock)Raw(typeof(MiningTestRock));
         rock.def = TestBuildingDef("miningVein");
         rock.def.mineable = rock.def.destroyable = rock.def.useHitPoints = true;
@@ -402,6 +416,122 @@ internal static partial class Program
             "EVA ore drifts out of the asteroid toward the incident side");
         cargo.Payload.GetDirectlyHeldThings().Remove(extractedOre);
         universe.UnregisterObject(cargo);
+    }
+
+    static void CheckMiningAttachmentFilters(ThingDef ore, Map map, Faction player)
+    {
+        object previousFactionManager = AccessTools.Field(Find.World.GetType(), "factionManager").GetValue(Find.World);
+        var factionManager = (FactionManager)Raw(typeof(FactionManager));
+        Set(factionManager, "ofPlayer", player);
+        Set(Find.World, "factionManager", factionManager);
+        ore.virtualDefs ??= new List<ThingDef>();
+        var fixedStorage = AccessTools.Field(typeof(StorageSettings), "cachedEverStorableFixedSettings");
+        if (fixedStorage.GetValue(null) == null) fixedStorage.SetValue(null, new StorageSettings());
+        CheckMiningCargoStorage(ore, map, player);
+        var item = (Thing)Raw(typeof(ReceivingItem));
+        item.def = ore;
+        item.stackCount = 1;
+        var first = new MiningIdentifierFixture();
+        var second = new MiningIdentifierFixture();
+        AddTestBuilding(map, player, 47020, TestBuildingDef("miningIdentifierBatchA"), first);
+        AddTestBuilding(map, player, 47021, TestBuildingDef("miningIdentifierBatchB"), second);
+        StorageSettings.EverStorableFixedSettings().filter.SetAllow(ore, true);
+        first.GetStoreSettings().filter.SetAllow(ore, true);
+        second.GetStoreSettings().filter.SetAllow(ore, false);
+        var filterPatches = new Harmony("DeltaV.Regression.MiningTargetFilter");
+        filterPatches.Patch(AccessTools.PropertyGetter(typeof(Find), "WindowStack"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(MiningFilterWindowStack)));
+        filterPatches.Patch(AccessTools.Method(typeof(WindowStack), "Add"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(MiningFilterOpenWindow)));
+        filterPatches.Patch(AccessTools.Method(typeof(ContentFinder<Texture2D>), "Get"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(MiningFilterTexture)));
+        filterPatches.Patch(AccessTools.Method(typeof(Command), "ProcessInput"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(MiningFilterCommandSound)));
+        try
+        {
+            Gizmo FilterCommand(CompMiningTargetIdentifier target) => target.CompGetGizmosExtra().Single(gizmo =>
+                AccessTools.Field(gizmo.GetType(), "setting")?.GetValue(gizmo) as string == "MiningTargetFilter");
+            Gizmo firstCommand = FilterCommand(first);
+            Gizmo secondCommand = FilterCommand(second);
+            Check(firstCommand.GroupsWith(secondCommand) && !firstCommand.InheritInteractionsFrom(secondCommand),
+                "target-filter gizmos merge into one command for a multi-selection");
+            firstCommand.ProcessInput(null);
+            var dialog = (Dialog_MiningTargetFilter)miningFilterWindow;
+            Check(!second.GetStoreSettings().filter.Allows(ore),
+                "opening the shared target-filter gizmo preserves differing settings");
+            dialog.Settings.filter.AllowedHitPointsPercents = new FloatRange(.25f, .75f);
+            Check(first.GetStoreSettings().filter.AllowedHitPointsPercents.min == .25f
+                && second.GetStoreSettings().filter.AllowedHitPointsPercents.max == .75f,
+                "one native target-filter edit propagates to all selected identifiers");
+            dialog.Settings.filter.SetAllow(ore, false);
+            Check(!first.GetStoreSettings().filter.Allows(ore) && !second.GetStoreSettings().filter.Allows(ore),
+                "one target checkbox edit applies to all selected identifiers");
+            Set(typeof(Thing), second.parent, "factionInt", null);
+            dialog.Settings.filter.SetAllow(ore, true);
+            Check(first.GetStoreSettings().filter.Allows(ore) && !second.GetStoreSettings().filter.Allows(ore),
+                "an already open target-filter gizmo ignores identifiers no longer owned by the player");
+        }
+        finally
+        {
+            filterPatches.UnpatchAll(filterPatches.Id);
+            miningFilterWindow = null;
+        }
+        Set(typeof(Thing), second.parent, "factionInt", player);
+        Check(MiningBeamOutputRouter.AcceptedBy(Array.Empty<CompMiningTargetIdentifier>(), item),
+            "mining without a target identifier accepts every output");
+        Check(!MiningBeamOutputRouter.AcceptedBy(new[] { first, second }, item),
+            "two target identifiers reject output denied by both filters");
+        second.allowed = true;
+        Check(MiningBeamOutputRouter.AcceptedBy(new[] { first, second }, item),
+            "two target identifiers combine their allowed filters as a union");
+        Set(Find.World, "factionManager", previousFactionManager);
+    }
+
+    static void CheckMiningCargoStorage(ThingDef ore, Map map, Faction player)
+    {
+        var previousHaul = map.haulDestinationManager;
+        var previousHaulables = map.listerHaulables;
+        var previousMergeables = map.listerMergeables;
+        map.haulDestinationManager = new HaulDestinationManager(map);
+        map.listerHaulables = new ListerHaulables(map);
+        map.listerMergeables = new ListerMergeables(map);
+        var def = TestBuildingDef("miningCargoVanillaStorage");
+        def.thingClass = typeof(Building_MiningCargoAttachment);
+        def.passability = Traversability.Standable;
+        def.surfaceType = SurfaceType.Item;
+        def.building.maxItemsInCell = 8;
+        var cargo = new Building_MiningCargoAttachment { def = def, thingIDNumber = 47022,
+            Position = new IntVec3(4, 0, 4) };
+        Set(typeof(Thing), cargo, "factionInt", player);
+        var empty = new EmptyComp { parent = cargo };
+        Set(typeof(ThingWithComps), cargo, "comps", new List<ThingComp> { empty });
+        cargo.settings = new StorageSettings(cargo);
+        cargo.settings.filter.SetAllow(ore, false);
+        PlaceFixtureBuilding(cargo, map, notify: false);
+        map.haulDestinationManager.SetCellFor(cargo.Position, cargo.GetSlotGroup());
+
+        int capacity = -1;
+        Check(!Patch_MiningCargoStorageCapacity.Prefix(cargo.Position, map, ref capacity) && capacity == 8,
+            "the mining cargo slot reads its own eight-stack capacity instead of the host edifice");
+        int ordinary = -1;
+        Check(Patch_MiningCargoStorageCapacity.Prefix(new IntVec3(3, 0, 4), map, ref ordinary),
+            "the capacity adapter leaves every non-cargo cell on the vanilla path");
+        bool protectedFromDeterioration = false;
+        Patch_MiningCargoStorageProtection.Postfix(cargo.Position, map, ref protectedFromDeterioration);
+        Check(protectedFromDeterioration,
+            "the non-edifice cargo slot keeps the small shelf's deterioration protection");
+
+        Check(!cargo.GetStoreSettings().filter.Allows(ore),
+            "the mining cargo uses its native storage filter");
+        cargo.settings.filter.SetAllow(ore, true);
+        Check(cargo.GetStoreSettings().filter.Allows(ore),
+            "the mining cargo reads changes from the same native storage filter");
+
+        map.haulDestinationManager.ClearCellFor(cargo.Position, cargo.GetSlotGroup());
+        RemoveFixtureBuilding(cargo, map);
+        map.haulDestinationManager = previousHaul;
+        map.listerHaulables = previousHaulables;
+        map.listerMergeables = previousMergeables;
     }
 
     static void CheckFractionalCutReturn(Thing launcher, Map map, Building building)

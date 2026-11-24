@@ -80,7 +80,7 @@ internal static class Program
         var weapons = new XmlDocument(); weapons.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml");
         foreach (XmlNode node in weapons.DocumentElement.ChildNodes)
             if (node.NodeType == XmlNodeType.Element
-                && node.Attributes["Name"]?.Value is "DeltaV_SpaceTurret1" or "DeltaV_SpaceTurret2")
+                && node.Attributes["Name"]?.Value is "DeltaV_SpaceTurret1" or "DeltaV_SpaceTurret2" or "DeltaV_SpaceTurret3")
                 XmlInheritance.TryRegister(node, null);
         var engineering = new XmlDocument(); engineering.Load("1.6/Defs/SpaceCombat/DeltaV_Engineering.xml");
         foreach (XmlNode node in engineering.DocumentElement.ChildNodes)
@@ -117,11 +117,16 @@ internal static class Program
                     ? resolved["substructureHitChance"]?.InnerText == "1" : resolved["substructureHitChance"] == null),
                 "EVA cutter always hits bare foundations; other tool probabilities remain unchanged");
         }
-        foreach (string name in new[] { "DeltaV_InertiaCoupler", "DeltaV_MiningBeam" })
+        foreach (var (name, size, slots, baseTexture) in new[]
+        {
+            ("DeltaV_InertiaCoupler", "(2,2)", 0, "Things/Building/SpaceWeapons/PointDefense_Base"),
+            ("DeltaV_MiningBeam", "(2,2)", 1, "Things/Building/SpaceWeapons/Turret2_Base"),
+            ("DeltaV_MiningBeamMedium", "(3,3)", 2, "Things/Building/SpaceWeapons/Turret3_Base")
+        })
         {
             XmlNode original = engineering.SelectSingleNode($"/Defs/ThingDef[defName='{name}']");
             XmlNode resolved = XmlInheritance.GetResolvedNodeFor(original);
-            Check(resolved["size"].InnerText == "(2,2)", name + " real XML inheritance preserves footprint");
+            Check(resolved["size"].InnerText == size, name + " real XML inheritance preserves footprint");
             Check(resolved["thingClass"].InnerText == "DeltaV.Building_SpaceTurretGun",
                 name + " uses existing turret implementation");
             XmlNodeList weaponComps = resolved.SelectNodes(
@@ -133,11 +138,64 @@ internal static class Program
             Check(resolved.SelectNodes("comps/li[@Class='CompProperties_Power']").Count == 1
                 && resolved.SelectNodes("comps/li[@Class='DeltaV.CompProperties_SpaceWeaponTraverse']").Count == 1,
                 name + " retains power and traverse through list inheritance");
+            Check(resolved.SelectSingleNode("graphicData/texPath").InnerText == baseTexture,
+                name + " uses the intended fixed base");
+            XmlNode mining = resolved.SelectSingleNode("comps/li[@Class='DeltaV.CompProperties_MiningBeam']");
+            Check((mining?.SelectNodes("attachmentSlots/li").Count ?? 0) == slots,
+                name + " exposes the intended mining attachment count");
+            if (slots > 0)
+                Check(mining.SelectNodes("allowedAttachmentDefs/li").Cast<XmlNode>()
+                        .Select(node => node.InnerText).SequenceEqual(new[]
+                        { "DeltaV_Building_MiningCargoAttachment", "DeltaV_Building_MiningTargetIdentifier" }),
+                    name + " accepts only mining cargo and identification attachments");
             foreach (string xpath in new[] { "graphicData/texPath", "uiIconPath",
                 "building/blueprintGraphicData/texPath", "modExtensions/li/topTexPath" })
                 Check(File.Exists("1.6/Textures/" + resolved.SelectSingleNode(xpath).InnerText + ".png"),
                     name + " texture exists: " + xpath);
         }
+        XmlNode cargo = engineering.SelectSingleNode("/Defs/ThingDef[defName='DeltaV_Building_MiningCargoAttachment']");
+        Check(cargo["thingClass"].InnerText == "DeltaV.Building_MiningCargoAttachment"
+            && cargo.SelectSingleNode("building/maxItemsInCell").InnerText == "8"
+            && cargo.SelectSingleNode("building/defaultStorageSettings/priority").InnerText == "Low",
+            "mining cargo uses vanilla storage settings with eight stacks and the lowest player priority");
+        Check(cargo.SelectNodes("comps/li[@Class='DeltaV.CompProperties_MiningCargoAttachment']/allowedHostDefs/li").Count == 2
+            && cargo.SelectSingleNode("building/isEdifice").InnerText == "false"
+            && cargo.SelectSingleNode("building/storageGroupTag").InnerText == "DeltaVMiningCargo"
+            && cargo.SelectNodes("inspectorTabs/li").Count == 1
+            && cargo.SelectSingleNode("inspectorTabs/li").InnerText == "ITab_Storage"
+            && cargo.SelectNodes("modExtensions/li[@Class='AdaptiveStorage.Extension']").Count == 0
+            && engineering.SelectNodes("/Defs/AdaptiveStorage.GraphicsDef[targetDef='DeltaV_Building_MiningCargoAttachment']").Count == 0,
+            "mining cargo is a vanilla non-edifice storage attachment without an ASF inventory");
+        Check(cargo.SelectNodes("building/fixedStorageSettings/filter/disallowedCategories/li").Cast<XmlNode>()
+                .Select(node => node.InnerText).SequenceEqual(new[] { "Plants", "Buildings" })
+            && cargo.SelectNodes("building/defaultStorageSettings/filter/categories/li").Cast<XmlNode>()
+                .Any(node => node.InnerText == "Chunks")
+            && cargo.SelectSingleNode("building/fixedStorageSettings/filter/specialFiltersToDisallow/li").InnerText
+                == "AllowLargeCorpses",
+            "mining cargo keeps shelf safety restrictions while accepting rock chunks by default");
+        string miningAttachments = File.ReadAllText("Source/Buildings/MiningBeamAttachments.cs");
+        string miningStoragePatch = File.ReadAllText("Source/Harmony/Patch_MiningCargoStorage.cs");
+        string miningImpact = File.ReadAllText("Source/Core/SpaceImpactEffects.Engineering.cs");
+        Check(miningAttachments.Contains("Building_MiningCargoAttachment : Building_Storage")
+            && miningAttachments.Contains("ThingPlaceMode.Direct")
+            && !miningAttachments.Contains("using AdaptiveStorage"),
+            "mining cargo reuses vanilla Building_Storage and direct native placement");
+        Check(miningStoragePatch.Contains("SlotGroupParentAt(c)")
+            && miningStoragePatch.Contains("__result = cargo.MaxItemsInCell")
+            && miningStoragePatch.Contains("SteadyEnvironmentEffects.ProtectedByEdifice"),
+            "the non-edifice adapter is limited to the real mining-cargo slot group");
+        Check(!miningImpact.Contains("QueueMiningEjection")
+            && miningImpact.Split("MiningBeamOutputRouter.Deliver").Length >= 3,
+            "ship and EVA mining outputs enter the same delivery service");
+        XmlNode identifier = engineering.SelectSingleNode("/Defs/ThingDef[defName='DeltaV_Building_MiningTargetIdentifier']");
+        Check(identifier.SelectNodes("inspectorTabs/li").Count == 0
+            && identifier.SelectNodes("comps/li[@Class='DeltaV.CompProperties_MiningTargetIdentifier']/allowedHostDefs/li").Count == 2
+            && miningAttachments.Contains("Command_BatchSetting<CompMiningTargetIdentifier>")
+            && miningAttachments.Contains("Dialog_MiningTargetFilter"),
+            "target identifier exposes a groupable filter command and only attaches to mining beams");
+        foreach (string texture in new[] { "MiningCargoAttachment", "MiningTargetIdentifier" })
+            Check(File.Exists("1.6/Textures/Things/Building/SpaceWeapons/" + texture + ".png"),
+                texture + " texture exists");
         foreach (string name in new[] { "DeltaV_Impact_CouplingStructure", "DeltaV_Impact_CouplingFoundation",
             "DeltaV_Impact_MiningStructure", "DeltaV_Impact_MiningFoundation" })
         {
@@ -155,6 +213,7 @@ internal static class Program
         foreach (var (defs, weaponName, beamName, impactName, range, dps, yield) in new[]
         {
             (engineering, "DeltaV_MiningBeam", "DeltaV_Beam_Mining", "DeltaV_Impact_MiningStructure", 65f, 480f, 0.5f),
+            (engineering, "DeltaV_MiningBeamMedium", "DeltaV_Beam_MiningMedium", "DeltaV_Impact_MiningStructure", 80f, 720f, 0.5f),
             (eva, "DeltaV_EvaCutter", "DeltaV_Beam_EvaCutter", "DeltaV_Impact_EvaCutBuilding", 6f, 360f, 1f)
         })
         {

@@ -41,7 +41,7 @@ namespace DeltaV
             {
                 if (building is Mineable rock && building.def.mineable)
                 {
-                    MineRock(evt, cutter, damage, rock);
+                    MineRock(universe, evt, cutter, damage, rock);
                     return;
                 }
                 if (!ApplyCutDamage(evt, damage, building)) return;
@@ -78,21 +78,8 @@ namespace DeltaV
         private static void DeliverCutReturns(UniverseManager universe, SpaceCollision.ImpactEvent evt,
             IReadOnlyList<Thing> returns, Thing receiver)
         {
-            if (receiver != null)
-            {
-                foreach (Thing item in returns)
-                    GenPlace.TryPlaceThing(item, receiver.Position, receiver.Map, ThingPlaceMode.Near);
-                return;
-            }
-
             foreach (Thing item in returns)
-            {
-                while (item.stackCount > item.def.stackLimit)
-                    universe.Scatter.QueueMiningEjection(item.SplitOff(item.def.stackLimit), evt.defender,
-                        evt.hitDefenderLocal, -evt.incidentDir, cutReturn: true);
-                universe.Scatter.QueueMiningEjection(item, evt.defender, evt.hitDefenderLocal, -evt.incidentDir,
-                    cutReturn: true);
-            }
+                MiningBeamOutputRouter.Deliver(universe, evt, receiver, item, cutReturn: true);
         }
 
         private static void ApplyEngineeringForce(SpaceCollision.ImpactEvent evt, ImpactOutcomePart part)
@@ -134,7 +121,8 @@ namespace DeltaV
             return true;
         }
 
-        private static void MineRock(SpaceCollision.ImpactEvent evt, CompProperties_MiningBeam cutter, float damage, Mineable rock)
+        private static void MineRock(UniverseManager universe, SpaceCollision.ImpactEvent evt,
+            CompProperties_MiningBeam cutter, float damage, Mineable rock)
         {
             Thing launcher = evt.launcher;
             if (!ApplyCutDamage(evt, damage, rock)) return;
@@ -154,11 +142,8 @@ namespace DeltaV
                 Thing ore = ThingMaker.MakeThing(mineral);
                 ore.stackCount = Mathf.Min(count, mineral.stackLimit);
                 count -= ore.stackCount;
-                if (cutter.deliverToEmitter)
-                    GenPlace.TryPlaceThing(ore, launcher.Position, launcher.Map, ThingPlaceMode.Near);
-                else
-                    Current.Game.GetComponent<UniverseManager>().Scatter.QueueMiningEjection(
-                        ore, evt.defender, evt.hitDefenderLocal, -evt.incidentDir);
+                MiningBeamOutputRouter.Deliver(universe, evt,
+                    cutter.deliverToEmitter ? launcher : null, ore, cutReturn: false);
             }
         }
 
