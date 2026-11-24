@@ -17,6 +17,19 @@ namespace DeltaV
         }
     }
 
+    [HarmonyPatch(typeof(CompTransporter), nameof(CompTransporter.CancelLoad), new System.Type[] { })]
+    internal static class Patch_TransporterUnload
+    {
+        private static bool Prefix(CompTransporter __instance, ref bool __result)
+        {
+            TransporterDropResult result = TransporterDropService.RequestUnloadAll(__instance);
+            if (result == TransporterDropResult.NotHandled) return true;
+
+            __result = result is TransporterDropResult.Completed or TransporterDropResult.Queued;
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(CompTransporter), nameof(CompTransporter.CompGetGizmosExtra))]
     internal static class Patch_TransporterOccupantExit
     {

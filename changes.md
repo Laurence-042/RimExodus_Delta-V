@@ -14,8 +14,8 @@ This file records player-visible changes in released versions and the near-term 
 - 准备在下个版本把教程引导统一做到通讯台的星界边境派系交互里，然后让通讯台掉一个附件类型的便携通讯器，然后让装备通讯器的人员可以直接等价于用通讯台呼叫星界边境。同时初次对话末尾也会提及这个通讯器。
 
 @UTcurtain：全部做到通讯台肯定没问题，这方面的话金鸢尾兰鼠族做的就不错。(也有个交流平台可以直接揣怀里打电话。)我现在在开局的太空站里，卡在了可以右键交互的EVA工程套装，进得去出不来。也能随便拿空间站仓库的各种物资。
-- 已为非敌对 EVA、小艇和原版任务穿梭机补充「让己方人员离开载具」命令。图内按原版容器规则下车，单格飞行图等图外舱口会在确认后将活体乘员交给可牵引的太空漂流物链；货物和尸体无需确认。
-  Added a “Let our personnel leave the vehicle” command to non-hostile EVAs, shuttles, and vanilla quest shuttles. In-bounds occupants use native container placement; out-of-bounds living occupants enter the recoverable space-drift chain after confirmation, while cargo and corpses require no warning.
+- 已为非敌对 EVA、小艇和原版任务穿梭机补充「让己方人员离开载具」命令。图内按原版容器规则下车，单格飞行图等图外舱口会在确认后将活体乘员交给可牵引的太空漂流物链；货物和尸体无需确认。原版整舱「卸载」也复用该事务：取消或交接失败时不提前清理剩余内容与装载状态，整舱成功放出后才清理装载组。
+  Added a “Let our personnel leave the vehicle” command to non-hostile EVAs, shuttles, and vanilla quest shuttles. In-bounds occupants use native container placement; out-of-bounds living occupants enter the recoverable space-drift chain after confirmation, while cargo and corpses require no warning. The native full-hold unload command now uses the same transaction and only clears loading state after the complete hold has been released successfully.
 
 @UTcurtain：建议给采矿激光加一个货箱底座，这真空岩自填充塞满了我的飞船空间
 - 已将采矿光束改为常规炮座：2×2 小型有一个专用槽，3×3 中型有两个专用槽，可安装采矿货箱或目标识别器。货箱复用原版储物、搬运、过滤与设置联动，默认低优先级、允许岩块并保存 8 堆；识别器用可合并 Gizmo 批量设置过滤。舰载与 EVA 采矿产物现共用同一输出入口，未识别材料从实际命中点以逐堆不同的速度和角度成为漂浮物。

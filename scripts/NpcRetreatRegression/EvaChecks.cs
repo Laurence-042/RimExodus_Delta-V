@@ -700,6 +700,7 @@ internal static partial class Program
         patch.Patch(AccessTools.Method(typeof(GenDrop), nameof(GenDrop.TryDropSpawn)),
             prefix: new HarmonyMethod(typeof(Program), nameof(EjectionGroundDrop)));
         patch.CreateClassProcessor(typeof(Patch_TransporterCargoDrop)).Patch();
+        patch.CreateClassProcessor(typeof(Patch_TransporterUnload)).Patch();
         patch.CreateClassProcessor(typeof(Patch_TransporterOccupantExit)).Patch();
         tractorSelector = (Selector)Raw(typeof(Selector));
         Set(tractorSelector, "selected", new List<object> { hull });
@@ -865,6 +866,75 @@ internal static partial class Program
                 && groundPassenger.Spawned && groundPassenger.Map == map
                 && transporter.innerContainer.Contains(ally),
                 "an in-bounds local shuttle unloads through its transporter without creating a transport ship");
+
+            hull.def.interactionCellOffset = new IntVec3(1, 0, 0);
+            var unloadCargo = (EvaCargoItem)Raw(typeof(EvaCargoItem));
+            unloadCargo.def = TestBuildingDef("batchUnloadCargo");
+            unloadCargo.def.category = ThingCategory.Item;
+            unloadCargo.def.stackLimit = 75;
+            unloadCargo.stackCount = 3;
+            Set(typeof(Thing), unloadCargo, "mapIndexOrState", (sbyte)-1);
+            transporter.innerContainer.TryAdd(unloadCargo, canMergeWithExistingStacks: false);
+            transporter.groupID = 58041;
+            map.lordManager ??= (LordManager)Raw(typeof(LordManager));
+            map.lordManager.lords ??= new List<Lord>();
+            tractorWindow = null;
+            ejectionDialogs = 0;
+            List<Thing> unloadSnapshot = transporter.innerContainer.ToList();
+            Check(transporter.LoadingInProgressOrReadyToLaunch && transporter.Shuttle == shuttle
+                && unloadSnapshot.Count == transporter.innerContainer.Count
+                && unloadSnapshot.All(thing => SpaceScatterService.IsCargo(thing)
+                    && thing.holdingOwner == transporter.innerContainer)
+                && !(hull.InteractionCell).InBounds(map),
+                "native unload fixture is a loaded shuttle with an out-of-bounds hatch and cargo-only hold");
+            Check(transporter.CancelLoad(), "the native shuttle unload command enters the unified transaction");
+            warning = tractorWindow as Dialog_MessageBox;
+            Check(ejectionDialogs == 1 && warning?.buttonADestructive == true
+                && transporter.groupID == 58041 && transporter.innerContainer.Contains(ally)
+                && transporter.innerContainer.Contains(unloadCargo),
+                "the native unload command warns before changing cargo or native loading state");
+            warning.cancelAction();
+            Call(universe, "RunFrameActions");
+            Check(transporter.groupID == 58041 && transporter.innerContainer.Contains(ally)
+                && transporter.innerContainer.Contains(unloadCargo),
+                "cancelling native unload preserves the complete hold and loading state");
+
+            transporter.CancelLoad();
+            ((Dialog_MessageBox)tractorWindow).buttonAAction();
+            Call(universe, "RunFrameActions");
+            Check(transporter.groupID == -1 && !transporter.innerContainer.Contains(ally)
+                && !transporter.innerContainer.Contains(unloadCargo)
+                && universe.Scatter.Candidates.Any(obj => obj.Payload?.Entity == ally)
+                && universe.Scatter.Candidates.Any(obj => obj.Payload?.Entity == unloadCargo),
+                "confirmed native unload ejects every held thing before clearing native loading state");
+
+            var cargoOnly = (EvaCargoItem)Raw(typeof(EvaCargoItem));
+            cargoOnly.def = TestBuildingDef("cargoOnlyBatchUnload");
+            cargoOnly.def.category = ThingCategory.Item;
+            cargoOnly.def.stackLimit = 75;
+            cargoOnly.stackCount = 2;
+            Set(typeof(Thing), cargoOnly, "mapIndexOrState", (sbyte)-1);
+            transporter.innerContainer.TryAdd(cargoOnly, canMergeWithExistingStacks: false);
+            transporter.groupID = 58042;
+            tractorWindow = null;
+            ejectionDialogs = 0;
+            Check(transporter.CancelLoad() && tractorWindow == null && transporter.groupID == 58042,
+                "cargo-only native unload queues without a warning or premature state cleanup");
+            Call(universe, "RunFrameActions");
+            Check(transporter.groupID == -1 && !transporter.innerContainer.Contains(cargoOnly)
+                && universe.Scatter.Candidates.Any(obj => obj.Payload?.Entity == cargoOnly),
+                "cargo-only native unload reaches the same recoverable space-drift chain");
+
+            Pawn nativeGroundPassenger = Passenger("NativeGroundPassenger", Intelligence.Humanlike, Faction.OfPlayer);
+            hull.def.interactionCellOffset = IntVec3.Zero;
+            transporter.groupID = 58043;
+            ejectionGroundDrops = 0;
+            ejectionDialogs = 0;
+            tractorWindow = null;
+            Check(transporter.CancelLoad() && ejectionDialogs == 0 && ejectionGroundDrops == 1
+                && transporter.groupID == -1 && nativeGroundPassenger.Spawned
+                && nativeGroundPassenger.Map == map && !transporter.innerContainer.Contains(nativeGroundPassenger),
+                "native in-bounds unload uses the shared ThingOwner.TryDrop path and then clears loading state");
 
             foreach (string language in new[] { "English", "ChineseSimplified" })
             {

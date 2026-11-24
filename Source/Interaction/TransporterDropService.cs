@@ -17,6 +17,48 @@ namespace DeltaV
 
     internal static class TransporterDropService
     {
+        internal static TransporterDropResult RequestUnloadAll(CompTransporter transporter)
+        {
+            Thing parent = transporter?.parent;
+            Map map = parent?.Map;
+            ThingOwner holder = transporter?.innerContainer;
+            if (parent?.Spawned != true || map?.Disposed != false || holder == null
+                || transporter.Shuttle == null || !transporter.LoadingInProgressOrReadyToLaunch)
+                return TransporterDropResult.NotHandled;
+
+            List<Thing> snapshot = holder.Where(SpaceScatterService.IsCargo).ToList();
+            if (snapshot.Count == 0 || snapshot.Count != holder.Count)
+                return TransporterDropResult.Rejected;
+
+            IntVec3 dropOffset = parent.InteractionCell - parent.Position;
+            IntVec3 dropCell = parent.Position + dropOffset;
+            if (!dropCell.InBounds(map))
+            {
+                UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+                return universe?.Scatter.TryQueueTransporterUnload(transporter, snapshot, dropOffset) == true
+                    ? TransporterDropResult.Queued
+                    : TransporterDropResult.Rejected;
+            }
+
+            bool complete = true;
+            foreach (Thing thing in snapshot)
+            {
+                if (thing.holdingOwner != holder || !holder.Contains(thing)
+                    || !holder.TryDrop(thing, dropCell, map, ThingPlaceMode.Near,
+                        out Thing _, placedAction: null, nearPlaceValidator: null, playDropSound: false))
+                {
+                    complete = false;
+                    continue;
+                }
+
+                NotifyRemoved(transporter, thing);
+            }
+            if (!complete || holder.Count != 0) return TransporterDropResult.Rejected;
+
+            CompleteUnload(transporter, map);
+            return TransporterDropResult.Completed;
+        }
+
         internal static TransporterDropResult Request(CompTransporter transporter, Thing item, int count,
             IntVec3 dropOffset)
         {
@@ -92,6 +134,12 @@ namespace DeltaV
                 && lord.LordJob is LordJob_LoadAndEnterTransporters)
                 lord.Notify_PawnLost(pawn, PawnLostCondition.LeftVoluntarily);
             transporter.Notify_ThingRemoved(thing);
+        }
+
+        internal static void CompleteUnload(CompTransporter transporter, Map map)
+        {
+            transporter.TryRemoveLord(map);
+            transporter.CleanUpLoadingVars(map);
         }
     }
 }

@@ -335,6 +335,71 @@ namespace DeltaV
             return true;
         }
 
+        internal bool TryQueueTransporterUnload(CompTransporter transporter,
+            IReadOnlyList<Thing> cargo, IntVec3 dropOffset)
+        {
+            Thing parent = transporter?.parent;
+            Map map = parent?.Map;
+            ThingOwner holder = transporter?.innerContainer;
+            if (parent?.Spawned != true || map?.Disposed != false || holder == null || cargo == null)
+                return false;
+
+            List<Thing> snapshot = cargo.Where(thing => thing != null).ToList();
+            if (snapshot.Count == 0 || snapshot.Count != holder.Count
+                || snapshot.Any(thing => !IsCargo(thing) || thing.holdingOwner != holder || !holder.Contains(thing)))
+                return false;
+
+            IntVec3 position = parent.Position;
+            Rot4 rotation = parent.Rotation;
+            IntVec3 origin = position + dropOffset;
+            if (origin.InBounds(map)) return false;
+            SpaceObject owner = universe.SpaceObjectOnMap(map);
+            if (owner == null || owner.IsScattered) return false;
+
+            List<(Thing thing, int stackCount)> expected = snapshot
+                .Select(thing => (thing, thing.stackCount)).ToList();
+            bool CargoStillHeld() => transporter.innerContainer == holder && expected.All(entry =>
+                !entry.thing.Destroyed && entry.thing.stackCount == entry.stackCount
+                && entry.thing.holdingOwner == holder && holder.Contains(entry.thing));
+            if (universe.IsResettingScene || !CargoStillHeld()) return true;
+
+            int version = owner.RepresentationVersion;
+            bool queued = false;
+            void QueueRelease()
+            {
+                if (queued) return;
+                queued = true;
+                universe.QueueFrameAction(() =>
+                {
+                    if (universe.IsResettingScene || !parent.Spawned || parent.Map != map || map.Disposed
+                        || parent.Position != position || parent.Rotation != rotation
+                        || universe.SpaceObjectOnMap(map) != owner || owner.RepresentationVersion != version
+                        || !CargoStillHeld()) return;
+
+                    SpacePose pose = EjectionPose(owner, map, origin, default, default);
+                    bool complete = true;
+                    foreach ((Thing thing, int stackCount) in expected)
+                    {
+                        if (!ReleaseTransporterCargo(thing, stackCount, holder, pose))
+                        {
+                            complete = false;
+                            break;
+                        }
+                        TransporterDropService.NotifyRemoved(transporter, thing);
+                    }
+                    if (complete && holder.Count == 0)
+                        TransporterDropService.CompleteUnload(transporter, map);
+                });
+            }
+
+            int livingPawns = snapshot.Count(thing => thing is Pawn pawn && !pawn.Dead);
+            if (livingPawns > 0)
+                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(
+                    "DeltaV_EjectOwnPersonnelConfirm".Translate(livingPawns), QueueRelease, destructive: true));
+            else QueueRelease();
+            return true;
+        }
+
         private bool ReleaseTransporterCargo(Thing item, int count, ThingOwner holder, SpacePose pose)
         {
             if (item.def.destroyOnDrop)
