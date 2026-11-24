@@ -1,43 +1,88 @@
 # 更新记录 / Changelog
 
-本文件记录已发布版本的玩家可见变化，并列出下一版本的近期计划。计划项不是已实现功能，也不承诺固定发布日期；完整路线与待验收项分别见 [开发路线](doc/SteamWorkshop/discussions/开发路线%20-%20Development%20Roadmap.txt) 和 [TODO](doc/TODO.md)。<br>
+本文件记录已发布版本的玩家可见变化，并列出下一版本的近期计划。计划项不是已实现功能，也不承诺固定发布日期；完整路线与待验收项分别见 [开发路线](doc/SteamWorkshop/discussions/开发路线%20-%20Development%20Roadmap.txt) 和 [TODO](doc/TODO.md)。
 This file records player-visible changes in released versions and the near-term plan for the next version. Planned items are not implemented features and have no guaranteed release date; see the [development roadmap](doc/SteamWorkshop/discussions/开发路线%20-%20Development%20Roadmap.txt) and [TODO](doc/TODO.md) for the complete roadmap and pending verification.
-
-## 0.1.1 — 2026-11-23
-
-### 已完成 / Shipped
-
-- 右下角新增真实地图船体渲染开关。开启后，RimExodus Framework 通过源地图的原版绘制流程渲染非聚焦船体，显示完整建筑与地图内容；默认关闭，可随时切回 Delta-V 自定义船壳。<br>
-  Added a bottom-right native map shell rendering toggle. When enabled, RimExodus Framework renders non-focused ships through each source map's vanilla draw path, showing complete buildings and map contents; it is off by default and can be switched back to the Delta-V custom shell at any time.
-- 真实地图渲染模式继续保留 Delta-V 的散落物、宇宙弹体、坐标网格和推进器表现层，不重复提交自定义船壳。<br>
-  Native map rendering retains Delta-V's loose-object, space-projectile, coordinate-grid, and thruster presentation layers without submitting a duplicate custom shell.
-- 修复 IsoRim 3D 视图在中键拖拽后重新限制 Delta-V 太空图摄像机范围的问题；普通地图继续保留 IsoRim 的原边界限制。<br>
-  Fixed IsoRim 3D middle-button dragging reapplying the camera clamp on Delta-V space maps; ordinary maps retain IsoRim's original boundary.
-
-## 0.1.0 — Alpha 初次发布 / Initial alpha release
-
-- 提供连续飞船宇宙飞行、手动驾驶与自动导航，包括非基架飞船。<br>
-  Introduced continuous ship spaceflight, manual piloting, and autopilot, including ships without substructure.
-- 提供飞船交战、舰炮、激光、导弹、护盾、自动战斗与跳帮。<br>
-  Introduced ship combat, cannons, lasers, missiles, shields, automated combat, and boarding.
-- 提供软对接、硬对接、分离、人员与货物转运，以及 EVA、采矿和牵引回收。<br>
-  Introduced soft docking, hard docking, separation, crew and cargo transfer, EVA, mining, and tractor salvage.
-- 提供按距离归档的宇宙 POI、Prefab 系统、空间站贸易与委托，以及基础太空 POI Prefab。<br>
-  Introduced distance-based space POI archiving, the prefab system, station trade and contracts, and the initial space POI prefab set.
-- 提供可编辑、可导入导出的星区生成预设。<br>
-  Added editable sector-generation presets with import and export support.
-- 修复非聚焦船壳拦截地图点击的问题。<br>
-  Fixed non-focused ship shells intercepting map clicks.
-- 修正教程真空服配置，并补齐 Prefab 植物与相关生成内容的保留规则。<br>
-  Corrected tutorial vacsuit configuration and preserved prefab plants and related generated content.
 
 ## 下一版本计划 / Next version plan
 
-- 为跳帮艇被击毁时的乘员死亡补充明确通知。<br>
+- 修复在星区内任意位置发射都会摧毁星区对应poi的bug
+
+@@UTcurtain：加重一下开门引导。在新手教程开局试了好几次，一直在怼通讯台，打开任何和定位任务都摁过检查过，太空站进去过钢铁也捡过，最后发现是按征召右边的太空生存指导来推进任务。(:steamfacepalm:)
+- 准备在下个版本把教程引导统一做到通讯台的星界边境派系交互里，然后让通讯台掉一个附件类型的便携通讯器，然后让装备通讯器的人员可以直接等价于用通讯台呼叫星界边境。同时初次对话末尾也会提及这个通讯器。
+
+@UTcurtain：全部做到通讯台肯定没问题，这方面的话金鸢尾兰鼠族做的就不错。(也有个交流平台可以直接揣怀里打电话。)我现在在开局的太空站里，卡在了可以右键交互的EVA工程套装，进得去出不来。也能随便拿空间站仓库的各种物资。
+- 完蛋，忘记友方穿梭机的事了
+
+@UTcurtain：建议给采矿激光加一个货箱底座，这真空岩自填充塞满了我的飞船空间
+- 合理，我会给他加插件槽，并添加其专用的货箱插件
+
+@UTcurtain：标准姿态-手动驾驶-挪动几下逆重飞船后发射-确认着陆区-切换手动驾驶-尝试移动和选择 。推进器正常发力，但此时我通过定位坐标发现自己根本无法移动，旋转时开始抽搐(角度倾斜和高频角度归正)，这个问题我通过新存档复现了。(之前那份评论是因为我开自动导航就开始抽搐，应该飞船的姿态判断问题)， 解决问题也不是切换驾驶台而是重新进行舱内/外作业按钮切换。
+- 降落到空位时，降落地图被当成星区核心poi地图了，而且没有标记作业图，导致飞船被当做星区核心poi重设了位置
+
+
+- 武器和护盾适配
+
+- 为跳帮艇被击毁时的乘员死亡补充明确通知。
   Add clear crew-death notifications when a boarding shuttle is destroyed.
-- 改善无人地图在原版世界地图和星区界面中的可发现性。<br>
+- 改善无人地图在原版世界地图和星区界面中的可发现性。
   Improve discoverability of uncrewed maps on the vanilla world map and sector interface.
-- 继续验证并加固 Prefab、任务系统、地图归档与恢复流程。<br>
+- 继续验证并加固 Prefab、任务系统、地图归档与恢复流程。
   Continue validating and hardening prefabs, the mission system, and map archiving and restoration.
-- 持续处理问题修复、性能优化与数值调整。<br>
+- 持续处理问题修复、性能优化与数值调整。
   Continue bug fixing, performance optimization, and balance tuning.
+
+## 基于收集的用户反馈的正在排期的需求（排名不分先后）
+
+@C鼬柠檬茶（bilibili）：空间站仓库里的东西免费拿真的没问题吗，我前期就靠这个苟着
+- 当前空间站仓库里的物品可以直接拿。考虑给非封存态的货仓也加基于派系的去用判断，应该不需要影响其他储物设备，否则一些mod给玩家的“来自盟友的战前补给”就会很黑色幽默
+
+@C鼬柠檬茶（bilibili）：当前空间站的地板和地基没有拆除鉴权
+
+@某光头的神棍先知（bilibili）：希望能兼容VGE，我要造10000格以上的超级大飞船去肘击敌人，最好把VGEC2的敌方飞船和战斗空间站也做成可以这样战斗[doge][doge][doge]
+- 考虑禁用VGEC2的飞船战斗机制，但是适配其武器，将其事件触发转接到DeltaV的类似袭击事件生成上——需要明确VGE的飞船推进器可能不足以承担DeltaV的战斗要求，可能会在转向能力限制下做出愚蠢的行为
+
+@亚空间魔丸丰川祥子（bilibili）：可以弄成对30以下的伤害免疫?（指毁伤效果）
+- 我搞完手头这些会考虑给个可以调的设置阈值，默认0
+
+
+## 一些俺寻思
+
+一些不在计划里，也不一定会做的突发灵感。但如果大家特别喜欢里面某些想法的话可以说一声，我会进一步进行实现成本调研，如果不会带来很多麻烦的话我会在推进计划的空档将其做出来
+
+- 缴获海盗通讯器，诱骗海盗货船到埋伏点
+
+## 已完成 / Shipped
+
+### 0.1.1 — 2026-11-23
+
+- 右下角新增真实地图船体渲染开关。开启后，RimExodus Framework 通过源地图的原版绘制流程渲染非聚焦船体，显示完整建筑与地图内容；默认关闭，可随时切回 Delta-V 自定义船壳。
+  Added a bottom-right native map shell rendering toggle. When enabled, RimExodus Framework renders non-focused ships through each source map's vanilla draw path, showing complete buildings and map contents; it is off by default and can be switched back to the Delta-V custom shell at any time.
+- 真实地图渲染模式继续保留 Delta-V 的散落物、宇宙弹体、坐标网格和推进器表现层，不重复提交自定义船壳。
+  Native map rendering retains Delta-V's loose-object, space-projectile, coordinate-grid, and thruster presentation layers without submitting a duplicate custom shell.
+- 修复 IsoRim 3D 视图在中键拖拽后重新限制 Delta-V 太空图摄像机范围的问题；普通地图继续保留 IsoRim 的原边界限制。
+  Fixed IsoRim 3D middle-button dragging reapplying the camera clamp on Delta-V space maps; ordinary maps retain IsoRim's original boundary.
+
+### 0.1.0 — Alpha 初次发布 / Initial alpha release
+
+- 提供连续飞船宇宙飞行、手动驾驶与自动导航，包括非基架飞船。
+  Introduced continuous ship spaceflight, manual piloting, and autopilot, including ships without substructure.
+- 提供飞船交战、舰炮、激光、导弹、护盾、自动战斗与跳帮。
+  Introduced ship combat, cannons, lasers, missiles, shields, automated combat, and boarding.
+- 提供软对接、硬对接、分离、人员与货物转运，以及 EVA、采矿和牵引回收。
+  Introduced soft docking, hard docking, separation, crew and cargo transfer, EVA, mining, and tractor salvage.
+- 提供按距离归档的宇宙 POI、Prefab 系统、空间站贸易与委托，以及基础太空 POI Prefab。
+  Introduced distance-based space POI archiving, the prefab system, station trade and contracts, and the initial space POI prefab set.
+- 提供可编辑、可导入导出的星区生成预设。
+  Added editable sector-generation presets with import and export support.
+- 修复非聚焦船壳拦截地图点击的问题。
+  Fixed non-focused ship shells intercepting map clicks.
+- 修正教程真空服配置，并补齐 Prefab 植物与相关生成内容的保留规则。
+  Corrected tutorial vacsuit configuration and preserved prefab plants and related generated content.
+
+  ## 已拒绝的用户需求（排名不分先后）
+
+@碧海lan天：话说有没有考虑用动量轮来旋转飞船 感觉纯RCS有点奇怪
+- DeltaV的飞船工况也更接近现实里的载人飞船，而现实里的载人飞船因为需要在交会对接时平移这种动量轮解决不了的动作，其仍然搭载了大量RCS，甚至平时就以RCS为主要的转向方式
+- 现实里主要用动量轮或者类似机制CMG的空间站，也仍然需要RCS，而DeltaV的空间站通常不会面临现实空间站的角度微调要求，往哪一停就不再动了，动量轮的使用场景也很有限
+- 动量卸载仍然需要RCS、旋转的动量轮能否拆除、同时有动量轮和RCS转向时用哪个也需要更多的控制复杂度
+- 综上，收益有限、工作量不小且潜在风险也不小，至少在alpha阶段不会进行实现。
