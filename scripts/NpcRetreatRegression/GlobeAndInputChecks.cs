@@ -37,6 +37,35 @@ internal static partial class Program
         buttons.Press(0); buttons.Clear(); buttons.Validate(true, true, false);
         Check(!buttons.Main, "new sessions and map changes cannot inherit a held volley");
 
+        var markerA = new WorldShipMarkerRenderer.ScreenMarker(
+            new DriveSubject(0, 4101), new Vector2(0f, 0f), 10f, current: true);
+        var markerB = new WorldShipMarkerRenderer.ScreenMarker(
+            new DriveSubject(0, 4102, true), new Vector2(18f, 0f), 10f);
+        var markerC = new WorldShipMarkerRenderer.ScreenMarker(
+            new DriveSubject(0, 4103), new Vector2(36f, 0f), 10f);
+        var markerFar = new WorldShipMarkerRenderer.ScreenMarker(
+            new DriveSubject(0, 4104), new Vector2(100f, 0f), 10f);
+        var markerGroups = WorldShipMarkerRenderer.ClusterScreenMarkers(
+            new[] { markerC, markerFar, markerA, markerB });
+        Check(markerGroups.Count == 2 && markerGroups.Any(group => group.Members.Count == 3)
+            && markerGroups.Any(group => group.Members.Count == 1),
+            "world ship markers cluster only connected overlapping screen hit areas");
+        var connected = markerGroups.Single(group => group.Members.Count == 3);
+        Check(connected.Representative.Identity == markerA.Identity
+            && connected.Members.Select(member => member.Identity)
+                .SequenceEqual(new[] { markerA.Identity, markerB.Identity, markerC.Identity }),
+            "world marker clustering is transitive, stable, and prefers the current ship");
+        var reversed = WorldShipMarkerRenderer.ClusterScreenMarkers(
+            new[] { markerFar, markerB, markerA, markerC });
+        Check(reversed.SelectMany(group => group.Members).Select(member => member.Identity)
+                .SequenceEqual(markerGroups.SelectMany(group => group.Members).Select(member => member.Identity))
+            && reversed[0].Representative.Identity == markerGroups[0].Representative.Identity,
+            "world marker grouping and representatives do not depend on ship enumeration order");
+        connected = WorldShipMarkerRenderer.ClusterScreenMarkers(
+            new[] { markerA, markerB, markerC }, markerB.Identity).Single();
+        Check(connected.Representative.Identity == markerB.Identity,
+            "an explicitly selected ship takes representative priority over the current-map fallback");
+
         TerrainDef Terrain(string name) { var def = (TerrainDef)Raw(typeof(TerrainDef)); def.defName = name; return def; }
         var space = Terrain("Space");
         var empty = Terrain("DeltaV_Void");

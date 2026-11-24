@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
@@ -17,6 +18,51 @@ namespace DeltaV
     {
         private const float MarkerSizeInTiles = 1.25f;
         private const float AltitudeOffset = 0.055f;
+
+        internal readonly struct ScreenMarker
+        {
+            internal readonly ShipBase Ship;
+            internal readonly DriveSubject Identity;
+            internal readonly Vector2 Position;
+            internal readonly float HitRadius;
+            internal readonly bool Current;
+
+            internal ScreenMarker(ShipBase ship, Vector2 position, float hitRadius, bool current)
+            {
+                Ship = ship;
+                Identity = ship.Identity;
+                Position = position;
+                HitRadius = hitRadius;
+                Current = current;
+            }
+
+            internal ScreenMarker(DriveSubject identity, Vector2 position, float hitRadius, bool current = false)
+            {
+                Ship = ShipBase.Invalid;
+                Identity = identity;
+                Position = position;
+                HitRadius = hitRadius;
+                Current = current;
+            }
+
+            internal Rect HitRect => new Rect(Position.x - HitRadius, Position.y - HitRadius,
+                HitRadius * 2f, HitRadius * 2f);
+        }
+
+        internal sealed class ScreenMarkerGroup
+        {
+            internal readonly List<ScreenMarker> Members;
+            internal readonly ScreenMarker Representative;
+
+            internal ScreenMarkerGroup(List<ScreenMarker> members, ScreenMarker representative)
+            {
+                Members = members;
+                Representative = representative;
+            }
+
+            internal bool Clustered => Members.Count > 1;
+            internal Rect HitRect => Representative.HitRect;
+        }
 
         private sealed class MarkerCache
         {
@@ -48,12 +94,9 @@ namespace DeltaV
             }
 
             EnsureCurrentGame();
-            foreach (ShipBase ship in universe.PlayerShips())
+            foreach (ScreenMarkerGroup group in ScreenMarkerGroups(universe))
             {
-                if (universe.Approach.FlowTarget.Identity == ship.Identity)
-                {
-                    continue;
-                }
+                ShipBase ship = group.Representative.Ship;
 
                 MarkerCache marker = MarkerFor(ship);
                 if (marker?.material == null)
@@ -77,6 +120,113 @@ namespace DeltaV
                 Graphics.DrawMesh(MeshPool.plane10, matrix, marker.material,
                     WorldCameraManager.WorldLayer);
             }
+        }
+
+        /// <summary>
+        /// 世界剪影的 IMGUI 覆盖层。重叠成员只在代表剪影旁显示数量并共享提示；
+        /// 实际选择菜单由 UniverseManager 的输入通道打开。
+        /// </summary>
+        public static void DrawPlayerShipMarkerUi(UniverseManager universe)
+        {
+            if (Event.current.type != EventType.Repaint || universe == null
+                || !WorldRendererUtility.WorldSelected || !DebugViewSettings.drawWorldObjects
+                || !OrbitSphere.Valid || PlanetLayer.Selected != OrbitSphere.Layer)
+            {
+                return;
+            }
+
+            GameFont formerFont = Text.Font;
+            TextAnchor formerAnchor = Text.Anchor;
+            Color formerColor = GUI.color;
+            Text.Font = GameFont.Tiny;
+            Text.Anchor = TextAnchor.MiddleCenter;
+            GUI.color = Color.white;
+            foreach (ScreenMarkerGroup group in ScreenMarkerGroups(universe))
+            {
+                if (!group.Clustered) continue;
+                float radius = group.Representative.HitRadius;
+                Rect badge = new Rect(group.Representative.Position.x + radius * 0.35f,
+                    group.Representative.Position.y - radius - 3f, 30f, 18f);
+                Widgets.DrawBoxSolid(badge, new Color(0.08f, 0.1f, 0.14f, 0.86f));
+                GUI.color = Color.white;
+                Widgets.Label(badge, "×" + group.Members.Count);
+                TooltipHandler.TipRegion(group.HitRect,
+                    string.Join("\n", group.Members.Select(member => member.Ship.Label)));
+            }
+            GUI.color = formerColor;
+            Text.Anchor = formerAnchor;
+            Text.Font = formerFont;
+        }
+
+        internal static List<ScreenMarkerGroup> ScreenMarkerGroups(UniverseManager universe)
+        {
+            var markers = new List<ScreenMarker>();
+            if (universe == null || !WorldRendererUtility.WorldSelected
+                || !DebugViewSettings.drawWorldObjects || !OrbitSphere.Valid
+                || PlanetLayer.Selected != OrbitSphere.Layer)
+            {
+                return new List<ScreenMarkerGroup>();
+            }
+            foreach (ShipBase ship in universe.PlayerWorldMarkerShips())
+            {
+                if (universe.Approach.FlowTarget.Identity == ship.Identity
+                    || !TryGetScreenPosition(ship, out Vector2 position, out float radius))
+                {
+                    continue;
+                }
+                markers.Add(new ScreenMarker(ship, position, radius, ship.Map == Find.CurrentMap));
+            }
+
+            DriveSubject? preferred = null;
+            if (Find.CurrentMap != null
+                && ShipStatusPanel.TryGetSelectedShip(Find.CurrentMap, out ShipBase selected)
+                && selected.PlayerAccessLevel == PlayerAccessLevel.Player)
+            {
+                preferred = selected.Identity;
+            }
+            return ClusterScreenMarkers(markers, preferred);
+        }
+
+        /// <summary>
+        /// 只按投影命中区聚合；输入先按身份排序，再做连通分量，避免枚举顺序改变代表或分组。
+        /// </summary>
+        internal static List<ScreenMarkerGroup> ClusterScreenMarkers(
+            IEnumerable<ScreenMarker> source, DriveSubject? preferred = null)
+        {
+            List<ScreenMarker> markers = source.OrderBy(marker => marker.Identity.key)
+                .ThenBy(marker => marker.Identity.shuttle).ToList();
+            var result = new List<ScreenMarkerGroup>();
+            var assigned = new bool[markers.Count];
+            for (int root = 0; root < markers.Count; root++)
+            {
+                if (assigned[root]) continue;
+                assigned[root] = true;
+                var members = new List<ScreenMarker>();
+                var pending = new Queue<int>();
+                pending.Enqueue(root);
+                while (pending.Count > 0)
+                {
+                    int index = pending.Dequeue();
+                    ScreenMarker marker = markers[index];
+                    members.Add(marker);
+                    for (int candidate = 0; candidate < markers.Count; candidate++)
+                    {
+                        if (assigned[candidate] || !marker.HitRect.Overlaps(markers[candidate].HitRect)) continue;
+                        assigned[candidate] = true;
+                        pending.Enqueue(candidate);
+                    }
+                }
+
+                ScreenMarker representative = members
+                    .OrderByDescending(marker => preferred.HasValue && marker.Identity == preferred.Value)
+                    .ThenByDescending(marker => marker.Current)
+                    .ThenBy(marker => marker.Identity.key)
+                    .ThenBy(marker => marker.Identity.shuttle)
+                    .First();
+                result.Add(new ScreenMarkerGroup(members, representative));
+            }
+            return result.OrderBy(group => group.Representative.Identity.key)
+                .ThenBy(group => group.Representative.Identity.shuttle).ToList();
         }
 
         /// <summary>

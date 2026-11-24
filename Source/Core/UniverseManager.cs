@@ -287,6 +287,14 @@ namespace DeltaV
             .SelectMany(obj => obj.Ships)
             .Where(ship => ship.PlayerMayOperate).ToList();
 
+        /// <summary>
+        /// 原版世界球面的船体剪影只表达玩家所有权；公共友方设施仍可操作，
+        /// 但不借用玩家标记，避免把权限与归属混为一谈。
+        /// </summary>
+        internal List<ShipBase> PlayerWorldMarkerShips() => objects.Where(obj => obj.map != null)
+            .SelectMany(obj => obj.Ships)
+            .Where(ship => ship.PlayerAccessLevel == PlayerAccessLevel.Player).ToList();
+
         /// <summary>POI 距离与星区生成共用的对象参考点；不读取船型、驾驶台或驾驶状态。</summary>
         public List<SpaceObject> PlayerReferenceObjects()
         {
@@ -1107,12 +1115,13 @@ namespace DeltaV
             ShipStatusPanel.Draw(this);
             Pilot.DrawNavigationHint();
             Designator_ReassignSubstructure.DrawPendingLabels();
+            WorldShipMarkerRenderer.DrawPlayerShipMarkerUi(this);
             HandleWorldMarkerClick();
         }
 
         // ---- 世界视图剪影点选（聚焦切图；与地图外壳点选对称的世界视图通道）----
 
-        private ShipBase pendingWorldClickShipBase = ShipBase.Invalid;
+        private DriveSubject[] pendingWorldClickShips = Array.Empty<DriveSubject>();
         private Vector2 pendingWorldClickScreen;
 
         /// <summary>
@@ -1125,55 +1134,93 @@ namespace DeltaV
             if (Find.World?.renderer == null
                 || Find.World.renderer.wantedMode != RimWorld.Planet.WorldRenderMode.Planet)
             {
-                pendingWorldClickShipBase = ShipBase.Invalid;
+                pendingWorldClickShips = Array.Empty<DriveSubject>();
                 return;
             }
             Event ev = Event.current;
             if (ev.type == EventType.MouseDown && ev.button == 0)
             {
-                pendingWorldClickShipBase = ShipBase.Invalid;
+                pendingWorldClickShips = Array.Empty<DriveSubject>();
                 if (Find.WindowStack.GetWindowAt(UI.GUIToScreenPoint(ev.mousePosition)) != null) return;
-                pendingWorldClickShipBase = PickWorldMarker(ev.mousePosition);
+                WorldShipMarkerRenderer.ScreenMarkerGroup group = PickWorldMarker(ev.mousePosition);
+                if (group == null) return;
+                pendingWorldClickShips = group.Members.Select(member => member.Identity).ToArray();
                 pendingWorldClickScreen = ev.mousePosition;
             }
             else if (ev.type == EventType.MouseDrag)
             {
-                pendingWorldClickShipBase = ShipBase.Invalid;
+                pendingWorldClickShips = Array.Empty<DriveSubject>();
             }
-            else if (ev.type == EventType.MouseUp && ev.button == 0 && pendingWorldClickShipBase.IsValid)
+            else if (ev.type == EventType.MouseUp && ev.button == 0 && pendingWorldClickShips.Length > 0)
             {
-                ShipBase target = pendingWorldClickShipBase;
-                pendingWorldClickShipBase = ShipBase.Invalid;
+                DriveSubject[] target = pendingWorldClickShips;
+                pendingWorldClickShips = Array.Empty<DriveSubject>();
                 bool noDrag = (ev.mousePosition - pendingWorldClickScreen).sqrMagnitude < 100f;
-                if (noDrag && PickWorldMarker(ev.mousePosition).Identity == target.Identity)
+                WorldShipMarkerRenderer.ScreenMarkerGroup recheck = PickWorldMarker(ev.mousePosition);
+                if (!noDrag || recheck == null
+                    || !target.SequenceEqual(recheck.Members.Select(member => member.Identity)))
                 {
-                    Map targetMap = target.Map;
-                    if (targetMap != null && ShipRegistry.ShipByIdentity(target.Identity).IsValid)
-                    {
-                        SetFocused(FrameOf(targetMap));
-                        CameraJumper.TryJump(targetMap.Center, targetMap, CameraJumper.MovementMode.Cut);
-                    }
+                    return;
                 }
+
+                // 本入口先于原版 WorldSelector 的 MouseUp。聚焦会立刻退出世界界面，
+                // 因而原版收不到本次抬起；显式结束 dragBox，避免下次进入世界时继承拖拽。
+                Find.WorldSelector.Notify_DialogOpened();
+                ev.Use();
+                if (target.Length == 1)
+                {
+                    FocusWorldMarker(target[0]);
+                    return;
+                }
+
+                DriveSubject representative = recheck.Representative.Identity;
+                List<FloatMenuOption> options = target.Select(identity => ShipRegistry.ShipByIdentity(identity))
+                    .Where(ship => ship.IsValid && ship.PlayerAccessLevel == PlayerAccessLevel.Player)
+                    .OrderByDescending(ship => ship.Identity == representative)
+                    .ThenByDescending(ship => ship.Map == Find.CurrentMap)
+                    .ThenBy(ship => ship.Label)
+                    .ThenBy(ship => ship.Identity.key)
+                    .Select(ship =>
+                    {
+                        DriveSubject identity = ship.Identity;
+                        return new FloatMenuOption(ship.Label + " · #" + identity.key,
+                            () => FocusWorldMarker(identity));
+                    }).ToList();
+                if (options.Count > 0) Find.WindowStack.Add(new FloatMenu(options));
             }
         }
 
-        private ShipBase PickWorldMarker(Vector2 mousePos)
+        private WorldShipMarkerRenderer.ScreenMarkerGroup PickWorldMarker(Vector2 mousePos)
         {
-            if (!OrbitSphere.Valid) return ShipBase.Invalid;
-            ShipBase best = ShipBase.Invalid;
+            if (!OrbitSphere.Valid) return null;
+            WorldShipMarkerRenderer.ScreenMarkerGroup best = null;
             float bestDistance = float.MaxValue;
-            foreach (ShipBase ship in PlayerShips())
+            foreach (WorldShipMarkerRenderer.ScreenMarkerGroup group
+                in WorldShipMarkerRenderer.ScreenMarkerGroups(this))
             {
-                if (Approach.FlowTarget.Identity == ship.Identity) continue;
-                if (!WorldShipMarkerRenderer.TryGetScreenPosition(ship, out Vector2 pos, out float radius)) continue;
-                float distance = (mousePos - pos).magnitude;
-                if (distance <= radius && distance < bestDistance)
+                float distance = (mousePos - group.Representative.Position).magnitude;
+                if (distance <= group.Representative.HitRadius && distance < bestDistance)
                 {
                     bestDistance = distance;
-                    best = ship;
+                    best = group;
                 }
             }
             return best;
+        }
+
+        private void FocusWorldMarker(DriveSubject identity)
+        {
+            ShipBase target = ShipRegistry.ShipByIdentity(identity);
+            if (!target.IsValid || target.PlayerAccessLevel != PlayerAccessLevel.Player
+                || Approach.FlowTarget.Identity == identity)
+            {
+                return;
+            }
+            Map targetMap = target.Map;
+            SpaceObject frame = FrameOf(targetMap);
+            if (targetMap == null || frame == null) return;
+            SetFocused(frame);
+            CameraJumper.TryJump(targetMap.Center, targetMap, CameraJumper.MovementMode.Cut);
         }
 
 

@@ -9,6 +9,8 @@ This file records player-visible changes in released versions and the near-term 
   Fixed launches from pocket maps or other maps at the same sector address incorrectly treating and destroying the sector POI as the departure map; only the actual source world map can now be abandoned.
 - 修复逆重飞船搬运通过原始屋顶清除入口时未刷新船体结构缓存的问题；月池上的普通船顶移除后会立即恢复力场顶。
   Fixed gravship transfer through the native roof-removal path leaving the ship structure cache stale; removing an ordinary roof over a moon pool now immediately restores its force-field roof.
+- 修复点击原版星球地图的玩家飞船剪影后遗留世界拖拽状态的问题。玩家剪影现在只显示己方飞船；屏幕位置重叠时合并为带数量的代表剪影，点击后可从菜单选择具体飞船。
+  Fixed clicking a player-ship silhouette on the vanilla world map leaving world dragging active. Player silhouettes now show only player-owned ships and merge overlapping markers into a counted representative with a ship-selection menu.
 
 @@UTcurtain：加重一下开门引导。在新手教程开局试了好几次，一直在怼通讯台，打开任何和定位任务都摁过检查过，太空站进去过钢铁也捡过，最后发现是按征召右边的太空生存指导来推进任务。(:steamfacepalm:)
 - 准备在下个版本把教程引导统一做到通讯台的星界边境派系交互里，然后让通讯台掉一个附件类型的便携通讯器，然后让装备通讯器的人员可以直接等价于用通讯台呼叫星界边境。同时初次对话末尾也会提及这个通讯器。

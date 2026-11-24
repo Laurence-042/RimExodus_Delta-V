@@ -47,7 +47,29 @@ internal static partial class Program
             "both ship implementations use the same persistent controller registry without ID aliasing");
         Check(ShipRegistry.DefaultVesselOnMap(map).Identity == singleBuilding.Identity
             && universe.PlayerShips().Single().Identity == singleBuilding.Identity,
-            "default selection and world marker enumeration include the player shuttle");
+            "default selection and operable-ship enumeration include the player shuttle");
+        var ally = (Faction)Raw(typeof(Faction));
+        ally.def = new FactionDef();
+        Set(ally, "relations", new List<FactionRelation>
+        {
+            new FactionRelation { other = player, kind = FactionRelationKind.Ally }
+        });
+        Set(player, "relations", new List<FactionRelation>
+        {
+            new FactionRelation { other = enemy, kind = FactionRelationKind.Hostile },
+            new FactionRelation { other = ally, kind = FactionRelationKind.Ally }
+        });
+        Map publicMap = TestMap(802);
+        CompDeltaVPilotConsole publicConsole = AddTestConsole(publicMap, ally, 830, buildingId: 831);
+        publicConsole.isPublicFacility = true;
+        var publicContainer = new MapSpaceObject(802, publicMap,
+            new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(10f, 0f)), 0f)) { faction = ally };
+        universe.objects.Add(publicContainer);
+        ShipBase publicShip = ShipRegistry.FoundationShipsOnMap(publicMap).Single();
+        Check(universe.PlayerShips().Any(ship => ship.Identity == publicShip.Identity)
+            && universe.PlayerWorldMarkerShips().Single().Identity == singleBuilding.Identity,
+            "public allied ships remain operable without being presented as player-owned world silhouettes");
+        universe.objects.Remove(publicContainer);
         ShipStatusPanel.SelectShip(singleBuilding);
         Check(ShipStatusPanel.TryGetSelectedShip(map, out ShipBase selected) && selected.Identity == singleBuilding.Identity,
             "sidebar selection resolves the typed ship identity");
