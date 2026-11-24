@@ -5,6 +5,8 @@ This file records player-visible changes in released versions and the near-term 
 
 ## 下一版本计划 / Next version plan
 
+- 修复自定义船壳在实体屋顶、月池力场和第三方建筑屋顶交界处错误绘制破口的问题；相邻建筑屋顶现在保持连续，墙、门和气密建筑仍遮住真实屋顶终止边。
+  Fixed custom ship shells drawing false breaches where solid roofs, moon-pool force fields, and third-party constructed roofs meet. Adjacent constructed roofs now stay continuous, while walls, doors, and airtight buildings still cover genuine roof ends.
 - 修复从星区内口袋图或同地址的其他地图发射时，误将星区对应 POI 当作出发图并摧毁的问题；现在只有实际出发的同一张世界地图会进入放弃流程。
   Fixed launches from pocket maps or other maps at the same sector address incorrectly treating and destroying the sector POI as the departure map; only the actual source world map can now be abandoned.
 - 修复逆重飞船搬运通过原始屋顶清除入口时未刷新船体结构缓存的问题；月池上的普通船顶移除后会立即恢复力场顶。

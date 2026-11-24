@@ -129,7 +129,20 @@ internal static partial class Program
         map.roofGrid.SetRoof(origin, roof);
         Check(!(bool)Call(edges, "IsOpenEdge", map, edgeCell, 1), "roof repair removes broken-edge geometry");
         map.roofGrid.SetRoof(origin, field);
+        Check((bool)Call(hull, "HasConstructedRoof", map, origin),
+            "moon-pool force field participates in constructed-roof continuity");
+        Check(!(bool)Call(edges, "IsOpenEdge", map, edgeCell, 1),
+            "constructed roof joins a moon-pool force field without broken-edge geometry");
         Check(!(bool)Call(hull, "HasShellRoof", map, origin), "transparent moon-pool roof does not hide buildings");
+        var modRoof = (RoofDef)Raw(typeof(RoofDef));
+        map.roofGrid.SetRoof(origin, modRoof);
+        Check((bool)Call(hull, "HasConstructedRoof", map, origin)
+            && !(bool)Call(edges, "IsOpenEdge", map, edgeCell, 1),
+            "third-party constructed roofs join without a hard-coded RoofDef list");
+        map.roofGrid.SetRoof(origin, natural);
+        Check(!(bool)Call(hull, "HasConstructedRoof", map, origin)
+            && (bool)Call(edges, "IsOpenEdge", map, edgeCell, 1),
+            "natural roofs do not close a constructed ship-roof edge");
         map.roofGrid.SetRoof(origin, roof);
         Check(!(bool)Call(edges, "IsOpenEdge", map, origin, 0), "wall-supported roof edge has no exposed framing");
 

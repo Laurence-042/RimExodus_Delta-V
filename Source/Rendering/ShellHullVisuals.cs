@@ -287,9 +287,15 @@ namespace DeltaV
                 sameDomain || (!onFoundation && !SubstructureOwnership.HasFoundation(map, neighbor));
         }
 
+        internal static bool HasConstructedRoof(Map map, IntVec3 cell)
+        {
+            if (!SubstructureOwnership.HasFoundation(map, cell)) return false;
+            RoofDef roof = map.roofGrid.RoofAt(cell);
+            return roof != null && !roof.isNatural;
+        }
+
         internal static bool HasShellRoof(Map map, IntVec3 cell) =>
-            SubstructureOwnership.HasFoundation(map, cell)
-            && map.roofGrid.RoofAt(cell) != null && !MoonPoolUtility.IsFieldRoofAt(map, cell);
+            HasConstructedRoof(map, cell) && !MoonPoolUtility.IsFieldRoofAt(map, cell);
 
         internal static TerrainDef RoofSurfaceTerrain(Map map, IntVec3 cell)
         {

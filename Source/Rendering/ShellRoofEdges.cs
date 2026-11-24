@@ -22,10 +22,9 @@ namespace DeltaV
 
         internal static bool IsOpenEdge(Map map, IntVec3 cell, int side)
         {
-            if (!ShellHullVisuals.HasShellRoof(map, cell) || HasWall(map, cell)) return false;
+            if (!ShellHullVisuals.HasConstructedRoof(map, cell) || HasWall(map, cell)) return false;
             IntVec3 neighbor = cell + GenAdj.CardinalDirections[side];
-            return !ShellHullVisuals.SharesDomain(map, cell, neighbor)
-                || !ShellHullVisuals.HasShellRoof(map, neighbor) && !HasWall(map, neighbor);
+            return !ShellHullVisuals.HasConstructedRoof(map, neighbor) && !HasWall(map, neighbor);
         }
 
         private static bool HasWall(Map map, IntVec3 cell)
