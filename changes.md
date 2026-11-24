@@ -11,6 +11,14 @@ This file records player-visible changes in released versions and the near-term 
 - 让特定装备的人员可以像当前的eva一样在太空移动
   Allow personnel with designated equipment to move through space like current EVA units.
 
+## 待发布 / Unreleased
+
+### 用户反馈解决 / User feedback resolved
+
+@寒月融雪（bilibili）：为什么逆重飞船会显示无法到达地面？因为我有一些其他MOD需要到地表上触发/接取（幻想乡物流沃芬“社长”到来事件，米莉拉坠机魔法少女，超凡斯安威斯坦空投）
+- 修复从 Delta-V 自由飞行口袋图启动逆重引擎时，地面目的地显示无法到达并因无效 tile 循环报错的问题。即使所在星区没有 POI，或先前降落产生的地图已经被抛弃，也会从飞船当前宇宙位姿对应的星区正常选择目的地；同时修复降落到普通地表后的收尾空引用。
+  Fixed surface destinations appearing unreachable and repeatedly logging invalid-tile errors when launching a gravship from a Delta-V free-flight pocket map. Destination selection now uses the ship's current sector even when that sector has no POI or its previous landing map was abandoned, and landing cleanup on ordinary surface maps no longer throws a null-reference error.
+
 ## 基于收集的用户反馈的正在排期的需求（排名不分先后）
 
 @C鼬柠檬茶（bilibili）：空间站仓库里的东西免费拿真的没问题吗，我前期就靠这个苟着

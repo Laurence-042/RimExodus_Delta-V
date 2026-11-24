@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Reflection;
+using System.Reflection.Emit;
 using HarmonyLib;
 using RimWorld;
 using RimWorld.Planet;
@@ -30,38 +33,45 @@ namespace DeltaV
     [HarmonyPatch(typeof(CompPilotConsole), nameof(CompPilotConsole.StartChoosingDestination_NewTemp))]
     public static class Patch_CompPilotConsole_StartChoosingDestination_WorldJump
     {
+        private static readonly MethodInfo MapTileGetter =
+            AccessTools.PropertyGetter(typeof(Map), nameof(Map.Tile));
+        private static readonly MethodInfo StrategicSelectionTile =
+            AccessTools.Method(typeof(ShipFlightTransitionService),
+                nameof(ShipFlightTransitionService.StrategicSelectionTile));
+
         public static void Prefix(CompPilotConsole __instance)
         {
-            Map map = __instance.parent?.Map;
-            if (map == null || map.Tile.Valid) return;
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            PlanetTile address = universe?.ShipTransitions.StrategicSourceAddress(universe, map) ?? PlanetTile.Invalid;
-            if (address.Valid) CameraJumper.TryJump(address);
+            Current.Game?.GetComponent<UniverseManager>()?.ShipTransitions
+                .OpenStrategicDestinationPicker(__instance);
         }
-    }
 
-    /// <summary>
-    /// 选点界面「Invalid tile 不得进入 FastTileFinder」守卫：原版 onStart/onGui lambda
-    /// 捕获的局部 curTile 在口袋图上为 Invalid（Layer 假象为表面层），与选中的轨道层
-    /// 不等时原版直接把 -1 传给 FastTileFinder（GetTileCenter(-1) 每帧红字）。curTile
-    /// 是方法体内局部变量、无 patch 边界，全网唯一共享出口是本方法。Invalid 输入只在
-    /// 「当前聚焦图是可解析战略源地址的 Delta-V 口袋图」时接管：地址恰在被查询层上时
-    /// 圆环/悬停距离按星区 tile 计算，否则 Invalid。其余 Invalid 语境一律放行原版——
-    /// Invalid 是全体口袋图共享的信号，其他 mod 的口袋图处理照常生效，不互相吞 patch。
-    /// </summary>
-    [HarmonyPatch(typeof(PlanetLayer), nameof(PlanetLayer.GetClosestTile_NewTemp))]
-    public static class Patch_PlanetLayer_GetClosestTile_InvalidSource
-    {
-        public static bool Prefix(PlanetLayer __instance, PlanetTile other, ref PlanetTile __result)
+        public static IEnumerable<CodeInstruction> Transpiler(
+            IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod)
         {
-            if (other.Valid) return true;
-            Map map = Find.CurrentMap;
-            if (map == null || map.Tile.Valid) return true;
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            PlanetTile address = universe?.ShipTransitions.StrategicSourceAddress(universe, map) ?? PlanetTile.Invalid;
-            if (!address.Valid) return true;
-            __result = address.Layer == __instance ? address : PlanetTile.Invalid;
-            return false;
+            var list = new List<CodeInstruction>(instructions);
+            var matches = new List<int>();
+            for (int i = 0; i < list.Count; i++)
+            {
+                CodeInstruction instruction = list[i];
+                if ((instruction.opcode == OpCodes.Call || instruction.opcode == OpCodes.Callvirt)
+                    && Equals(instruction.operand, MapTileGetter))
+                {
+                    matches.Add(i);
+                }
+            }
+            if (matches.Count != 2)
+            {
+                Log.Warning($"[DeltaV] Strategic destination patch signature drift in " +
+                    $"{__originalMethod.DeclaringType?.FullName}.{__originalMethod.Name}: found " +
+                    $"{matches.Count} Map.Tile call(s), expected 2; leaving the method unchanged.");
+                return list;
+            }
+            foreach (int index in matches)
+            {
+                list[index].opcode = OpCodes.Call;
+                list[index].operand = StrategicSelectionTile;
+            }
+            return list;
         }
     }
 
@@ -79,10 +89,8 @@ namespace DeltaV
         public static void Prefix(ref PlanetTile from)
         {
             if (from.Valid) return;
-            Map map = Find.CurrentMap;
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            PlanetTile address = universe?.ShipTransitions.StrategicSourceAddress(universe, map) ?? PlanetTile.Invalid;
-            if (address.Valid) from = address;
+            Current.Game?.GetComponent<UniverseManager>()?.ShipTransitions
+                .RewriteStrategicSourceTile(Find.CurrentMap, ref from);
         }
     }
 
@@ -100,6 +108,47 @@ namespace DeltaV
         {
             Current.Game?.GetComponent<UniverseManager>()?.ShipTransitions
                 .HandleVanillaTakeoffFromDeltaVSource(engine, __instance);
+        }
+    }
+
+    /// <summary>战略降落冻结范围、结构归属盖章和落定收尾的原版事件接线。</summary>
+    [HarmonyPatch(typeof(WorldComponent_GravshipController), nameof(WorldComponent_GravshipController.InitiateLanding))]
+    public static class Patch_GravshipController_InitiateLanding_DeltaV
+    {
+        public static void Prefix(Gravship gravship, Map map, IntVec3 landingPos)
+        {
+            Current.Game?.GetComponent<UniverseManager>()?.ShipTransitions
+                .BeginStrategicLanding(gravship, map, landingPos);
+        }
+    }
+
+    /// <summary>原版到达画面只读取战略降落开始时冻结的本船 foundation。</summary>
+    [HarmonyPatch(typeof(Building_GravEngine), nameof(Building_GravEngine.ValidSubstructure), MethodType.Getter)]
+    public static class Patch_GravEngine_ConversionCaptureScope
+    {
+        public static void Postfix(Building_GravEngine __instance, ref HashSet<IntVec3> __result)
+        {
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe?.ShipTransitions.TryGetLandingCaptureScope(__instance,
+                    out HashSet<IntVec3> scope) == true)
+            {
+                __result = scope;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(WorldComponent_GravshipController), "LandingEnded")]
+    public static class Patch_GravshipController_LandingEnded
+    {
+        public static void Prefix(Map ___map, out Map __state)
+        {
+            __state = ___map;
+        }
+
+        public static void Postfix(Map __state)
+        {
+            Current.Game?.GetComponent<UniverseManager>()?.ShipTransitions
+                .CompleteStrategicLanding(__state);
         }
     }
 

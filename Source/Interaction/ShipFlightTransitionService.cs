@@ -76,25 +76,6 @@ namespace DeltaV
         internal bool IsAwaitingDockingCleanup(Map map) => map != null
             && dockingCleanupMaps.Contains(map);
 
-        // ---- 战略发射（原版管线适配）----
-
-        internal Map pendingStrategicSourceMap;
-        internal PlanetTile pendingStrategicSourceAddress;
-        internal SpacePose? pendingStrategicSourcePose;
-
-        /// <summary>
-        /// 原版战略起飞从捕获源图开始到 TravelTo 放行前仍要用该图绘制过场；此窗口内
-        /// 结构移除造成的暂时无承载状态不能触发地图生命周期回收。
-        /// </summary>
-        internal bool IsAwaitingStrategicTakeoff(Map map) => map != null
-            && pendingStrategicSourceMap == map;
-
-        /// <summary>战略发射源 = 发射船的自有口袋容器（发射后按离场标准流程销毁）。</summary>
-        private int pendingStrategicOwnPocketId;
-        internal SpaceObject pendingStrategicOwnPocket { get => Current.Game?.GetComponent<UniverseManager>()?.ObjectById(pendingStrategicOwnPocketId); set => pendingStrategicOwnPocketId = value?.objectId ?? 0; }
-
-        internal bool preLaunchConfirmationChaining;
-
         // ---- 出力前分离（§8.2：流程状态，不存档）----
 
         /// <summary>
@@ -110,17 +91,10 @@ namespace DeltaV
         internal void Reset()
         {
             dockingCleanupMaps.Clear();
-            pendingStrategicSourceMap = null;
-            pendingStrategicSourceAddress = PlanetTile.Invalid;
-            pendingStrategicSourcePose = null;
-            pendingStrategicOwnPocket = null;
-            preLaunchConfirmationChaining = false;
+            ResetStrategicGravshipState();
             pendingSeparationOwnerIds.Clear();
             pendingShuttleSeparations.Clear();
             pendingExternalForceSplits.Clear();
-            landingCaptureEngine = null;
-            landingCaptureMap = null;
-            landingCaptureCells = null;
         }
     }
 }

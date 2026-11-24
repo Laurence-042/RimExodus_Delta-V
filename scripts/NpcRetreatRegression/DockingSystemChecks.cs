@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
 using DeltaV;
 using HarmonyLib;
 using RimWorld;
@@ -68,7 +70,7 @@ internal static partial class Program
         CheckRigidMotion();
         CheckSoftDockInterpolation();
         CheckDockingCompState(universe);
-        CheckStrategicDepartureSourceIdentity();
+        CheckStrategicGravshipAdapter(universe);
 
         var cargo = NewMaplessCargo("scattered_cargo");
         var scattered = universe.CapturePayload(cargo, original, null);
@@ -90,7 +92,7 @@ internal static partial class Program
         CheckUndockHeading(universe);
     }
 
-    static void CheckStrategicDepartureSourceIdentity()
+    static void CheckStrategicGravshipAdapter(UniverseManager universe)
     {
         var worldtile = TestMap(49806);
         var pocket = TestMap(49807);
@@ -102,8 +104,31 @@ internal static partial class Program
         try
         {
             Check(ShipFlightTransitionService.StrategicDepartureWorldtileSource(worldtile) == worldtile
-                && ShipFlightTransitionService.StrategicDepartureWorldtileSource(pocket) == null,
+                && ShipFlightTransitionService.StrategicDepartureWorldtileSource(pocket) == null
+                && universe.ShipTransitions.StrategicSourceAddress(worldtile) == worldtile.Tile,
                 "strategic departure selects only the actual worldtile source, never a same-sector POI for a pocket source");
+
+            MethodInfo picker = AccessTools.Method(typeof(CompPilotConsole),
+                nameof(CompPilotConsole.StartChoosingDestination_NewTemp));
+            MethodInfo mapTile = AccessTools.PropertyGetter(typeof(Map), nameof(Map.Tile));
+            MethodInfo strategicTile = AccessTools.Method(typeof(ShipFlightTransitionService),
+                nameof(ShipFlightTransitionService.StrategicSelectionTile));
+            List<CodeInstruction> original = PatchProcessor.GetOriginalInstructions(picker).ToList();
+            bool Calls(CodeInstruction instruction, MethodInfo method) =>
+                (instruction.opcode == OpCodes.Call || instruction.opcode == OpCodes.Callvirt)
+                && Equals(instruction.operand, method);
+            int originalTileCalls = original.Count(instruction => Calls(instruction, mapTile));
+            List<CodeInstruction> patched =
+                Patch_CompPilotConsole_StartChoosingDestination_WorldJump.Transpiler(original, picker).ToList();
+            Check(originalTileCalls == 2
+                && patched.Count(instruction => Calls(instruction, mapTile)) == 0
+                && patched.Count(instruction => Calls(instruction, strategicTile)) == 2,
+                "strategic destination picker rewrites exactly its two captured Map.Tile reads through the central source adapter");
+
+            universe.ShipTransitions.CompleteStrategicLanding(null);
+            universe.ShipTransitions.CompleteStrategicLanding(null);
+            Check(!universe.ShipTransitions.TryGetLandingCaptureScope(null, out _),
+                "landing completion is idempotent when no capture or destination map exists");
         }
         finally
         {
@@ -180,13 +205,17 @@ internal static partial class Program
         AccessTools.Field(typeof(MoonPoolUtility), "moonPoolDef").SetValue(null, fixtureMoonPool);
         AccessTools.Field(typeof(MoonPoolUtility), "fieldRoofDef").SetValue(null, fixtureFieldRoof);
         var fixtureLayer = (PlanetLayer)Raw(typeof(PlanetLayer));
-        Set(fixtureLayer, "def", new PlanetLayerDef { isSpace = true });
+        var fixtureLayerDef = new PlanetLayerDef { isSpace = true };
+        Set(fixtureLayer, "def", fixtureLayerDef);
         Find.World.grid = (WorldGrid)Raw(typeof(WorldGrid));
         Set(Find.World.grid, "planetLayers", new Dictionary<int, PlanetLayer> { [0] = fixtureLayer });
         var landingMap = TestMap(49808);
         var ordinaryMap = TestMap(49809);
+        var surfaceMap = TestMap(49815);
         landingMap.roofGrid = new RoofGrid(landingMap);
         ordinaryMap.info.parent = null;
+        var surfaceParent = new RegressionLandingMapParent("RegressionSurface", 0, 0);
+        surfaceMap.info.parent = surfaceParent;
         landingMap.generationTick = 13579;
         var landingParent = new RegressionLandingMapParent("SpaceSettlement", 0, landingMap.generationTick);
         landingMap.info.parent = landingParent;
@@ -203,9 +232,22 @@ internal static partial class Program
         universe.RegisterObject(pocketSource);
         try
         {
+            fixtureLayerDef.isSpace = false;
+            try
+            {
+                universe.ShipTransitions.BeginStrategicLanding(null, surfaceMap, IntVec3.Zero);
+                universe.ShipTransitions.CompleteStrategicLanding(null);
+                universe.ShipTransitions.CompleteStrategicLanding(null);
+            }
+            finally
+            {
+                fixtureLayerDef.isSpace = true;
+            }
+            Check(!universe.ShipTransitions.TryGetLandingCaptureScope(null, out _),
+                "surface landing completion is idempotent when no Delta-V landing capture was established");
             Check(landingMap.GetComponent<DeltaVPocketMapMetadata>() == null,
                 "vanilla orbital landing maps start without Delta-V worksite metadata");
-            Check(Patch_GravshipController_LandingEnded.MarkStrategicLandingWorksite(universe, landingMap)
+            Check(universe.ShipTransitions.MarkStrategicLandingWorksite(landingMap)
                 && landingMap.GetComponent<DeltaVPocketMapMetadata>()?.worksite == true
                 && native.IsWorksite,
                 "strategic landing settlement marks its native worldtile container as a worksite");
@@ -268,7 +310,7 @@ internal static partial class Program
             Check(!SpaceMapGovernance.IsEmptyLandingWorksite(landingMap, universe),
                 "a pre-existing orbital Settlement is not retired as a temporary landing Home");
             landingParent.creationGameTicks++;
-            Check(!Patch_GravshipController_LandingEnded.MarkStrategicLandingWorksite(universe, ordinaryMap)
+            Check(!universe.ShipTransitions.MarkStrategicLandingWorksite(ordinaryMap)
                 && ordinaryMap.GetComponent<DeltaVPocketMapMetadata>() == null,
                 "landing settlement does not mark an unrelated map as a worksite");
         }
@@ -286,6 +328,7 @@ internal static partial class Program
             universe.UnregisterObject(native);
             Find.Maps.Remove(landingMap);
             Find.Maps.Remove(ordinaryMap);
+            Find.Maps.Remove(surfaceMap);
         }
     }
 
