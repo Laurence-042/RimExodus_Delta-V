@@ -476,6 +476,9 @@ namespace DeltaV
             }
             Universe?.Weapons?.RegisterWeapon(this);
             Universe?.Weapons?.QueuePower(this);
+            if (parent is Building_TurretGun turret
+                && AutoSpaceWeaponTurretBridge.IsAdapted(turret))
+                AutoSpaceWeaponTurretBridge.NotifyEngagementModeChanged(this);
             if (respawningAfterLoad) return;
             Universe?.Controls?.NotifyGunnerAvailabilityChanged(parent.Map);
         }
@@ -624,7 +627,7 @@ namespace DeltaV
                 {
                     w.engagementMode = active
                         ? SpaceWeaponEngagementMode.Ground : SpaceWeaponEngagementMode.Space;
-                    (w.parent as Building_SpaceTurretGun)?.NotifyEngagementModeChanged();
+                    AutoSpaceWeaponTurretBridge.NotifyEngagementModeChanged(w);
                     w.Universe?.Weapons?.NotifyWeaponModeChanged(w);
                 })
             {

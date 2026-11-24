@@ -122,6 +122,14 @@ namespace DeltaV
         /// <summary>每五秒输出帧率、实际 TPS 与 Delta-V 阶段计时；默认关闭。</summary>
         public bool logPerformance;
 
+        // ---- 自动炮塔适配（只在下次 Def 载入时生效）----
+
+        public Dictionary<string, AutoSpaceWeaponModPolicy> autoWeaponModPolicies =
+            new Dictionary<string, AutoSpaceWeaponModPolicy>();
+
+        public Dictionary<string, AutoSpaceWeaponOverride> autoWeaponOverrides =
+            new Dictionary<string, AutoSpaceWeaponOverride>();
+
         // ---- 星区内容生成（「生成」页；全局设置，只影响尚未首次生成的星区）----
 
         /// <summary>Pure generation recipes. They never classify runtime SpaceObjects.</summary>
@@ -137,6 +145,45 @@ namespace DeltaV
                 Log.Warning("[DeltaV] Invalid sector generation table was replaced with defaults: " + error);
                 sectorGenerationRoots = SectorGenerationTable.Defaults();
             }
+        }
+
+        public AutoSpaceWeaponModPolicy GetAutoWeaponModPolicy(string packageId)
+        {
+            EnsureAutoWeaponPolicies();
+            string key = AutoSpaceWeaponPolicy.NormalizePackageId(packageId);
+            return autoWeaponModPolicies.TryGetValue(key, out AutoSpaceWeaponModPolicy value)
+                ? value : AutoSpaceWeaponModPolicy.Recommended;
+        }
+
+        public void SetAutoWeaponModPolicy(string packageId, AutoSpaceWeaponModPolicy value)
+        {
+            EnsureAutoWeaponPolicies();
+            string key = AutoSpaceWeaponPolicy.NormalizePackageId(packageId);
+            if (value == AutoSpaceWeaponModPolicy.Recommended) autoWeaponModPolicies.Remove(key);
+            else autoWeaponModPolicies[key] = value;
+        }
+
+        public AutoSpaceWeaponOverride GetAutoWeaponOverride(string packageId, string defName)
+        {
+            EnsureAutoWeaponPolicies();
+            string key = AutoSpaceWeaponPolicy.WeaponKey(packageId, defName);
+            return autoWeaponOverrides.TryGetValue(key, out AutoSpaceWeaponOverride value)
+                ? value : AutoSpaceWeaponOverride.Inherit;
+        }
+
+        public void SetAutoWeaponOverride(string packageId, string defName,
+            AutoSpaceWeaponOverride value)
+        {
+            EnsureAutoWeaponPolicies();
+            string key = AutoSpaceWeaponPolicy.WeaponKey(packageId, defName);
+            if (value == AutoSpaceWeaponOverride.Inherit) autoWeaponOverrides.Remove(key);
+            else autoWeaponOverrides[key] = value;
+        }
+
+        private void EnsureAutoWeaponPolicies()
+        {
+            autoWeaponModPolicies ??= new Dictionary<string, AutoSpaceWeaponModPolicy>();
+            autoWeaponOverrides ??= new Dictionary<string, AutoSpaceWeaponOverride>();
         }
 
         public override void ExposeData()
@@ -179,8 +226,13 @@ namespace DeltaV
             Scribe_Values.Look(ref logDevelopment, "logDevelopment", false);
             Scribe_Values.Look(ref showShipPlanner, "showShipPlanner", false);
             Scribe_Values.Look(ref logPerformance, "logPerformance", false);
+            Scribe_Collections.Look(ref autoWeaponModPolicies, "autoWeaponModPolicies",
+                LookMode.Value, LookMode.Value);
+            Scribe_Collections.Look(ref autoWeaponOverrides, "autoWeaponOverrides",
+                LookMode.Value, LookMode.Value);
             Scribe_Collections.Look(ref sectorGenerationRoots, "sectorGenerationRoots", LookMode.Deep);
             Scribe_Values.Look(ref sectorGenerationPreset, "sectorGenerationPreset", SectorGenerationPresets.Default);
+            if (Scribe.mode == LoadSaveMode.PostLoadInit) EnsureAutoWeaponPolicies();
             base.ExposeData();
         }
     }

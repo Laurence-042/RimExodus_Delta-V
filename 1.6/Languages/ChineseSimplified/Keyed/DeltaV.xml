@@ -250,8 +250,47 @@
   <DeltaV_SettingsTabPhysics>物理</DeltaV_SettingsTabPhysics>
   <DeltaV_SettingsTabWorld>世界</DeltaV_SettingsTabWorld>
   <DeltaV_SettingsTabGeneration>生成</DeltaV_SettingsTabGeneration>
+  <DeltaV_SettingsTabAutoWeapons>自动适配</DeltaV_SettingsTabAutoWeapons>
   <DeltaV_SettingsTabLogging>日志</DeltaV_SettingsTabLogging>
   <DeltaV_SettingsTabDevelopment>开发调试</DeltaV_SettingsTabDevelopment>
+  <DeltaV_AutoWeaponRestartNotice>自动适配读取最终炮塔、Verb 和弹体 Def；设置将在重启游戏后生效。推荐模式只启用没有结构风险警告的武器。</DeltaV_AutoWeaponRestartNotice>
+  <DeltaV_AutoAdaptationExport>导出适配分析报告</DeltaV_AutoAdaptationExport>
+  <DeltaV_AutoAdaptationExportTip>报告包含全部已加载 Mod 的本机路径、武器支持与换算结果，以及护盾候选参数；文件只保存在本地。</DeltaV_AutoAdaptationExportTip>
+  <DeltaV_AutoAdaptationExported>已导出自动适配分析报告：{0}</DeltaV_AutoAdaptationExported>
+  <DeltaV_AutoAdaptationExportFailed>自动适配分析报告导出失败：{0}</DeltaV_AutoAdaptationExportFailed>
+  <DeltaV_AutoWeaponSearch>搜索</DeltaV_AutoWeaponSearch>
+  <DeltaV_AutoWeaponNoCandidates>没有符合搜索条件的自动炮塔候选。</DeltaV_AutoWeaponNoCandidates>
+  <DeltaV_AutoWeaponModPolicyRecommended>推荐</DeltaV_AutoWeaponModPolicyRecommended>
+  <DeltaV_AutoWeaponModPolicyEnableAll>全部启用</DeltaV_AutoWeaponModPolicyEnableAll>
+  <DeltaV_AutoWeaponModPolicyDisableAll>全部禁用</DeltaV_AutoWeaponModPolicyDisableAll>
+  <DeltaV_AutoWeaponOverrideInherit>继承 Mod 设置</DeltaV_AutoWeaponOverrideInherit>
+  <DeltaV_AutoWeaponOverrideEnabled>单独启用</DeltaV_AutoWeaponOverrideEnabled>
+  <DeltaV_AutoWeaponOverrideDisabled>单独禁用</DeltaV_AutoWeaponOverrideDisabled>
+  <DeltaV_AutoWeaponEffectiveEnabled>下次启用</DeltaV_AutoWeaponEffectiveEnabled>
+  <DeltaV_AutoWeaponEffectiveDisabled>下次禁用</DeltaV_AutoWeaponEffectiveDisabled>
+  <DeltaV_AutoWeaponFamilyAuto>未分类</DeltaV_AutoWeaponFamilyAuto>
+  <DeltaV_AutoWeaponFamilyRapid>速射炮</DeltaV_AutoWeaponFamilyRapid>
+  <DeltaV_AutoWeaponFamilyHeavy>重炮</DeltaV_AutoWeaponFamilyHeavy>
+  <DeltaV_AutoWeaponFamilyLaser>激光炮</DeltaV_AutoWeaponFamilyLaser>
+  <DeltaV_AutoWeaponWarnings>警告：{0}</DeltaV_AutoWeaponWarnings>
+  <DeltaV_AutoWeaponWarningCustomVerb>非标准 Verb</DeltaV_AutoWeaponWarningCustomVerb>
+  <DeltaV_AutoWeaponWarningExplosiveProjectile>爆炸弹体按单发伤害换算</DeltaV_AutoWeaponWarningExplosiveProjectile>
+  <DeltaV_AutoWeaponWarningFlyOverhead>曲射弹体按直射换算</DeltaV_AutoWeaponWarningFlyOverhead>
+  <DeltaV_AutoWeaponWarningExternalResourceTransaction>来源使用特殊资源流程</DeltaV_AutoWeaponWarningExternalResourceTransaction>
+  <DeltaV_AutoWeaponWarningThirdPartyMechanics>存在第三方运行机制</DeltaV_AutoWeaponWarningThirdPartyMechanics>
+  <DeltaV_AutoWeaponWarningMortarBarrel>换管耐久不计入弹仓</DeltaV_AutoWeaponWarningMortarBarrel>
+  <DeltaV_AutoWeaponRejected>不支持：{0}</DeltaV_AutoWeaponRejected>
+  <DeltaV_AutoWeaponRejectionDisabled>Def 明确禁用</DeltaV_AutoWeaponRejectionDisabled>
+  <DeltaV_AutoWeaponRejectionNotTurret>不是自动炮塔</DeltaV_AutoWeaponRejectionNotTurret>
+  <DeltaV_AutoWeaponRejectionExistingSpaceWeapon>已有太空武器能力</DeltaV_AutoWeaponRejectionExistingSpaceWeapon>
+  <DeltaV_AutoWeaponRejectionMissingGun>缺少炮塔武器 Def</DeltaV_AutoWeaponRejectionMissingGun>
+  <DeltaV_AutoWeaponRejectionAmbiguousVerb>无法唯一确定射击 Verb</DeltaV_AutoWeaponRejectionAmbiguousVerb>
+  <DeltaV_AutoWeaponRejectionMissingProjectile>缺少弹体 Def</DeltaV_AutoWeaponRejectionMissingProjectile>
+  <DeltaV_AutoWeaponRejectionUnsupportedVerb>Verb 定义无效</DeltaV_AutoWeaponRejectionUnsupportedVerb>
+  <DeltaV_AutoWeaponRejectionUnsupportedProjectile>弹体没有可换算伤害</DeltaV_AutoWeaponRejectionUnsupportedProjectile>
+  <DeltaV_AutoWeaponRejectionUnsupportedDamage>伤害类型不是锐器、钝器或热能</DeltaV_AutoWeaponRejectionUnsupportedDamage>
+  <DeltaV_AutoWeaponRejectionSpecialResourceTransaction>特殊资源流程不可换算</DeltaV_AutoWeaponRejectionSpecialResourceTransaction>
+  <DeltaV_AutoWeaponRejectionInvalidNumbers>伤害或射击周期数值无效</DeltaV_AutoWeaponRejectionInvalidNumbers>
   <DeltaV_SettingsKeysHint>按键映射：在游戏的「选项 → 控制 → 按键设置」中找到「Delta-V 驾驶」分类，可调整驾驶、火控和移动参考系快捷键。</DeltaV_SettingsKeysHint>
 
   <!-- 设置：生成页（星区生成表） -->

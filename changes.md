@@ -5,41 +5,11 @@ This file records player-visible changes in released versions and the near-term 
 
 ## 下一版本计划 / Next version plan
 
-- 修复自定义船壳在实体屋顶、月池力场和第三方建筑屋顶交界处错误绘制破口的问题；相邻建筑屋顶现在保持连续，墙、门和气密建筑仍遮住真实屋顶终止边。
-  Fixed custom ship shells drawing false breaches where solid roofs, moon-pool force fields, and third-party constructed roofs meet. Adjacent constructed roofs now stay continuous, while walls, doors, and airtight buildings still cover genuine roof ends.
-- 修复从星区内口袋图或同地址的其他地图发射时，误将星区对应 POI 当作出发图并摧毁的问题；现在只有实际出发的同一张世界地图会进入放弃流程。
-  Fixed launches from pocket maps or other maps at the same sector address incorrectly treating and destroying the sector POI as the departure map; only the actual source world map can now be abandoned.
-- 修复逆重飞船搬运通过原始屋顶清除入口时未刷新船体结构缓存的问题；月池上的普通船顶移除后会立即恢复力场顶。
-  Fixed gravship transfer through the native roof-removal path leaving the ship structure cache stale; removing an ordinary roof over a moon pool now immediately restores its force-field roof.
-- 修复点击原版星球地图的玩家飞船剪影后遗留世界拖拽状态的问题。玩家剪影现在只显示己方飞船；屏幕位置重叠时合并为带数量的代表剪影，点击后可从菜单选择具体飞船。
-  Fixed clicking a player-ship silhouette on the vanilla world map leaving world dragging active. Player silhouettes now show only player-owned ships and merge overlapping markers into a counted representative with a ship-selection menu.
-
-@@UTcurtain：加重一下开门引导。在新手教程开局试了好几次，一直在怼通讯台，打开任何和定位任务都摁过检查过，太空站进去过钢铁也捡过，最后发现是按征召右边的太空生存指导来推进任务。(:steamfacepalm:)
-- 准备在下个版本把教程引导统一做到通讯台的星界边境派系交互里，然后让通讯台掉一个附件类型的便携通讯器，然后让装备通讯器的人员可以直接等价于用通讯台呼叫星界边境。同时初次对话末尾也会提及这个通讯器。
-
-@UTcurtain：全部做到通讯台肯定没问题，这方面的话金鸢尾兰鼠族做的就不错。(也有个交流平台可以直接揣怀里打电话。)我现在在开局的太空站里，卡在了可以右键交互的EVA工程套装，进得去出不来。也能随便拿空间站仓库的各种物资。
-- 已为非敌对 EVA、小艇和原版任务穿梭机补充「让己方人员离开载具」命令。图内按原版容器规则下车，单格飞行图等图外舱口会在确认后将活体乘员交给可牵引的太空漂流物链；货物和尸体无需确认。原版整舱「卸载」也复用该事务：取消或交接失败时不提前清理剩余内容与装载状态，整舱成功放出后才清理装载组。
-  Added a “Let our personnel leave the vehicle” command to non-hostile EVAs, shuttles, and vanilla quest shuttles. In-bounds occupants use native container placement; out-of-bounds living occupants enter the recoverable space-drift chain after confirmation, while cargo and corpses require no warning. The native full-hold unload command now uses the same transaction and only clears loading state after the complete hold has been released successfully.
-
-@UTcurtain：建议给采矿激光加一个货箱底座，这真空岩自填充塞满了我的飞船空间
-- 已将采矿光束改为常规炮座：2×2 小型有一个专用槽，3×3 中型有两个专用槽，可安装采矿货箱或目标识别器。货箱复用原版储物、搬运、过滤与设置联动，默认低优先级、允许岩块并保存 8 堆；识别器用可合并 Gizmo 批量设置过滤。舰载与 EVA 采矿产物现共用同一输出入口，未识别材料从实际命中点以逐堆不同的速度和角度成为漂浮物。
-  Mining beams now use standard turret bases: the 2×2 model has one dedicated slot, while a new 3×3 model has two, accepting mining cargo boxes or target identifiers. Cargo boxes reuse native storage, hauling, filters, and linked settings, default to low priority, accept chunks, and hold eight stacks. Identifiers expose one mergeable batch-filter gizmo. Ship-mounted and EVA mining now share one output path, with rejected materials becoming drifting objects from the actual impact point with per-stack speed and angle variation.
-
-@UTcurtain：标准姿态-手动驾驶-挪动几下逆重飞船后发射-确认着陆区-切换手动驾驶-尝试移动和选择 。推进器正常发力，但此时我通过定位坐标发现自己根本无法移动，旋转时开始抽搐(角度倾斜和高频角度归正)，这个问题我通过新存档复现了。(之前那份评论是因为我开自动导航就开始抽搐，应该飞船的姿态判断问题)， 解决问题也不是切换驾驶台而是重新进行舱内/外作业按钮切换。
-- 已修复：战略降落图现标记为舱外作业图，首次真实出力会将飞船提取到独立飞行图；空轨道降落临时创建的玩家 Home 会在最后一艘船脱离且没有遗留人员、建筑、物品或在途运输后自动删除。
-  Fixed: strategic landing maps are now marked as orbital worksites, and first real thrust extracts the ship into an independent flight map. A temporary player Home created by landing on an empty orbital tile is automatically removed after the last ship departs when no pawns, buildings, items, or incoming transports remain.
-
-
-- 武器和护盾适配
-
 - 为跳帮艇被击毁时的乘员死亡补充明确通知。
   Add clear crew-death notifications when a boarding shuttle is destroyed.
-- 改善无人地图在原版世界地图和星区界面中的可发现性。
-  Improve discoverability of uncrewed maps on the vanilla world map and sector interface.
-- 继续验证并加固 Prefab、任务系统、地图归档与恢复流程。
-  Continue validating and hardening prefabs, the mission system, and map archiving and restoration.
-- 持续处理问题修复、性能优化与数值调整。
-  Continue bug fixing, performance optimization, and balance tuning.
+
+- 让特定装备的人员可以像当前的eva一样在太空移动
+  Allow personnel with designated equipment to move through space like current EVA units.
 
 ## 基于收集的用户反馈的正在排期的需求（排名不分先后）
 
@@ -53,6 +23,7 @@ This file records player-visible changes in released versions and the near-term 
 
 @亚空间魔丸丰川祥子（bilibili）：可以弄成对30以下的伤害免疫?（指毁伤效果）
 - 我搞完手头这些会考虑给个可以调的设置阈值，默认0
+- 不对，我得考虑点防……只让墙有这种特性？
 
 
 ## 一些俺寻思
@@ -60,17 +31,62 @@ This file records player-visible changes in released versions and the near-term 
 一些不在计划里，也不一定会做的突发灵感。但如果大家特别喜欢里面某些想法的话可以说一声，我会进一步进行实现成本调研，如果不会带来很多麻烦的话我会在推进计划的空档将其做出来
 
 - 缴获海盗通讯器，诱骗海盗货船到埋伏点
+  - 相同逻辑也可以做“盟友通讯器呼叫盟友飞船增援”的玩法
+- 在某些任务里搭乘盟友的跳帮艇，和十几个其他盟友跳帮艇一起进行饱和式跳帮
 
 ## 已完成 / Shipped
 
-### 0.1.1 — 2026-11-23
+### 0.1.1 — 2026-11-24
 
-- 右下角新增真实地图船体渲染开关。开启后，RimExodus Framework 通过源地图的原版绘制流程渲染非聚焦船体，显示完整建筑与地图内容；默认关闭，可随时切回 Delta-V 自定义船壳。
+#### 核心开发路线进度
+
+- 提供了自动为原版甚至其他mod炮塔添加太空战能力的功能。同时提供了一个“自动适配”设置页，玩家可以手动启用其中被视为“可能引发问题，所以不默认添加太空战能力”的其他炮塔的适配。
+  Added automatic space-combat support for vanilla and third-party turrets. A new “Automatic adaptation” settings page lets players manually enable turrets that are supported but not enabled by default because they may cause compatibility issues.
+  - 其适配原则是基本上是：尽量保持其原本特性的同时，将其映射为现有速射炮、重炮、激光炮的变种。比如原版的铀弹加农炮就会因为单发射击被归类为重炮，自动加农炮被归类为速射炮。
+    The adapter preserves each source weapon's character as closely as possible while mapping it to a rapid-fire gun, heavy gun, or laser variant. For example, the vanilla uranium slug turret becomes a heavy gun because it fires single shots, while the autocannon becomes a rapid-fire gun.
+  - 有些mod（比如联合重工、天工铸造）基本上重新搓了武器系统的底层管理，以至于本mod无法将其大部分炮塔识别为炮塔，目前没有额外适配计划
+    Some mods, such as United Heavy Industries and Tiangong Foundry, substantially replace the underlying weapon-management system, so Delta-V cannot recognize most of their turrets as ordinary turrets. There are currently no plans for mod-specific adapters.
+  - 有些mod（比如墨诺灵）的一些炮塔可能会因为添加了额外的弹仓而产生预期之外的行为导致错误（比如墨诺灵的一些炮塔会在弹仓为空时尝试绘制“缺乏弹药”的变种贴图，但是其在被适配前本身就没有弹仓也没有相应贴图，然后就会报错）
+    Some turrets from other mods, such as Monolyn, may behave unexpectedly when an additional magazine is attached. For example, a turret may try to draw a “no ammunition” texture when the new magazine is empty even though the original turret had neither a magazine nor that texture, resulting in an error.
+
+#### 自发常规机制打磨
+
+
+- 右下角新增真实地图船体渲染开关。开启后，RimExodus Framework 通过源地图的原版绘制流程渲染非聚焦船体，显示完整建筑与地图内容；默认关闭，可随时切回 Delta-V 自定义船壳。（是的，甚至IsoRim都可以！只是注意把IsoRim放在mod list里本mod下面，否则其似乎会覆盖本mod的一些绘制逻辑导致出现奇怪的阴影……虽然放下面也会出现奇怪的影子，但是总归比放上面影子少。目前暂时没有进一步兼容的计划，但如果有人真的很在意这个，可以在评论区呼唤这个影子的兼容）
   Added a bottom-right native map shell rendering toggle. When enabled, RimExodus Framework renders non-focused ships through each source map's vanilla draw path, showing complete buildings and map contents; it is off by default and can be switched back to the Delta-V custom shell at any time.
-- 真实地图渲染模式继续保留 Delta-V 的散落物、宇宙弹体、坐标网格和推进器表现层，不重复提交自定义船壳。
-  Native map rendering retains Delta-V's loose-object, space-projectile, coordinate-grid, and thruster presentation layers without submitting a duplicate custom shell.
-- 修复 IsoRim 3D 视图在中键拖拽后重新限制 Delta-V 太空图摄像机范围的问题；普通地图继续保留 IsoRim 的原边界限制。
-  Fixed IsoRim 3D middle-button dragging reapplying the camera clamp on Delta-V space maps; ordinary maps retain IsoRim's original boundary.
+  - 修复 IsoRim 3D 视图在中键拖拽后重新限制 Delta-V 太空图摄像机范围的问题；普通地图继续保留 IsoRim 的原边界限制。
+    Fixed IsoRim 3D middle-button dragging reapplying the camera clamp on Delta-V space maps; ordinary maps retain IsoRim's original boundary.
+
+- 修复从星区内口袋图或同地址的其他地图发射时，误将星区对应 POI 当作出发图并摧毁的问题；现在只有实际出发的同一张世界地图会进入放弃流程。
+  Fixed launches from pocket maps or other maps at the same sector address incorrectly treating and destroying the sector POI as the departure map; only the actual source world map can now be abandoned.
+
+- 修复点击原版星球地图的玩家飞船剪影后遗留世界拖拽状态的问题。玩家剪影现在只显示己方飞船；屏幕位置重叠时合并为带数量的代表剪影，点击后可从菜单选择具体飞船。
+  Fixed clicking a player-ship silhouette on the vanilla world map leaving world dragging active. Player silhouettes now show only player-owned ships and merge overlapping markers into a counted representative with a ship-selection menu.
+
+- 修复自定义船壳在实体屋顶、月池力场和第三方建筑屋顶交界处错误绘制破口的问题；相邻建筑屋顶现在保持连续，墙、门和气密建筑仍遮住真实屋顶终止边。
+  Fixed custom ship shells drawing false breaches where solid roofs, moon-pool force fields, and third-party constructed roofs meet. Adjacent constructed roofs now stay continuous, while walls, doors, and airtight buildings still cover genuine roof ends.
+
+- 修复逆重飞船搬运通过原始屋顶清除入口时未刷新船体结构缓存的问题；月池上的普通船顶移除后会立即恢复力场顶。
+  Fixed gravship transfer through the native roof-removal path leaving the ship structure cache stale; removing an ordinary roof over a moon pool now immediately restores its force-field roof.
+
+#### 用户反馈解决
+
+@@UTcurtain：加重一下开门引导。在新手教程开局试了好几次，一直在怼通讯台，打开任何和定位任务都摁过检查过，太空站进去过钢铁也捡过，最后发现是按征召右边的太空生存指导来推进任务。(:steamfacepalm:)
+- 把教程引导统一做到了通讯台的星界边境派系交互里，会在第一次与星界边境交互时在通讯台掉落一个附件类型的便携通讯器，装备通讯器的人员可以直接等价于用通讯台呼叫星界边境，以此让喜欢之前交互模式的玩家也能借此继续用之前的交互模式。
+  Consolidated the tutorial guidance into the Astral Frontier interaction at the comms console. The first contact now drops an accessory-style portable communicator; a pawn wearing it can contact Astral Frontier as if using the console, preserving the previous interaction style for players who prefer it.
+
+@UTcurtain：全部做到通讯台肯定没问题，这方面的话金鸢尾兰鼠族做的就不错。(也有个交流平台可以直接揣怀里打电话。)我现在在开局的太空站里，卡在了可以右键交互的EVA工程套装，进得去出不来。也能随便拿空间站仓库的各种物资。
+- 已为非敌对 EVA、小艇和原版任务穿梭机补充「让己方人员离开载具」命令。图内按原版容器规则下车，单格飞行图等图外舱口会在确认后将活体乘员交给可牵引的太空漂流物链；货物和尸体无需确认。原版整舱「卸载」也复用该事务：取消或交接失败时不提前清理剩余内容与装载状态，整舱成功放出后才清理装载组。
+  Added a “Let our personnel leave the vehicle” command to non-hostile EVAs, shuttles, and vanilla quest shuttles. In-bounds occupants use native container placement; out-of-bounds living occupants enter the recoverable space-drift chain after confirmation, while cargo and corpses require no warning. The native full-hold unload command now uses the same transaction and only clears loading state after the complete hold has been released successfully.
+
+@UTcurtain：建议给采矿激光加一个货箱底座，这真空岩自填充塞满了我的飞船空间
+- 已将采矿光束改为常规炮座：2×2 小型有一个专用槽，新增的 3×3 中型有两个专用槽，可安装采矿货箱或目标识别器。货箱可以暂存 8 堆采矿产物，满了之后仍会将采矿产物放在采矿光束附近的地上；识别器可以给采矿光束设置采矿产物过滤，不符合过滤条件的产物会被留在太空，不被采矿光束自动吸到船上。
+  Mining beams now use standard turret bases: the 2×2 small model has one dedicated slot, while the new 3×3 medium model has two. Each slot accepts either a mining cargo box or a target identifier. A cargo box stores eight stacks of mined material; excess output is placed on the ground near the beam. The identifier adds an output filter, leaving rejected materials in space instead of automatically bringing them aboard.
+
+@UTcurtain：标准姿态-手动驾驶-挪动几下逆重飞船后发射-确认着陆区-切换手动驾驶-尝试移动和选择 。推进器正常发力，但此时我通过定位坐标发现自己根本无法移动，旋转时开始抽搐(角度倾斜和高频角度归正)，这个问题我通过新存档复现了。(之前那份评论是因为我开自动导航就开始抽搐，应该飞船的姿态判断问题)， 解决问题也不是切换驾驶台而是重新进行舱内/外作业按钮切换。
+- 已修复：战略降落图现标记为舱外作业图，首次真实出力会将飞船提取到独立飞行图；空轨道降落临时创建的玩家 Home 会在最后一艘船脱离且没有遗留人员、建筑、物品或在途运输后自动删除。
+  Fixed: strategic landing maps are now marked as orbital worksites, and first real thrust extracts the ship into an independent flight map. A temporary player Home created by landing on an empty orbital tile is automatically removed after the last ship departs when no pawns, buildings, items, or incoming transports remain.
+
 
 ### 0.1.0 — Alpha 初次发布 / Initial alpha release
 

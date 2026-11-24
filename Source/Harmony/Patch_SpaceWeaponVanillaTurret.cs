@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Reflection;
 using HarmonyLib;
 using RimWorld;
 using Verse;
@@ -5,6 +7,31 @@ using UnityEngine;
 
 namespace DeltaV
 {
+    internal static class AutoSpaceWeaponTurretPatchTargets
+    {
+        internal static IEnumerable<MethodBase> DeclaredMethods(string name)
+        {
+            MethodInfo root = AccessTools.DeclaredMethod(typeof(Building_TurretGun), name);
+            if (root != null) yield return root;
+            foreach (System.Type type in typeof(Building_TurretGun).AllSubclasses())
+            {
+                MethodInfo method = AccessTools.DeclaredMethod(type, name);
+                if (method != null) yield return method;
+            }
+        }
+
+        internal static IEnumerable<MethodBase> DeclaredGetters(string name)
+        {
+            MethodInfo root = AccessTools.DeclaredPropertyGetter(typeof(Building_TurretGun), name);
+            if (root != null) yield return root;
+            foreach (System.Type type in typeof(Building_TurretGun).AllSubclasses())
+            {
+                MethodInfo method = AccessTools.DeclaredPropertyGetter(type, name);
+                if (method != null) yield return method;
+            }
+        }
+    }
+
     // RimWorld 1.6 TurretTop.DrawTurret already accepts a visual recoil offset.
     [HarmonyPatch(typeof(TurretTop), nameof(TurretTop.DrawTurret))]
     public static class Patch_TurretTop_SpaceWeaponRecoil
@@ -29,6 +56,10 @@ namespace DeltaV
             CompSpaceWeaponTraverse traverse =
                 (___parentTurret as ThingWithComps)?.TryGetComp<CompSpaceWeaponTraverse>();
             if (traverse == null) return true;
+            if (___parentTurret is Building_TurretGun generated
+                && AutoSpaceWeaponTurretBridge.IsAdapted(generated)
+                && generated.TryGetComp<CompSpaceWeapon>()?.GroundModeEnabled == true)
+                return true;
             LocalTargetInfo target = ___parentTurret.CurrentTarget;
             if (target.IsValid)
             {
@@ -38,11 +69,16 @@ namespace DeltaV
         }
     }
 
-    [HarmonyPatch(typeof(Building_TurretGun), "BeginBurst")]
+    [HarmonyPatch]
     public static class Patch_BuildingTurretGun_SpaceWeaponAlignment
     {
+        public static IEnumerable<MethodBase> TargetMethods() =>
+            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods("BeginBurst");
+
         public static bool Prefix(Building_TurretGun __instance)
         {
+            if (AutoSpaceWeaponTurretBridge.IsAdapted(__instance))
+                return !AutoSpaceWeaponTurretBridge.SpaceMode(__instance);
             CompSpaceWeaponTraverse traverse = __instance.TryGetComp<CompSpaceWeaponTraverse>();
             if (traverse == null || !__instance.CurrentTarget.IsValid) return true;
             float angle = CompSpaceWeaponTraverse.MapAngleTo(__instance.CurrentTarget, __instance);
@@ -50,6 +86,77 @@ namespace DeltaV
             CompSpaceWeapon weapon = __instance.TryGetComp<CompSpaceWeapon>();
             float tolerance = weapon?.fireDeviationDeg ?? traverse.TraverseProps.fireToleranceDeg;
             return SpaceWeaponGeometry.WithinFireDeviation(angle, traverse.CurrentAngle, tolerance);
+        }
+    }
+
+    [HarmonyPatch]
+    public static class Patch_BuildingTurretGun_AutoSpaceTargetSearch
+    {
+        public static IEnumerable<MethodBase> TargetMethods() =>
+            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods(nameof(Building_TurretGun.TryFindNewTarget));
+
+        public static bool Prefix(Building_TurretGun __instance, ref LocalTargetInfo __result)
+        {
+            if (!AutoSpaceWeaponTurretBridge.SpaceMode(__instance)) return true;
+            __result = LocalTargetInfo.Invalid;
+            return false;
+        }
+    }
+
+    [HarmonyPatch]
+    public static class Patch_BuildingTurretGun_AutoSpaceForcedTarget
+    {
+        public static IEnumerable<MethodBase> TargetMethods() =>
+            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods(nameof(Building_TurretGun.OrderAttack));
+
+        public static bool Prefix(Building_TurretGun __instance, LocalTargetInfo targ) =>
+            !AutoSpaceWeaponTurretBridge.SpaceMode(__instance) || !targ.IsValid;
+    }
+
+    [HarmonyPatch]
+    public static class Patch_BuildingTurretGun_AutoSpaceCanForceTarget
+    {
+        public static IEnumerable<MethodBase> TargetMethods() =>
+            AutoSpaceWeaponTurretPatchTargets.DeclaredGetters("CanSetForcedTarget");
+
+        public static void Postfix(Building_TurretGun __instance, ref bool __result)
+        {
+            if (AutoSpaceWeaponTurretBridge.SpaceMode(__instance)) __result = false;
+        }
+    }
+
+    [HarmonyPatch]
+    public static class Patch_BuildingTurretGun_AutoSpaceHideForceTarget
+    {
+        public static IEnumerable<MethodBase> TargetMethods() =>
+            AutoSpaceWeaponTurretPatchTargets.DeclaredGetters("HideForceTargetGizmo");
+
+        public static void Postfix(Building_TurretGun __instance, ref bool __result)
+        {
+            if (AutoSpaceWeaponTurretBridge.SpaceMode(__instance)) __result = true;
+        }
+    }
+
+    [HarmonyPatch]
+    public static class Patch_BuildingTurretGun_AutoSpaceGizmos
+    {
+        public static IEnumerable<MethodBase> TargetMethods() =>
+            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods(nameof(Building_TurretGun.GetGizmos));
+
+        public static void Postfix(Building_TurretGun __instance, ref IEnumerable<Gizmo> __result)
+        {
+            if (AutoSpaceWeaponTurretBridge.SpaceMode(__instance))
+                __result = WithoutVanillaHoldFire(__result);
+        }
+
+        private static IEnumerable<Gizmo> WithoutVanillaHoldFire(IEnumerable<Gizmo> gizmos)
+        {
+            foreach (Gizmo gizmo in gizmos)
+            {
+                if (gizmo is Command_Toggle toggle
+                    && toggle.defaultLabel == "CommandHoldFire".Translate()) continue;
+                yield return gizmo;
+            }
         }
     }
 
@@ -61,6 +168,9 @@ namespace DeltaV
         {
             if (acc.HasValue || caster is not ThingWithComps comps) return true;
             CompSpaceWeapon weapon = comps.TryGetComp<CompSpaceWeapon>();
+            if (caster is Building_TurretGun turret
+                && AutoSpaceWeaponTurretBridge.IsAdapted(turret)
+                && weapon?.GroundModeEnabled == true) return true;
             if (weapon?.Mannable == null || !weapon.TryGetSkillLevel(out int skill)) return true;
             float equivalentAccuracy = UnityEngine.Mathf.Lerp(0.80f, 0.99f,
                 UnityEngine.Mathf.Clamp01(skill / 20f));

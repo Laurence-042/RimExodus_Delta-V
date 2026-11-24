@@ -250,8 +250,47 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SettingsTabPhysics>Physics</DeltaV_SettingsTabPhysics>
   <DeltaV_SettingsTabWorld>World</DeltaV_SettingsTabWorld>
   <DeltaV_SettingsTabGeneration>Generation</DeltaV_SettingsTabGeneration>
+  <DeltaV_SettingsTabAutoWeapons>Auto-adaptation</DeltaV_SettingsTabAutoWeapons>
   <DeltaV_SettingsTabLogging>Logging</DeltaV_SettingsTabLogging>
   <DeltaV_SettingsTabDevelopment>Development</DeltaV_SettingsTabDevelopment>
+  <DeltaV_AutoWeaponRestartNotice>Automatic adaptation reads final turret, verb, and projectile defs. Changes take effect after restarting the game. Recommended mode enables only weapons without structural risk warnings.</DeltaV_AutoWeaponRestartNotice>
+  <DeltaV_AutoAdaptationExport>Export adaptation report</DeltaV_AutoAdaptationExport>
+  <DeltaV_AutoAdaptationExportTip>The local report includes paths for every loaded mod, weapon support and conversion results, plus observed shield parameters. It is not uploaded.</DeltaV_AutoAdaptationExportTip>
+  <DeltaV_AutoAdaptationExported>Exported automatic adaptation report: {0}</DeltaV_AutoAdaptationExported>
+  <DeltaV_AutoAdaptationExportFailed>Could not export the automatic adaptation report: {0}</DeltaV_AutoAdaptationExportFailed>
+  <DeltaV_AutoWeaponSearch>Search</DeltaV_AutoWeaponSearch>
+  <DeltaV_AutoWeaponNoCandidates>No automatic turret candidates match the search.</DeltaV_AutoWeaponNoCandidates>
+  <DeltaV_AutoWeaponModPolicyRecommended>Recommended</DeltaV_AutoWeaponModPolicyRecommended>
+  <DeltaV_AutoWeaponModPolicyEnableAll>Enable all</DeltaV_AutoWeaponModPolicyEnableAll>
+  <DeltaV_AutoWeaponModPolicyDisableAll>Disable all</DeltaV_AutoWeaponModPolicyDisableAll>
+  <DeltaV_AutoWeaponOverrideInherit>Inherit mod setting</DeltaV_AutoWeaponOverrideInherit>
+  <DeltaV_AutoWeaponOverrideEnabled>Enable weapon</DeltaV_AutoWeaponOverrideEnabled>
+  <DeltaV_AutoWeaponOverrideDisabled>Disable weapon</DeltaV_AutoWeaponOverrideDisabled>
+  <DeltaV_AutoWeaponEffectiveEnabled>Enabled next restart</DeltaV_AutoWeaponEffectiveEnabled>
+  <DeltaV_AutoWeaponEffectiveDisabled>Disabled next restart</DeltaV_AutoWeaponEffectiveDisabled>
+  <DeltaV_AutoWeaponFamilyAuto>Unclassified</DeltaV_AutoWeaponFamilyAuto>
+  <DeltaV_AutoWeaponFamilyRapid>Rapid cannon</DeltaV_AutoWeaponFamilyRapid>
+  <DeltaV_AutoWeaponFamilyHeavy>Heavy cannon</DeltaV_AutoWeaponFamilyHeavy>
+  <DeltaV_AutoWeaponFamilyLaser>Laser cannon</DeltaV_AutoWeaponFamilyLaser>
+  <DeltaV_AutoWeaponWarnings>Warnings: {0}</DeltaV_AutoWeaponWarnings>
+  <DeltaV_AutoWeaponWarningCustomVerb>non-standard verb</DeltaV_AutoWeaponWarningCustomVerb>
+  <DeltaV_AutoWeaponWarningExplosiveProjectile>explosion mapped from per-shot damage</DeltaV_AutoWeaponWarningExplosiveProjectile>
+  <DeltaV_AutoWeaponWarningFlyOverhead>overhead projectile mapped as direct fire</DeltaV_AutoWeaponWarningFlyOverhead>
+  <DeltaV_AutoWeaponWarningExternalResourceTransaction>source uses a special resource transaction</DeltaV_AutoWeaponWarningExternalResourceTransaction>
+  <DeltaV_AutoWeaponWarningThirdPartyMechanics>third-party runtime mechanics present</DeltaV_AutoWeaponWarningThirdPartyMechanics>
+  <DeltaV_AutoWeaponWarningMortarBarrel>barrel durability excluded from magazine</DeltaV_AutoWeaponWarningMortarBarrel>
+  <DeltaV_AutoWeaponRejected>Unsupported: {0}</DeltaV_AutoWeaponRejected>
+  <DeltaV_AutoWeaponRejectionDisabled>explicitly disabled by its def</DeltaV_AutoWeaponRejectionDisabled>
+  <DeltaV_AutoWeaponRejectionNotTurret>not an automatic turret</DeltaV_AutoWeaponRejectionNotTurret>
+  <DeltaV_AutoWeaponRejectionExistingSpaceWeapon>already has space-weapon support</DeltaV_AutoWeaponRejectionExistingSpaceWeapon>
+  <DeltaV_AutoWeaponRejectionMissingGun>missing turret gun def</DeltaV_AutoWeaponRejectionMissingGun>
+  <DeltaV_AutoWeaponRejectionAmbiguousVerb>cannot identify one firing verb</DeltaV_AutoWeaponRejectionAmbiguousVerb>
+  <DeltaV_AutoWeaponRejectionMissingProjectile>missing projectile def</DeltaV_AutoWeaponRejectionMissingProjectile>
+  <DeltaV_AutoWeaponRejectionUnsupportedVerb>invalid verb definition</DeltaV_AutoWeaponRejectionUnsupportedVerb>
+  <DeltaV_AutoWeaponRejectionUnsupportedProjectile>projectile has no convertible damage</DeltaV_AutoWeaponRejectionUnsupportedProjectile>
+  <DeltaV_AutoWeaponRejectionUnsupportedDamage>damage is not sharp, blunt, or heat</DeltaV_AutoWeaponRejectionUnsupportedDamage>
+  <DeltaV_AutoWeaponRejectionSpecialResourceTransaction>special resource transaction cannot be converted</DeltaV_AutoWeaponRejectionSpecialResourceTransaction>
+  <DeltaV_AutoWeaponRejectionInvalidNumbers>invalid damage or firing-cycle values</DeltaV_AutoWeaponRejectionInvalidNumbers>
   <DeltaV_SettingsKeysHint>Key bindings: open Options → Controls → Key bindings and find Delta-V piloting to change flight, fire control and moving-reference keys.</DeltaV_SettingsKeysHint>
 
   <!-- Settings: sector generation table -->

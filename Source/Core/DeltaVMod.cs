@@ -63,6 +63,7 @@ namespace DeltaV
             Physics,
             World,
             Generation,
+            AutoWeapons,
             Logging,
             Development
         }
@@ -87,6 +88,8 @@ namespace DeltaV
                     () => settingsTab = SettingsTab.World, settingsTab == SettingsTab.World),
                 new TabRecord("DeltaV_SettingsTabGeneration".Translate(),
                     () => settingsTab = SettingsTab.Generation, settingsTab == SettingsTab.Generation),
+                new TabRecord("DeltaV_SettingsTabAutoWeapons".Translate(),
+                    () => settingsTab = SettingsTab.AutoWeapons, settingsTab == SettingsTab.AutoWeapons),
                 new TabRecord("DeltaV_SettingsTabLogging".Translate(),
                     () => settingsTab = SettingsTab.Logging, settingsTab == SettingsTab.Logging),
                 new TabRecord("DeltaV_SettingsTabDevelopment".Translate(),
@@ -110,6 +113,9 @@ namespace DeltaV
                     break;
                 case SettingsTab.Generation:
                     SectorSettingsUI.Draw(content, Settings);
+                    break;
+                case SettingsTab.AutoWeapons:
+                    AutoSpaceWeaponSettingsUI.Draw(content, Settings);
                     break;
                 case SettingsTab.Logging:
                     DrawLoggingTab(content);

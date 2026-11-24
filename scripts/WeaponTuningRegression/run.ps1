@@ -1,4 +1,4 @@
-param([string]$GameRoot = 'D:/SteamLibrary/steamapps/common/RimWorld', [string]$DeltaVAssembly, [switch]$OutputAudit, [switch]$ShieldDurationAudit, [switch]$ThermalBalanceAudit, [switch]$RoleBalanceAudit, [switch]$EnergyImpulseAudit)
+param([string]$GameRoot = 'D:/SteamLibrary/steamapps/common/RimWorld', [string]$DeltaVAssembly, [switch]$OutputAudit, [switch]$ShieldDurationAudit, [switch]$ThermalBalanceAudit, [switch]$RoleBalanceAudit, [switch]$EnergyImpulseAudit, [switch]$AutoWeaponAdaptationAudit)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
 if (!$DeltaVAssembly) { $DeltaVAssembly = "$repo/1.7/Assemblies/DeltaV.dll" }
@@ -15,11 +15,19 @@ foreach ($path in @("$GameRoot/Assembly-CSharp.dll", "$GameRoot/UnityStubs.dll",
     $lines += '/r:"' + $path + '"'
 }
 $lines += Get-ChildItem $PSScriptRoot -Filter "*.cs" | ForEach-Object { '"' + $_.FullName + '"' }
+if ($AutoWeaponAdaptationAudit) {
+    # Audit the pure production resolver and the local report schema directly while impact physics comes from DeltaV.dll.
+    $lines += '/nowarn:0436'
+    $lines += '"' + (Join-Path $repo 'Source/Compatibility/AutoSpaceWeaponProfile.cs') + '"'
+    $lines += '"' + (Join-Path $repo 'Source/Compatibility/AutoSpaceWeaponPolicy.cs') + '"'
+}
 $lines | Set-Content -LiteralPath "$out/build.rsp"
 & $dotnet "$($sdk.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 '{"runtimeOptions":{"tfm":"net10.0","framework":{"name":"Microsoft.NETCore.App","version":"10.0.0"}}}' | Set-Content -LiteralPath "$out/WeaponTuningRegression.runtimeconfig.json"
-if ($EnergyImpulseAudit) {
+if ($AutoWeaponAdaptationAudit) {
+    & $dotnet "$out/WeaponTuningRegression.dll" $GameRoot $repo --auto-weapon-adaptation-audit
+} elseif ($EnergyImpulseAudit) {
     & $dotnet "$out/WeaponTuningRegression.dll" $GameRoot $repo --energy-impulse-audit
 } elseif ($RoleBalanceAudit) {
     & $dotnet "$out/WeaponTuningRegression.dll" $GameRoot $repo --role-balance-audit

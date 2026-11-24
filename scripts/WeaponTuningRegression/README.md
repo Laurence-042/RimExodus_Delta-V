@@ -5,11 +5,14 @@
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/WeaponTuningRegression/run.ps1
 powershell -ExecutionPolicy Bypass -File scripts/WeaponTuningRegression/run.ps1 -OutputAudit
+powershell -ExecutionPolicy Bypass -File scripts/WeaponTuningRegression/run.ps1 -AutoWeaponAdaptationAudit
 ```
 
-当前普通回归通过 1,754 项检查；侧向冲量矩阵包含 8 种质量、7 个入射角、6 档强度、普通／长杆阈值及共同旋转。检查实际失稳弹 Def 的结构、基架和守卫后效。2026-11-07 合并双型号后，RailgunRegression 通过 271 项检查，覆盖真实碰撞、能源、跨 tick 续飞、翻滚后二次撕裂及质量／剩余寿命，并逐一验证回收插件只接受加速段、拒绝其他九种武器宿主，以及统一 3×1 部件组成的十格长炮 5000 预算经过三台满守卫后的装甲余量及第四台截停。
+当前普通回归通过 1,840 项检查；侧向冲量矩阵包含 8 种质量、7 个入射角、6 档强度、普通／长杆阈值及共同旋转。检查实际失稳弹 Def 的结构、基架和守卫后效。2026-11-07 合并双型号后，RailgunRegression 通过 271 项检查，覆盖真实碰撞、能源、跨 tick 续飞、翻滚后二次撕裂及质量／剩余寿命，并逐一验证回收插件只接受加速段、拒绝其他九种武器宿主，以及统一 3×1 部件组成的十格长炮 5000 预算经过三台满守卫后的装甲余量及第四台截停。
 
 `-OutputAudit` 扫描 20,592 个生产武器配置与 352 个守卫场景，输出 `Source/obj/WeaponTuningRegression/output-audit.json`。它运行生产热循环、毁伤和守卫扣容／回充，不模拟真实瞄准、双向机动、补给工作或完整电网。冷炮、初始库存、应急、供能和终点均在输出中声明。
+
+`-AutoWeaponAdaptationAudit` 是原版／Mod 炮塔自动适配的纯推导审计。它直接编译生产解析器与策略层，并通过当前 Delta-V DLL 验证自动适配报告 schema，从仓库中的 RimWorld 参考 XML 读取 Mini-turret、Autocannon 与 Uranium slug 三座真实炮塔；合成夹具包括仅提供手持激光公式输入的 Odyssey Beam repeater、“100 伤害、20 连射、3 秒休止”的极端速射、“1200 伤害、1000% AP、300 速度”的不可达性能请求，以及“18 连射、2 tick 间隔、爆炸弹体”的非标准喷射。实际毁伤调用生产命中效果反解整数弹头与装药。源完整 burst 周期按 `(N-1)×连射间隔 + Verb 瞄准 + 炮塔平均瞄准 + burst 后冷却` 计算，Mini、Autocannon、Uranium slug 必须分别为 `326/274/222 tick`；15-tick 自动索敌哈希不属于武器硬件。来源严格取最终顺序的第一个 `CompRefuelable`，同时覆盖逐发、逐 burst、混合消费与不足整轮的末尾射击，`fuelIsMortarBarrel` 不改变支持发数；三座原版炮塔仍分别生成 `60/60、180/360、720/720` 的固定 `M/C` 仓容。不可达夹具必须在反解前限于高爆与穿深生产上界的 95%，得到 `283/89 C/M` 且不触发安全搜索限制。没有可测有限资源的来源才用面积／完整目标 burst 兜底。审计还覆盖推荐／全开／全关、逐武器覆盖、硬拒绝不可覆盖和 packageId 键规范化，并验证 schema 2 报告包含零候选 Mod、本地绝对路径、来源资源参数、性能请求／限幅／实际值、当前配置／启动决定／实际注入三种独立状态、真实解析 profile、逐 Mod 汇总及只读护盾候选统计。结果写入 `Source/obj/WeaponTuningRegression/auto-space-weapon-audit.json`；速射按完整热循环守恒，重炮先按面积与源装药吞吐解析散热硬件，再由 `ceil(Hshot*60/Cooling)` 导出每发清热间隔。该入口不启动游戏，也不模拟 Harmony、实际 implied Def 加载、地图补给、外壳绘制或护盾碰撞；这些由构建、后续护盾实施和游戏内验收覆盖。JSON 是生成物，不提交。
 
 ## 历史分析工具与快照
 

@@ -25,7 +25,8 @@ internal static partial class Program
         };
         try {
             Run(args[1]); Console.WriteLine($"PASS {checks} weapon checks");
-            if (args.Contains("--energy-impulse-audit")) RunEnergyImpulseAudit(args[1], RunOutputAudit(args[1]));
+            if (args.Contains("--auto-weapon-adaptation-audit")) RunAutoWeaponAdaptationAudit(args[1]);
+            else if (args.Contains("--energy-impulse-audit")) RunEnergyImpulseAudit(args[1], RunOutputAudit(args[1]));
             else if (args.Contains("--role-balance-audit")) RunRoleBalanceAudit(args[1], RunOutputAudit(args[1]));
             else if (args.Contains("--thermal-balance-audit")) RunThermalBalanceAudit(args[1], RunOutputAudit(args[1]));
             else if (args.Contains("--shield-duration-audit")) RunShieldDurationAudit(args[1], RunOutputAudit(args[1]));
