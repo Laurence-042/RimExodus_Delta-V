@@ -15,6 +15,10 @@ This file records player-visible changes in released versions and the near-term 
 
 ### 用户反馈解决 / User feedback resolved
 
+@老耗子比你萌：在地面补给后发射去太空，起飞结束时当前地图索引越界，随后 Vulkan 崩溃。
+- 修复移除当前地图时原版选中 Delta-V 内部宿主图，焦点门禁中断 setter 并遗留越界地图索引的问题。宿主图请求现在统一顺延到下一张可聚焦地图；没有可聚焦地图时清空当前地图，由原版进入世界视图。
+  Fixed removing the current map selecting Delta-V's internal host map, where the focus guard interrupted the setter and left an out-of-range map index. Host-map requests now advance to the next focusable map, or clear the current map when none remains so the native flow can enter the world view.
+
 @寒月融雪（bilibili）：为什么逆重飞船会显示无法到达地面？因为我有一些其他MOD需要到地表上触发/接取（幻想乡物流沃芬“社长”到来事件，米莉拉坠机魔法少女，超凡斯安威斯坦空投）
 - 修复从 Delta-V 自由飞行口袋图启动逆重引擎时，地面目的地显示无法到达并因无效 tile 循环报错的问题。即使所在星区没有 POI，或先前降落产生的地图已经被抛弃，也会从飞船当前宇宙位姿对应的星区正常选择目的地；同时修复降落到普通地表后的收尾空引用。
   Fixed surface destinations appearing unreachable and repeatedly logging invalid-tile errors when launching a gravship from a Delta-V free-flight pocket map. Destination selection now uses the ship's current sector even when that sector has no POI or its previous landing map was abandoned, and landing cleanup on ordinary surface maps no longer throws a null-reference error.

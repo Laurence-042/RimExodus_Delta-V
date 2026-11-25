@@ -15,15 +15,25 @@ namespace DeltaV
             return index >= 0 && index < game.Maps.Count ? game.Maps[index] : null;
         }
 
-        private static bool Prefix(Game __instance, Map value)
+        private static Map NextFocusableMap(Game game, Map requested)
+        {
+            int count = game?.Maps.Count ?? 0;
+            int requestedIndex = game?.Maps.IndexOf(requested) ?? -1;
+            if (requestedIndex < 0) return null;
+            for (int offset = 1; offset <= count; offset++)
+            {
+                Map candidate = game.Maps[(requestedIndex + offset) % count];
+                if (!SpaceMapStateManager.IsUniverseHost(candidate)) return candidate;
+            }
+            return null;
+        }
+
+        private static bool Prefix(Game __instance, ref Map value)
         {
             // 原版删图时先移除旧图，后调用此 setter。旧索引此时可能越界。
             if (value != null && !__instance.Maps.Contains(value)) return true;
             if (value != null && SpaceMapStateManager.IsUniverseHost(value))
-            {
-                Log.Warning("[DeltaV] Blocked an attempt to focus the universe host pocket map.");
-                return false;
-            }
+                value = NextFocusableMap(__instance, value);
 
             UniverseManager universe = __instance.GetComponent<UniverseManager>();
             if (value != null)

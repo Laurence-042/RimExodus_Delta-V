@@ -85,9 +85,9 @@ internal static partial class Program
         CheckSoftDockReference(universe);
         CheckStrategicLandingWorksite(universe);
         CheckOrbitalWork(universe);
+        CheckFocusedScatterAndMapSetter(universe);
         if (dockingOnly) return;
         CheckScatteredRetirement(universe);
-        CheckFocusedScatterAndMapSetter(universe);
         CheckTractorReceive(universe);
         CheckUndockHeading(universe);
     }
@@ -808,6 +808,10 @@ internal static partial class Program
         Type focusPatch = typeof(UniverseManager).Assembly.GetType("DeltaV.Patch_Game_CurrentMapFocus");
         var postfix = focusPatch.GetMethod("Postfix", Private);
         Map target = TestMap(49723);
+        Map fallback = TestMap(49724);
+        Map wrappedFallback = TestMap(49725);
+        Find.Maps.Remove(wrappedFallback);
+        Find.Maps.Insert(Find.Maps.IndexOf(target), wrappedFallback);
         var prefix = focusPatch.GetMethod("Prefix", Private);
         game.currentMapIndex = (sbyte)Find.Maps.Count;
         object[] args = { game, target };
@@ -817,14 +821,34 @@ internal static partial class Program
         args[1] = invalid;
         Check((bool)prefix.Invoke(null, args),
             "invalid target is left to vanilla without reading stale current map");
+
         target.info.parent = (UniverseHostParent_DeltaV)Raw(typeof(UniverseHostParent_DeltaV));
         args[1] = target;
-        Check(!(bool)prefix.Invoke(null, args) && game.currentMapIndex == Find.Maps.Count,
-            "host map is rejected without reading or changing the stale old index");
+        Check((bool)prefix.Invoke(null, args), "host map normalization continues through the vanilla setter");
+        Check(ReferenceEquals(args[1], fallback), "host map advances to the next focusable map");
+        Check(game.currentMapIndex == Find.Maps.Count,
+            "host map normalization does not read or change the stale old index");
+
+        MapParent[] parents = Find.Maps.Select(map => map.info.parent).ToArray();
+        var host = (UniverseHostParent_DeltaV)Raw(typeof(UniverseHostParent_DeltaV));
+        for (int i = 0; i < Find.Maps.Count; i++) Find.Maps[i].info.parent = host;
+        wrappedFallback.info.parent = parents[Find.Maps.IndexOf(wrappedFallback)];
+        args[1] = target;
+        Check((bool)prefix.Invoke(null, args) && ReferenceEquals(args[1], wrappedFallback),
+            "host map wraps to a focusable map earlier in the map list");
+
+        wrappedFallback.info.parent = host;
+        args[1] = target;
+        Check((bool)prefix.Invoke(null, args) && args[1] == null,
+            "host map resolves to null when no focusable map remains");
+        for (int i = 0; i < Find.Maps.Count; i++) Find.Maps[i].info.parent = parents[i];
+
         postfix.Invoke(null, new object[] { game });
         Check(game.currentMapIndex == Find.Maps.Count,
             "map setter postfix tolerates the out-of-range index without reading CurrentMap");
         game.currentMapIndex = -1;
+        Find.Maps.Remove(wrappedFallback);
+        Find.Maps.Remove(fallback);
         Find.Maps.Remove(target);
     }
 }
