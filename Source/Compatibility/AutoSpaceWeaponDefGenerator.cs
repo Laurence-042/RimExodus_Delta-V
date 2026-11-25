@@ -214,6 +214,7 @@ namespace DeltaV
                 range = profile.spaceRange,
                 minRange = profile.family == AutoSpaceWeaponFamily.Heavy ? 15f : 10f,
                 groundModeAvailable = true,
+                defaultEngagementMode = SpaceWeaponEngagementMode.Ground,
                 shotEnergy = profile.family == AutoSpaceWeaponFamily.Laser ? profile.laserShotEnergy : 0f,
                 impactScale = profile.family == AutoSpaceWeaponFamily.Laser
                     ? profile.laserBaseDamage / 8f : 1f,

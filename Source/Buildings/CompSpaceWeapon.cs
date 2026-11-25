@@ -91,6 +91,7 @@ namespace DeltaV
 
         /// <summary>是否允许在原版同图炮塔和跨容器弹道之间切换。</summary>
         public bool groundModeAvailable;
+        public SpaceWeaponEngagementMode defaultEngagementMode = SpaceWeaponEngagementMode.Space;
 
         /// <summary>逐发从本武器所在电网蓄电池提取的能量（W·d）；持续功耗仍由 CompPowerTrader 负责。</summary>
         public float shotEnergy;
@@ -207,7 +208,7 @@ namespace DeltaV
         public SpaceWeaponSalvoSet salvoSet = SpaceWeaponSalvoSet.Main;
         public int groupNumber = 1;
         public SpaceWeaponAimMode aimMode = SpaceWeaponAimMode.Volley;
-        public SpaceWeaponEngagementMode engagementMode = SpaceWeaponEngagementMode.Space;
+        public SpaceWeaponEngagementMode engagementMode;
         public bool safeFire = true;
         internal SpaceObjectTag pdTargets = SpaceObjectTag.Projectile | SpaceObjectTag.Shuttle;
         internal bool AcceptsPointDefenseTarget(SpaceObject target)
@@ -449,6 +450,7 @@ namespace DeltaV
         public override void Initialize(CompProperties properties)
         {
             base.Initialize(properties);
+            engagementMode = WeaponProps.defaultEngagementMode;
             pdTargets = WeaponProps.defaultPdTargets;
         }
 
@@ -476,7 +478,7 @@ namespace DeltaV
             }
             Universe?.Weapons?.RegisterWeapon(this);
             Universe?.Weapons?.QueuePower(this);
-            if (parent is Building_TurretGun turret
+            if (SpaceModeEnabled && parent is Building_TurretGun turret
                 && AutoSpaceWeaponTurretBridge.IsAdapted(turret))
                 AutoSpaceWeaponTurretBridge.NotifyEngagementModeChanged(this);
             if (respawningAfterLoad) return;
@@ -538,7 +540,7 @@ namespace DeltaV
             Scribe_Values.Look(ref salvoSet, "salvoSet", WeaponProps.defaultSalvoSet);
             Scribe_Values.Look(ref groupNumber, "groupNumber", WeaponProps.defaultGroupNumber);
             Scribe_Values.Look(ref aimMode, "aimMode", WeaponProps.aimMode);
-            Scribe_Values.Look(ref engagementMode, "engagementMode", SpaceWeaponEngagementMode.Space);
+            Scribe_Values.Look(ref engagementMode, "engagementMode", WeaponProps.defaultEngagementMode);
             Scribe_Values.Look(ref configurationInitialized, "configurationInitialized", true);
             Scribe_Values.Look(ref safeFire, "safeFire", true);
             Scribe_Values.Look(ref pdTargets, "pdTargets", WeaponProps.defaultPdTargets);
