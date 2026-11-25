@@ -24,14 +24,14 @@ You can even cut a section off an enemy station and tow it away with a tractor b
 
 [h1]What does it do?[/h1]
 
-Put simply, it treats a ship map as a “SpaceObject”, a container that can hold a set of structures moving together. RimExodus Framework, which matured during the development of RimExodus, renders multiple SpaceObjects in the same view so that ships are no longer confined to the map grid.
+A ship map becomes a “SpaceObject”, a container for structures that move together. RimExodus Framework matured during RimExodus development and now renders multiple SpaceObjects in one view, freeing ships from the map grid.
 
-[b]Space is limited here, so please see “开局、靠港与星区设置 / Getting Started, Docking, and Sector Settings” in Discussions for details. I strongly recommend reading it before playing. Some features can be hard to understand if you skip the starting tutorial.[/b]
+[b]Before playing, read “开局、靠港与星区设置 / Getting Started, Docking, and Sector Settings” in Discussions. Some features can be hard to understand if you skip the tutorial.[/b]
 
 [list]
 [*][b]Ships without grav engines[/b]: A pilot console and connected gravship substructure are enough to define a ship. Add thrusters and it can fly freely in space. Be warned that the small vanilla Odyssey ship with only two rear-facing thrusters will handle terribly here. Ship mass, center of mass, thruster placement, and cargo carried in Delta-V containers all affect handling.
 
-[*][b]Continuous ship combat[/b]: You now need to account for relative velocity, seek favorable firing positions, and attack weak points without exposing your own. You have a wide selection of weapons with distinct characteristics and three shield types with different mechanics. Some weapons can also take attachments that substantially change their performance and role. Every weapon has strengths and weaknesses, and impact angle matters. Even heavy armor-piercing rounds can ricochet if they strike too obliquely. See “舰炮、护盾与工程设备 / Ship Weapons, Shields, and Engineering Equipment” for details.
+[*][b]Continuous ship combat[/b]: Account for relative velocity, seek favorable firing positions, and hit weak points while protecting your own. Choose from a range of distinct weapons and three shield types with different mechanics. Attachments can substantially change some weapons’ performance and role. Every weapon has strengths and weaknesses, and even heavy armor-piercing rounds can ricochet at shallow angles. See “舰炮、护盾与工程设备 / Ship Weapons, Shields, and Engineering Equipment” for details.
 
 [img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/battle.jpg[/img]
 
@@ -60,7 +60,7 @@ Put simply, it treats a ship map as a “SpaceObject”, a container that can ho
 [b]Shipboard mining[/b]
 [img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/mining.jpg[/img]
 
-[h1]Mod compatibility[/h1]
+[h1]Mod compatibility and known limitations[/h1]
 
 In principle, the basic features should work with mods that do not alter space mechanics or store their own state on maps.
 
@@ -73,10 +73,6 @@ Recommended mode skipped many of the modded turrets shown above. I enabled them 
 
 [b]Two ships exchanging fire in IsoRim’s 3D view[/b]
 [img]https://raw.githubusercontent.com/Laurence-042/RimExodus_Delta-V/master/doc/promo/compat_isorim.png[/img]
-
-See “兼容性与已知限制 / Compatibility and Known Limitations” in Discussions for details.
-
-[h1]Known limitations[/h1]
 
 See “兼容性与已知限制 / Compatibility and Known Limitations” in Discussions for details.
 
