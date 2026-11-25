@@ -11,6 +11,7 @@ namespace DeltaV
         public ShipAimHandler(UniverseManager universe, ShipBase ship) { this.universe = universe; this.ship = ship; }
         public virtual void Aim(Vector2 mapPoint)
         {
+            ship.NotifyManualAim(mapPoint);
             SpaceObject container = universe.FrameOf(ship.Map);
             foreach (CompSpaceWeapon weapon in ship.Weapons)
                 if (weapon.Armed && weapon.SpaceModeEnabled && weapon.GroupActive)
@@ -23,28 +24,43 @@ namespace DeltaV
         public ArcadeShipAimHandler(UniverseManager universe, ShipBase ship) : base(universe, ship) { }
         public override void Aim(Vector2 mapPoint)
         {
-            base.Aim(mapPoint);
             SpaceObject container = universe.FrameOf(ship.Map);
-            if (!ship.CanDriveIn(container) || Find.TickManager.Paused) return;
             Thing body = ship.Anchor;
+            if (!ship.CanDriveIn(container) || Find.TickManager.Paused)
+            {
+                base.Aim(mapPoint);
+                return;
+            }
             Vector2 center = ship.HullCenter;
             Vector3 screenCenter = Find.Camera.WorldToScreenPoint(new Vector3(center.x, 0f, center.y));
             Vector3 screenTarget = Find.Camera.WorldToScreenPoint(new Vector3(mapPoint.x, 0f, mapPoint.y));
             Vector2 aim = new Vector2(screenTarget.x - screenCenter.x, screenTarget.y - screenCenter.y);
-            if (aim.sqrMagnitude < 0.0001f) return;
+            if (aim.sqrMagnitude < 0.0001f)
+            {
+                base.Aim(mapPoint);
+                return;
+            }
             Rot4 choice = SelectFacing(body.Rotation, aim, candidate =>
             {
                 Vector2 direction = SpaceTransform.Rotate(Vector2.right, ShipOrientation.AngleFromRot4(candidate));
                 Vector3 projected = Find.Camera.WorldToScreenPoint(new Vector3(center.x + direction.x, 0f, center.y + direction.y));
                 return new Vector2(projected.x - screenCenter.x, projected.y - screenCenter.y);
             });
-            if (choice == body.Rotation) return;
-            foreach (IntVec3 cell in GenAdj.OccupiedRect(body.Position, choice, body.def.size))
-                if (!cell.InBounds(body.Map)) return;
-            body.Rotation = choice;
-            body.Map.mapDrawer.MapMeshDirty(body.Position, MapMeshFlagDefOf.Things);
-            if (body is not Building)
-                Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.Changed(body.Map, CellRect.SingleCell(body.Position));
+            if (choice != body.Rotation)
+            {
+                foreach (IntVec3 cell in GenAdj.OccupiedRect(body.Position, choice, body.def.size))
+                    if (!cell.InBounds(body.Map))
+                    {
+                        base.Aim(mapPoint);
+                        return;
+                    }
+                body.Rotation = choice;
+                body.Map.mapDrawer.MapMeshDirty(body.Position, MapMeshFlagDefOf.Things);
+                if (body is not Building)
+                    Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.Changed(body.Map, CellRect.SingleCell(body.Position));
+            }
+            // Weapon control reads the same-frame body facing chosen above.
+            base.Aim(mapPoint);
         }
         internal static Rot4 SelectFacing(Rot4 current, Vector2 aim, System.Func<Rot4, Vector2> projection)
         {

@@ -7,17 +7,22 @@ namespace DeltaV
         /// <summary>One paid beam tick transfers equal and opposite impulse at the two hit points.</summary>
         internal static void ApplyTractorImpulse(SpaceObject receiver, Vector2 receiverLocal,
             SpaceObject target, Vector2 targetLocal, float impulseMagnitude)
+            => ApplyTractorImpulse(receiver, receiverLocal, target, targetLocal, impulseMagnitude, true);
+
+        internal static void ApplyTractorImpulse(SpaceObject receiver, Vector2 receiverLocal,
+            SpaceObject target, Vector2 targetLocal, float impulseMagnitude, bool moveTarget)
         {
             MassReport own = GetReport(receiver), other = GetReport(target);
-            if (own == null || other == null || own.mass <= 0f || other.mass <= 0f) return;
+            if (own == null || own.mass <= 0f || moveTarget && (other == null || other.mass <= 0f)) return;
             SpacePose emitter = SpaceTransform.RigidPointPose(receiver.pose, receiverLocal, 0f);
             SpacePose hit = SpaceTransform.RigidPointPose(target.pose, targetLocal, 0f);
             Vector2 toward = OrbitSphere.Offset(emitter.direction, hit.direction);
             if (toward.sqrMagnitude < 0.0001f) return;
             Vector2 impulse = toward.normalized * impulseMagnitude;
             ApplyAt(receiver, own, receiverLocal, emitter.position, impulse);
-            ApplyAt(target, other, targetLocal, hit.position,
-                -SpaceTransform.TransportTangent(impulse, emitter.position, hit.position));
+            if (moveTarget)
+                ApplyAt(target, other, targetLocal, hit.position,
+                    -SpaceTransform.TransportTangent(impulse, emitter.position, hit.position));
         }
 
         private static void ApplyAt(SpaceObject body, MassReport report, Vector2 localPoint,

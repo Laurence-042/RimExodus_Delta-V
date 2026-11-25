@@ -75,6 +75,8 @@ namespace DeltaV
             public ThrusterVisualProfile visuals;
             internal ThrusterVisualProfile normalVisuals;
             internal CompSpaceShuttle shuttle;
+            internal Pawn personnel;
+            internal Apparel personnelSource;
             internal float baseThrust;
             internal bool boostable;
 
@@ -132,6 +134,7 @@ namespace DeltaV
             /// 暂停不会使油门过期，初始／清零为 -1。不存档。</summary>
             public int throttlesWrittenTick = -1;
             internal bool throttlesNeedClearing;
+            internal float personnelMass = -1f;
         }
 
         /// <summary>指令各分量 ∈ [-1, 1]；平移分量已经由主驾驶台系换算到 Map 局部 x/z。</summary>
@@ -426,6 +429,14 @@ namespace DeltaV
                     if (thruster.thrust != thrust) { thruster.thrust = thrust; report.version++; }
                     thruster.visuals = multiplier > 1f ? thruster.shuttle.ShuttleProps.afterburner
                         : thruster.normalVisuals;
+                }
+                if (thruster.personnel != null)
+                {
+                    bool available = PawnSpaceflightSnapshot.CanAct(thruster.personnel)
+                        && thruster.personnelSource?.Destroyed == false
+                        && thruster.personnel.apparel?.WornApparel.Contains(thruster.personnelSource) == true;
+                    if (available != thruster.operational) { thruster.operational = available; report.version++; }
+                    continue;
                 }
                 if (thruster.thing == null)
                 {
@@ -939,7 +950,7 @@ namespace DeltaV
             private void OnHullChanged(ShipStructure structure, HullLayout layout, ShipStructureBatch batch)
             {
                 if (!hulls.TryGetValue(structure, out var live) || live != layout) return;
-                if (structure.Vessel is ShuttleShip || batch.Changes.Any(c => c.Aspect == ShipStructureAspect.Representation))
+                if (structure.VirtualThrusters.Count > 0 || batch.Changes.Any(c => c.Aspect == ShipStructureAspect.Representation))
                 {
                     ReplaceEntries(layout, structure);
                 }
@@ -968,7 +979,7 @@ namespace DeltaV
             private void ReplaceEntries(HullLayout layout, ShipStructure structure)
             {
                 IEnumerable<Thruster> entries = structure.InstalledThrusters;
-                if (structure.Vessel is ShuttleShip)
+                if (structure.VirtualThrusters.Count > 0)
                 {
                     var virtualLayout = structure.VirtualThrusters;
                     if (ReferenceEquals(layout.VirtualLayout, virtualLayout)) return;
@@ -1032,7 +1043,7 @@ namespace DeltaV
         internal static MassReport GetReport(SpaceObject container)
         {
             Map map = container.map;
-            if (map == null || map.Disposed) return null;
+            if (map == null || map.Disposed) return PayloadReport(container?.Payload?.Entity);
             ShipStructureIndex index = Current.Game.GetComponent<UniverseManager>().ShipStructure;
             ShipStructureIndex.MapView view = index.For(map);
             if (view.PhysicsReport is not { } cached || !cached.Matches(container))
@@ -1040,7 +1051,50 @@ namespace DeltaV
                 view.ForgetPhysics();
                 view.PhysicsReport = cached = new CachedReport(index, container, view);
             }
-            return cached.ReadReport();
+            MassReport report = cached.ReadReport();
+            return container is MapSpaceObject { PersonnelPawn: Pawn pawn }
+                ? ApplyPersonnelMass(report, pawn) : report;
+        }
+
+        private static MassReport PayloadReport(Thing entity)
+        {
+            if (entity == null || entity.Destroyed) return null;
+            float mass = Mathf.Max(0.01f, CarriedMass(entity));
+            return new MassReport
+            {
+                mass = mass,
+                comLocal = Vector2.zero,
+                inertia = Mathf.Max(0.01f, mass * 0.25f),
+                allowsAngularMotion = false
+            };
+        }
+
+        internal static MassReport ApplyPersonnelMass(MassReport report, Pawn pawn)
+        {
+            if (report == null || pawn == null) return report;
+            float mass = Mathf.Max(1f, pawn.GetStatValue(StatDefOf.Mass)
+                + MassUtility.GearAndInventoryMass(pawn) + CarriedMass(pawn.carryTracker?.CarriedThing));
+            if (!Mathf.Approximately(report.personnelMass, mass))
+            {
+                report.personnelMass = mass;
+                report.mass = mass;
+                report.comLocal = Vector2.zero;
+                report.inertia = Mathf.Max(1f, mass * 0.25f);
+                report.version++;
+            }
+            return report;
+        }
+
+        private static float CarriedMass(Thing thing)
+        {
+            if (thing == null || thing.Destroyed) return 0f;
+            if (thing is Pawn pawn)
+                return pawn.GetStatValue(StatDefOf.Mass) + MassUtility.GearAndInventoryMass(pawn)
+                    + CarriedMass(pawn.carryTracker?.CarriedThing);
+            if (thing is Corpse corpse && corpse.InnerPawn != null)
+                return corpse.InnerPawn.GetStatValue(StatDefOf.Mass)
+                    + MassUtility.GearAndInventoryMass(corpse.InnerPawn);
+            return thing.GetStatValue(StatDefOf.Mass) * thing.stackCount;
         }
 
         internal static Thruster InstalledThruster(ShipStructure structure, Building building)

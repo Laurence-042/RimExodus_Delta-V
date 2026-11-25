@@ -253,6 +253,9 @@ namespace DeltaV
         public double[] unboostedAcceleration;
         internal double arrivalSeconds;
         public Vector2 relativeVelocity;
+        // Desired ship-minus-target velocity at position arrival. Ordinary navigation
+        // leaves this zero; personnel boarding uses a bounded pass-through velocity.
+        public Vector2 arrivalVelocity;
         public float angleError;
         public float relativeAngularVelocity;
         public float dt;
@@ -355,8 +358,12 @@ namespace DeltaV
             else if (safeAccel > 1e-6 && (request.motionOnly || distance > 1e-6))
             {
                 Vector2 toward = -p.normalized;
-                double speedLimit = Math.Sqrt(2.0 * safeAccel * distance);
-                Vector2 targetVelocity = request.motionOnly ? Vector2.zero : toward * (float)speedLimit;
+                Vector2 arrivalVelocity = request.motionOnly ? Vector2.zero : request.arrivalVelocity;
+                double arrivalAlong = Math.Max(0.0, Vector2.Dot(arrivalVelocity, toward));
+                double speedLimit = Math.Sqrt(arrivalAlong * arrivalAlong
+                    + 2.0 * safeAccel * distance);
+                Vector2 targetVelocity = request.motionOnly ? Vector2.zero
+                    : arrivalVelocity + toward * (float)(speedLimit - arrivalAlong);
                 Vector2 accel = (targetVelocity - v) / 0.5f;
                 if (accel.magnitude > safeAccel) accel = accel.normalized * (float)safeAccel;
                 desiredX = accel.x;
@@ -689,7 +696,19 @@ namespace DeltaV
             int constraints = 0;
             bool combatTrajectory = request.combatTrajectory.seconds > 0f;
             double predictionTime = 0.0;
-            double speedCeiling = Math.Max(1.0, Math.Sqrt(request.relativeVelocity.sqrMagnitude + 2.0 * safeAccel * distance));
+            Vector2 arrivalVelocity = request.motionOnly ? Vector2.zero : request.arrivalVelocity;
+            double speedCeiling = Math.Max(1.0, Math.Sqrt(
+                (request.relativeVelocity - arrivalVelocity).sqrMagnitude
+                + 2.0 * safeAccel * distance));
+            double passThroughArrivalSeconds = 0.0;
+            if (arrivalVelocity.sqrMagnitude > 1e-8f)
+            {
+                double closing = -nx * state[2] - ny * state[3];
+                double targetClosing = Math.Max(0.0,
+                    -nx * arrivalVelocity.x - ny * arrivalVelocity.y);
+                passThroughArrivalSeconds = PassThroughArrivalTime(distance, closing,
+                    targetClosing, safeAccel);
+            }
 
             // Input box constraints.
             int inputVariables = horizonSteps * InputCount;
@@ -712,8 +731,13 @@ namespace DeltaV
             {
                 AdvanceStateAndSensitivity(step, intervals[step], request, predictionTime);
                 predictionTime += intervals[step];
-                Vector2 desiredPosition = Vector2.zero;
-                Vector2 desiredVelocity = Vector2.zero;
+                // The virtual reference crosses the selected point at the kinematic
+                // arrival estimate, then continues at the requested velocity. Anchoring
+                // the crossing avoids both receding-horizon braking short and chasing a
+                // reference that had already moved beyond the entry point at solve time.
+                Vector2 desiredPosition = arrivalVelocity * (float)Math.Max(0.0,
+                    predictionTime - passThroughArrivalSeconds);
+                Vector2 desiredVelocity = arrivalVelocity;
                 float desiredAngle = 0f;
                 float desiredOmega = 0f;
                 if (combatTrajectory)
@@ -749,10 +773,13 @@ namespace DeltaV
                 // v_close²/(2a) <= d 的保守分段线性内近似：凸平方函数在
                 // [vi,vi+1] 上的弦位于曲线上方，所有弦的上包络覆盖 [0,vMax]。
                 // 相比 sqrt 的切线外近似，这组线性约束不会放行刹不住的计划。
-                if (!request.intercept && !request.motionOnly && !combatTrajectory && distance > 0.05 && safeAccel > 1e-6)
+                if (!request.intercept && !request.motionOnly && !combatTrajectory
+                    && arrivalVelocity.sqrMagnitude <= 1e-8f
+                    && distance > 0.05 && safeAccel > 1e-6)
                 {
                     double d0 = nx * state[0] + ny * state[1];
-                    double v0 = -nx * state[2] - ny * state[3];
+                    double v0 = -nx * (state[2] - arrivalVelocity.x)
+                        - ny * (state[3] - arrivalVelocity.y);
                     // 前四行是停止距离弦；第 5 行限制越过目标平面，第 6 行界定弦的有效速度域。
                     for (int segment = 0; segment < 6; segment++)
                     {
@@ -775,8 +802,9 @@ namespace DeltaV
                     }
                 }
             }
-            Vector2 terminalPosition = Vector2.zero;
-            Vector2 terminalVelocity = Vector2.zero;
+            Vector2 terminalPosition = arrivalVelocity * (float)Math.Max(0.0,
+                predictionTime - passThroughArrivalSeconds);
+            Vector2 terminalVelocity = arrivalVelocity;
             float terminalAngle = 0f;
             float terminalOmega = 0f;
             if (combatTrajectory)
@@ -892,6 +920,29 @@ namespace DeltaV
                 : request.accuracy == GuidanceAccuracy.Braking ? 0.001 : 0;
         }
 
+        private static double PassThroughArrivalTime(double distance, double closingSpeed,
+            double targetSpeed, double acceleration)
+        {
+            if (distance <= 1e-8) return 0.0;
+            if (acceleration <= 1e-8)
+                return distance / Math.Max(0.01, Math.Max(closingSpeed, targetSpeed));
+            if (closingSpeed > targetSpeed)
+            {
+                double brakingDistance = (closingSpeed * closingSpeed - targetSpeed * targetSpeed)
+                    / (2.0 * acceleration);
+                if (brakingDistance >= distance)
+                {
+                    double discriminant = Math.Max(0.0,
+                        closingSpeed * closingSpeed - 2.0 * acceleration * distance);
+                    return (closingSpeed - Math.Sqrt(discriminant)) / acceleration;
+                }
+            }
+            double peakSquared = acceleration * distance
+                + 0.5 * (closingSpeed * closingSpeed + targetSpeed * targetSpeed);
+            double peak = Math.Sqrt(Math.Max(0.0, peakSquared));
+            return Math.Max(0.0, (peak - closingSpeed + peak - targetSpeed) / acceleration);
+        }
+
         private static void CombatReferenceOffsets(GuidanceRequest request, float predictionTime,
             out Vector2 position, out Vector2 velocity, out float angle, out float omega)
         {
@@ -952,7 +1003,8 @@ namespace DeltaV
                 for (int i = fineSteps; i < horizonSteps; i++) intervals[i] = combatCoarse;
                 return;
             }
-            double speed = request.relativeVelocity.magnitude;
+            double speed = (request.relativeVelocity
+                - (request.motionOnly ? Vector2.zero : request.arrivalVelocity)).magnitude;
             double distance = request.motionOnly ? 0.0 : request.positionError.magnitude;
             // 必须看到弱反推完成制动的时刻；用最强轴（常是侧推）估计会把制动段
             // 截在时域之外，尤其是正/反推不对称的船。
@@ -1161,6 +1213,7 @@ namespace DeltaV
                 && request.controlAcceleration.Length >= 9 && request.dt > 0f
                 && IsFinite(request.positionError.x) && IsFinite(request.positionError.y)
                 && IsFinite(request.relativeVelocity.x) && IsFinite(request.relativeVelocity.y)
+                && IsFinite(request.arrivalVelocity.x) && IsFinite(request.arrivalVelocity.y)
                 && IsFinite(request.angleError) && IsFinite(request.relativeAngularVelocity);
         }
 

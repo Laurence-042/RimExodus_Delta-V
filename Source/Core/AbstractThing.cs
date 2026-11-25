@@ -25,6 +25,7 @@ namespace DeltaV
         internal static AbstractThing Create(Thing entity) => entity switch
         {
             Pawn => new AbstractPawn(),
+            Projectile => new AbstractProjectile(),
             Building building when building.def.GetCompProperties<CompProperties_SpaceProjectile>()?.guided == true
                 => new AbstractMissile(),
             _ when entity?.def.category == ThingCategory.Item => new AbstractItem(),
@@ -77,8 +78,16 @@ namespace DeltaV
         }
 
         internal TractorReceiveResult Handoff(Action<Thing> receive)
+            => HandoffCore(receive, requireRecoverable: true);
+
+        // Transient combat payloads are not tractor-recoverable, but their owning service
+        // still needs the same single-owner handoff when replaying the original entity.
+        internal TractorReceiveResult HandoffTransient(Action<Thing> receive)
+            => HandoffCore(receive, requireRecoverable: false);
+
+        private TractorReceiveResult HandoffCore(Action<Thing> receive, bool requireRecoverable)
         {
-            if (!Recoverable) return TractorReceiveResult.Rejected;
+            if (requireRecoverable && !Recoverable || Entity == null) return TractorReceiveResult.Rejected;
             Thing entity = Entity;
             int originalCount = entity.stackCount;
             BeforeTransfer(entity);
@@ -176,5 +185,16 @@ namespace DeltaV
         internal override SpaceObjectTag Role => SpaceObjectTag.Projectile;
         internal override bool Recoverable => false;
         internal override Building InterceptionBody => Entity is Building { Destroyed: false } building ? building : null;
+    }
+
+    /// <summary>
+    /// A real RimWorld projectile temporarily held by the universe flight record. The
+    /// enclosing SpaceObject owns identity and pose; the projectile keeps its original
+    /// launcher, equipment, damage overrides, comps and virtual Impact implementation.
+    /// </summary>
+    public sealed class AbstractProjectile : AbstractThing
+    {
+        internal override SpaceObjectTag Role => SpaceObjectTag.Projectile;
+        internal override bool Recoverable => false;
     }
 }

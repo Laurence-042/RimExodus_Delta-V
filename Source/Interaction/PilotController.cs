@@ -115,6 +115,8 @@ internal readonly struct HeadingPanelAction
 
         internal void SetCollisionAvoidanceEnabled(bool enabled)
         {
+            ShipBase ship = ShipRegistry.ShipByIdentity(OwnerId);
+            if (!enabled && ship?.CanDisableCollisionAvoidance == false) return;
             if (CollisionAvoidanceEnabled == enabled) return;
             CollisionAvoidanceEnabled = enabled;
             universe.Controls.NotifyHullAvoidanceChanged(OwnerId);
@@ -147,7 +149,8 @@ internal readonly struct HeadingPanelAction
         internal virtual void CollectPanelActions(PilotTarget panelTarget, List<PilotPanelAction> actions)
         {
             if (!universe.Pilot.CanPlayerControl(panelTarget.Vessel) || !HasAuthority(panelTarget)) return;
-            if (universe.FrameOf(panelTarget.Map)?.projectileRoleOverride == true) return;
+            SpaceObject panelFrame = universe.FrameOf(panelTarget.Map);
+            if (panelFrame?.projectileRoleOverride == true || universe.HardDocking.IsActive(panelFrame)) return;
             ShipControlState state = universe.Pilot.GetControlState(panelTarget);
             string pilotLabelKey = state switch
             {
@@ -162,7 +165,7 @@ internal readonly struct HeadingPanelAction
                 actions.Add(new PilotPanelAction("DeltaV_AutoTaskMenu".Translate(player.AutoTaskLabel),
                     () => player.ShowAutoTaskMenu(panelTarget),
                     selected: state == ShipControlState.Autopilot));
-            if (panelTarget.Vessel.State == ShipDerivedState.FreeFlight)
+            if (panelTarget.Vessel.State == ShipDerivedState.FreeFlight && !panelTarget.Vessel.IsPersonnel)
                 actions.Add(new PilotPanelAction("DeltaV_StartEVA".Translate(),
                     () => universe.Worksites.Start(panelTarget)));
         }
@@ -176,8 +179,9 @@ internal readonly struct HeadingPanelAction
                     "DeltaV_CombatAIEditTip".Translate()));
             if (ship?.IsValid != true || !universe.Pilot.CanPlayerControl(ship)
                 || !HasAuthority(PilotTarget.Of(ship))) return;
-            afterGroups.Add(new PilotPanelAction("DeltaV_CombatOrders".Translate(),
-                () => Find.WindowStack.Add(new Dialog_CombatOrders(ship, universe)), "DeltaV_CombatOrdersHelp".Translate()));
+            if (!ship.IsPersonnel)
+                afterGroups.Add(new PilotPanelAction("DeltaV_CombatOrders".Translate(),
+                    () => Find.WindowStack.Add(new Dialog_CombatOrders(ship, universe)), "DeltaV_CombatOrdersHelp".Translate()));
         }
         internal virtual void CollectHeadingPanelActions(ShipBase ship,
             List<HeadingPanelAction> actions) { }
@@ -206,6 +210,7 @@ internal readonly struct HeadingPanelAction
                 FireControl.TickAutoVolley(ship, container, SuppressAutomaticSystems);
             else if (hasIntent)
             {
+                ship.HandleManualVolley(universe, container, intent);
                 FireControl.TickVolley(ship, container, intent);
             }
             universe.Performance.Record(PerformanceStage.ControlVolley, volleyStart);
@@ -329,6 +334,7 @@ internal readonly struct HeadingPanelAction
 
         private bool CanToggleHullAvoidance(PilotTarget target) =>
             HasAuthority(target)
+            && target.Vessel.CanDisableCollisionAvoidance
             && universe.FrameOf(target.Map)?.CanRelocateMap == true;
 
         internal override void CollectCombatPanelActions(ShipBase ship, bool hasWeapons,
@@ -336,18 +342,17 @@ internal readonly struct HeadingPanelAction
         {
             base.CollectCombatPanelActions(ship, hasWeapons, beforeGroups, afterGroups);
             if (!ship.IsValid || !HasAuthority(PilotTarget.Of(ship))) return;
-            if (!ship.CanBoard) return;
+            IHardDockingExecutor executor = ship.HardDockingExecutor;
+            if (executor == null) return;
             SpaceObject frame = universe.FrameOf(ship.Map);
-            PilotTarget target = PilotTarget.Of(ship);
-            string blockReason = universe.Shuttles.IntrusionBlockReasonKey(ship, frame, playerInitiated: true);
-            beforeGroups.Add(new PilotPanelAction("DeltaV_ShuttleBoardGizmo".Translate(),
-                () => universe.Shuttles.BeginBoardTargeting(target),
-                (blockReason ?? "DeltaV_ShuttleBoardGizmoTip").Translate(), enabled: blockReason == null));
-            if (frame?.projectileRoleOverride == true)
+            string blockReason = universe.HardDocking.BlockReasonKey(ship, frame, playerInitiated: true);
+            beforeGroups.Add(new PilotPanelAction(executor.StartLabelKey.Translate(),
+                () => universe.HardDocking.BeginTargeting(ship),
+                (blockReason ?? executor.StartTipKey).Translate(), enabled: blockReason == null));
+            if (universe.HardDocking.IsActive(frame))
             {
-                beforeGroups.Add(new PilotPanelAction("DeltaV_ShuttleBoardCancel".Translate(),
-                    () => universe.Shuttles.BreakIntrusion(frame, dropTarget: true),
-                    "DeltaV_ShuttleBoardCancelTip".Translate()));
+                beforeGroups.Add(new PilotPanelAction(executor.CancelLabelKey.Translate(),
+                    () => universe.HardDocking.Cancel(frame), executor.CancelTipKey.Translate()));
             }
         }
 
@@ -357,7 +362,7 @@ internal readonly struct HeadingPanelAction
             if (!ship.IsValid || !HasAuthority(PilotTarget.Of(ship))
                 || ship.State != ShipDerivedState.FreeFlight
                 || universe.Approach.FlowTarget.Identity == ship.Identity
-                || universe.FrameOf(ship.Map)?.projectileRoleOverride == true) return;
+                || universe.HardDocking.IsActive(universe.FrameOf(ship.Map))) return;
             foreach (Rot4 facing in new[] { Rot4.North, Rot4.East, Rot4.South, Rot4.West })
             {
                 Rot4 choice = facing;
@@ -387,7 +392,7 @@ internal readonly struct HeadingPanelAction
                 FireControl.Decide(ship, own);
             else FireControl.Clear(preserveCommands: true);
             bool canManeuver = AutoTask == PlayerAutoTaskKind.Combat && !ManualControl
-                && ship.CanDriveIn(own) && !own.projectileRoleOverride;
+                && ship.CanDriveIn(own) && !universe.HardDocking.IsActive(own);
             if (canManeuver)
                 AutoManeuver.Decide(ship, own, FireControl.Target,
                     allowBoarding: false, playerInitiated: true);
@@ -643,7 +648,7 @@ internal readonly struct HeadingPanelAction
         {
             PlayerShipController controller = ControllerFor(target);
             if (controller == null || !controller.CanEnter(target) || target.Map != Find.CurrentMap
-                || universe.FrameOf(target.Map)?.projectileRoleOverride == true) return;
+                || universe.HardDocking.IsActive(universe.FrameOf(target.Map))) return;
             if (Find.Targeter.IsTargeting || Find.DesignatorManager.SelectedDesignator != null) return;
             navigationInput = new PlayerNavigationInput(universe, target.Identity);
         }
@@ -748,6 +753,7 @@ internal readonly struct HeadingPanelAction
             }
             activePlayerController = controller;
             controller.Enter(target);
+            target.Vessel.NotifyManualControlEntered();
             RebuildPilotKeySet();
             string label = target.Label;
             Log.Message($"[DeltaV] Pilot mode engaged: {label} (#{target.Identity}). Pilot keys: [{string.Join(", ", PilotKeyBridge.ActiveKeys)}].");
@@ -1029,7 +1035,13 @@ internal readonly struct HeadingPanelAction
                 linearVelocity = SpaceTransform.VelocityAtLocalPoint(pose, frame.MotionInfo.comLocal, pose.position);
             Vector2 mapVelocity = SpaceTransform.RotateInverse(linearVelocity, pose.angle);
             Vector2 bodyVelocity = basis.FromMap(mapVelocity);
-            if (input.fx == 0f && Mathf.Abs(bodyVelocity.x) > AssistEpsilon)
+            Vector2 operatorAxes = Vector2.zero;
+            float operatorTorque = 0f;
+            if (frame != null && universe.TractorLinks.TryGetOperatorForce(frame,
+                out Vector2 operatorDirection, out operatorTorque))
+                operatorAxes = basis.FromMap(operatorDirection);
+            if (input.fx == 0f && Mathf.Abs(operatorAxes.x) < .001f
+                && Mathf.Abs(bodyVelocity.x) > AssistEpsilon)
             {
                 result.assistX = true;
                 if (Mathf.Abs(bodyVelocity.x) > MinAssistSpeed)
@@ -1037,7 +1049,8 @@ internal readonly struct HeadingPanelAction
                     pilotTranslation.x = -Mathf.Sign(bodyVelocity.x);
                 }
             }
-            if (input.fz == 0f && Mathf.Abs(bodyVelocity.y) > AssistEpsilon)
+            if (input.fz == 0f && Mathf.Abs(operatorAxes.y) < .001f
+                && Mathf.Abs(bodyVelocity.y) > AssistEpsilon)
             {
                 result.assistZ = true;
                 if (Mathf.Abs(bodyVelocity.y) > MinAssistSpeed)
@@ -1045,7 +1058,9 @@ internal readonly struct HeadingPanelAction
                     pilotTranslation.y = -Mathf.Sign(bodyVelocity.y);
                 }
             }
-            if (target.Vessel.AllowsAngularMotion && input.torque == 0f && Mathf.Abs(pose.angularVelocity) > AssistOmegaEpsilon)
+            if (target.Vessel.AllowsAngularMotion && input.torque == 0f
+                && Mathf.Abs(operatorTorque) < .001f
+                && Mathf.Abs(pose.angularVelocity) > AssistOmegaEpsilon)
             {
                 result.assistW = true;
                 if (Mathf.Abs(pose.angularVelocity) > MinAssistOmega)

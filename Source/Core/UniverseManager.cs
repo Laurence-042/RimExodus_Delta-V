@@ -102,8 +102,19 @@ namespace DeltaV
                 if (current.map != null) objectByMap[current.map] = current;
             }
             scatter?.Remove(previous);
+            tractorLinks?.ForgetObject(previous.objectId);
             if (current.IsScattered) Scatter.Register(current);
             if (current.map != null && current.baseTag != SpaceObjectTag.Projectile) ShipStructure.For(current.map);
+            if (previous.map != null && previous.map != current.map)
+            {
+                if (weapons != null) weapons.ForgetMap(previous.map);
+                else controls?.ForgetMap(previous.map);
+            }
+            if (current.map != null && current.HasTag(SpaceObjectTag.Ship))
+            {
+                Weapons.RegisterMapWeapons(current.map);
+                foreach (ShipBase ship in current.Ships) Controls.For(ship);
+            }
             MapStates.NotifyRepresentationChanged(previous, current);
             try { Autopilot.Detach(previous); previous.ClearDrive(); }
             catch (Exception ex) { Log.Error($"[DeltaV] Representation #{current.objectId} changed, but old drive cleanup failed: {ex}"); }
@@ -146,6 +157,9 @@ namespace DeltaV
 
         public ShipControlService Controls => controls ?? (controls = new ShipControlService(this));
 
+        [NonSerialized] private PawnSpaceflightService personnel;
+        public PawnSpaceflightService Personnel => personnel ??= new PawnSpaceflightService(this);
+
         internal SpaceMissionState missionState = new SpaceMissionState();
         [NonSerialized] private SpaceMissionService missions;
         internal SpaceMissionService Missions => missions ?? (missions = new SpaceMissionService(this));
@@ -171,6 +185,10 @@ namespace DeltaV
         public SpaceMapPool MapPool => mapPool ?? (mapPool = new SpaceMapPool(this));
         [NonSerialized] private SpaceScatterService scatter;
         public SpaceScatterService Scatter => scatter ?? (scatter = new SpaceScatterService(this));
+        [NonSerialized] private TractorLinkService tractorLinks;
+        public TractorLinkService TractorLinks => tractorLinks ?? (tractorLinks = new TractorLinkService(this));
+        [NonSerialized] private HardDockingService hardDocking;
+        public HardDockingService HardDocking => hardDocking ??= new HardDockingService(this);
         private int unpublishedPayloads;
         internal bool HasUnpublishedPayload => unpublishedPayloads > 0;
         internal Pawn TransferringPawn { get; private set; }
@@ -180,7 +198,9 @@ namespace DeltaV
         {
             AbstractThing payload = AbstractThing.Create(entity);
             if (payload == null) return null;
+            Rot4 rotation = entity.Rotation;
             var obj = new SpaceObject(AllocateOwnerId(), pose) { Payload = payload, faction = faction };
+            if (payload is AbstractPawn) obj.baseTag |= SpaceObjectTag.Personnel;
             Pawn previousPawn = TransferringPawn;
             if (entity is Pawn pawn) TransferringPawn = pawn;
             unpublishedPayloads++;
@@ -192,12 +212,20 @@ namespace DeltaV
                 {
                     QueueFrameAction(() =>
                     {
-                        try { RegisterObject(obj); }
+                        try
+                        {
+                            if (!RegisterObject(obj))
+                                RestoreUnpublishedPayload(payload, entity, source, cell, holder, rotation);
+                        }
                         finally { unpublishedPayloads--; }
                     });
                     queued = true;
                 }
-                else RegisterObject(obj);
+                else if (!RegisterObject(obj))
+                {
+                    RestoreUnpublishedPayload(payload, entity, source, cell, holder, rotation);
+                    return null;
+                }
                 return obj;
             }
             finally
@@ -205,6 +233,31 @@ namespace DeltaV
                 if (!queued) unpublishedPayloads--;
                 TransferringPawn = previousPawn;
             }
+        }
+
+        private static void RestoreUnpublishedPayload(AbstractThing payload, Thing entity,
+            Map source, IntVec3 cell, ThingOwner holder, Rot4 rotation)
+        {
+            if (holder == null && (source == null || source.Disposed))
+            {
+                payload.DestroyContents();
+                if (!entity.Destroyed)
+                    throw new InvalidOperationException("Could not discard unpublished transient payload.");
+                return;
+            }
+            TractorReceiveResult restored = payload.Handoff(thing =>
+            {
+                if (holder != null)
+                {
+                    if (!holder.TryAdd(thing, canMergeWithExistingStacks: false))
+                        throw new InvalidOperationException("Could not restore unpublished payload to its source holder.");
+                    return;
+                }
+                thing.Rotation = rotation;
+                GenSpawn.Spawn(thing, cell, source, WipeMode.Vanish);
+            });
+            if (restored != TractorReceiveResult.Complete && !entity.Destroyed)
+                throw new InvalidOperationException("Could not restore unpublished payload.");
         }
         [NonSerialized] private SoftDockService softDock;
         public SoftDockService SoftDock => softDock ?? (softDock = new SoftDockService(this));
@@ -291,7 +344,8 @@ namespace DeltaV
         /// 原版世界球面的船体剪影只表达玩家所有权；公共友方设施仍可操作，
         /// 但不借用玩家标记，避免把权限与归属混为一谈。
         /// </summary>
-        internal List<ShipBase> PlayerWorldMarkerShips() => objects.Where(obj => obj.map != null)
+        internal List<ShipBase> PlayerWorldMarkerShips() => objects.Where(obj => obj.map != null
+                && !obj.HasTag(SpaceObjectTag.Personnel))
             .SelectMany(obj => obj.Ships)
             .Where(ship => ship.PlayerAccessLevel == PlayerAccessLevel.Player).ToList();
 
@@ -456,14 +510,15 @@ namespace DeltaV
         }
 
         /// <summary>宇宙对象增删的唯一入口（AGENTS §11 单一管理入口精神）；星区记账与 id 语义在此收口。</summary>
-        public void RegisterObject(SpaceObject obj)        {
-            if (obj == null || objects.Contains(obj)) return;
+        public bool RegisterObject(SpaceObject obj)        {
+            if (obj == null) return false;
+            if (objects.Contains(obj)) return true;
             SpaceObject collision = ObjectById(obj.objectId);
             if (obj.objectId <= 0 || collision != null)
             {
                 Log.Error($"[DeltaV] Refusing to register object '{obj.label}' with invalid/colliding ID " +
                           $"#{obj.objectId} (existing='{collision?.label ?? "none"}').");
-                return;
+                return false;
             }
             // map 单一持有（2026-09-25 不变量）：一张图只允许一个承载对象——SpaceObjectOnMap
             // 取列表首个命中，双持有会让第二个对象绕过所有「自身容器」排除（对接目标
@@ -475,7 +530,7 @@ namespace DeltaV
                 {
                     Log.Error($"[DeltaV] Refusing to register object '{obj.label}' #{obj.objectId}: " +
                               $"map already held by '{mapHeld.label}' #{mapHeld.objectId}.");
-                    return;
+                    return false;
                 }
             }
             objects.Add(obj);
@@ -493,6 +548,8 @@ namespace DeltaV
                 foreach (ShipBase ship in obj.Ships) Controls.For(ship);
             }
             MapStates.NotifyObjectRegistered(obj);
+            Personnel.NotifyRegistered(obj);
+            return true;
         }
 
         public void UnregisterObject(SpaceObject obj)
@@ -511,6 +568,7 @@ namespace DeltaV
             }
             // Resolve projectile resources while the old identity is still registered.
             Projectiles.NotifyContainerRemoving(obj);
+            tractorLinks?.ForgetObject(obj.objectId);
             objects.Remove(obj);
             globeNavigation?.ForgetObject(obj.objectId);
             if (globeNavigation == null) globeBookmarks?.RemoveAll(b => b.objectId == obj.objectId);
@@ -838,7 +896,11 @@ namespace DeltaV
             ApplyCameraZoomScope();
             Missions.Resume();
             if (tutorialRun != null) Tutorial.Resume();
+            Personnel.Resume();
+            QueueFrameAction(ActivateLoadedFocus);
         }
+
+        private void ActivateLoadedFocus() => Controls.ActivateFocusedVessel(Find.CurrentMap);
 
         /// <summary>
         /// 读档后清扫遗留的空白口袋图（历史会话起飞后未清理的积累；worldtile 图不受
@@ -1007,6 +1069,8 @@ namespace DeltaV
             long stageStart = Performance.Start();
             NpcShips.Tick();
             Performance.Record(PerformanceStage.Npc, stageStart);
+            Personnel.Tick();
+            TractorLinks.Tick();
             stageStart = Performance.Start();
             softDock?.Tick();
             Performance.Record(PerformanceStage.SoftDock, stageStart);
@@ -1329,6 +1393,7 @@ namespace DeltaV
             Current.Game.CurrentMap = targetMap;
             // 与 PocketMapUtility 一致：确保回到地图视图而不是世界球面。
             Find.World.renderer.wantedMode = RimWorld.Planet.WorldRenderMode.None;
+            Controls.ActivateFocusedVessel(targetMap);
         }
 
         /// <summary>
@@ -1343,8 +1408,10 @@ namespace DeltaV
             Map targetMap = target?.InteriorMap;
             if (targetMap == null) return;
             SetFocused(target);
-            int x = Mathf.Clamp(Mathf.FloorToInt(mapPoint.x), 2, targetMap.Size.x - 3);
-            int z = Mathf.Clamp(Mathf.FloorToInt(mapPoint.y), 2, targetMap.Size.z - 3);
+            int x = targetMap.Size.x <= 4 ? targetMap.Size.x / 2
+                : Mathf.Clamp(Mathf.FloorToInt(mapPoint.x), 2, targetMap.Size.x - 3);
+            int z = targetMap.Size.z <= 4 ? targetMap.Size.z / 2
+                : Mathf.Clamp(Mathf.FloorToInt(mapPoint.y), 2, targetMap.Size.z - 3);
             CameraJumper.TryJump(new IntVec3(x, 0, z), targetMap, CameraJumper.MovementMode.Cut);
             Find.CameraDriver.SetRootSize(rootSize);
         }
@@ -1427,6 +1494,10 @@ namespace DeltaV
             projectiles?.ResetMotionFeedback();
             mapPool = null;
             scatter = null;
+            tractorLinks?.Reset();
+            tractorLinks = null;
+            hardDocking?.Reset();
+            hardDocking = null;
             softDock = null;
             stationTrade = null;
             worksites = null;
@@ -1439,6 +1510,8 @@ namespace DeltaV
             TargetCamera = null;
             controls?.Reset();
             controls = null;
+            personnel?.Reset();
+            personnel = null;
             pilot = null;
             playerInput?.Clear();
             playerInput = null;

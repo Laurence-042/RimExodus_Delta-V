@@ -5,11 +5,16 @@ This file records player-visible changes in released versions and the near-term 
 
 ## 下一版本计划 / Next version plan
 
+@未知者-RX（bilibili）：所以新手教程最后一步怎么搞，我已经占领了逆重引擎给船起了名字但还是不让我交任务说是让我去逆重引擎附近确认什么，我真不知道确认什么了[热]……我是去通讯台交的任务，实际上要站在引擎旁边用通讯器交任务，我是傻呗[汤圆]
+ - ……不，是我蠢了，更新0.1.1大改交互的时候，我只记得通讯器可以保证之前行为一致，忘记最后这块还有一个只能靠通讯器完成的了。0.1.2我再优化下吧
+
+@老耗子比你萌：还有自动添加太空模式的炮台优先级疑似太高了点，地面上机械集群的炮塔默认太空模式，导致其无法攻击，整个机械集群只有地狱火炮塔在输出
+- 确实优先级漏写了……
+
+
+
 - 为跳帮艇被击毁时的乘员死亡补充明确通知。
   Add clear crew-death notifications when a boarding shuttle is destroyed.
-
-- 让特定装备的人员可以像当前的eva一样在太空移动
-  Allow personnel with designated equipment to move through space like current EVA units.
 
 ## 待发布 / Unreleased
 
@@ -18,6 +23,11 @@ This file records player-visible changes in released versions and the near-term 
 @老耗子比你萌：在地面补给后发射去太空，起飞结束时当前地图索引越界，随后 Vulkan 崩溃。
 - 修复移除当前地图时原版选中 Delta-V 内部宿主图，焦点门禁中断 setter 并遗留越界地图索引的问题。宿主图请求现在统一顺延到下一张可聚焦地图；没有可聚焦地图时清空当前地图，由原版进入世界视图。
   Fixed removing the current map selecting Delta-V's internal host map, where the focus guard interrupted the setter and left an out-of-range map index. Host-map requests now advance to the next focusable map, or clear the current map when none remains so the native flow can enter the world view.
+
+- 穿戴指定真空与推进装备的人员现在会先成为抽象漂浮 `SpaceObject`，能力允许时以同一对象 ID 升格为可控舱外飞行。升格期间始终绑定一条与人员对象重合、不另建对象 ID 的临时弹体代理，把太空命中转交真实 Pawn。人员使用 EVA 式四角斜推，可叠加跳跃背包；主火直接执行当前主武器的真实 `Verb`，保留 burst、冷却及弹药／燃料／充能消耗，并把实际生成的原版弹丸暂存为瞬态宇宙对象，命中舰体时在目标图调用同一实例的虚 `Impact`。真实 Verb 现只接收一个图内合法占位目标，宇宙射向独立传递；修复 IsoRim 处理越界目标时开火崩溃、异常后遗留本地弹丸并误伤射手的问题。单兵射弹不进入点防，首种兼容模式暂不接管即时光束和完全自管发射的特殊 Verb。抓钩作为副组 1 持续武器，其外力视为操作输入，不再被飞行辅助或已选自动任务反推抵消。主动出舱会自动聚焦、征召、驾驶及在武装时进入手动火控；飞行人员可抛出背包货物，但不能换装。月池、开放对接口、无顶甲板和真空边缘均可主动出舱；空月池也可直接选作落脚目标。“登舰”与跳帮艇共用硬对接命令生命周期，但人员保持碰撞规避。制导以相对落脚点 `1.5 cells/s` 的穿越速度进场，并在实际相对速度低于 `2 cells/s` 时完成精确格落脚，不再要求近乎静止或依靠船体碰撞。人员与 EVA 钩索都对轻小单位使用真实双向冲量，钩住结构时把自己拉向结构；舰船坐标收货和舰载结构牵引保持原策略。
+  Personnel with designated vacuum and propulsion gear first become an abstract floating `SpaceObject`, then promote under the same object ID to controllable EVA flight when capable. While mapped they keep one overlapping runtime-only projectile proxy—without another object ID—to forward space hits to the real Pawn. They use EVA-style diagonal corner thrusters with stackable jump-pack thrust. Main fire now invokes the equipped weapon's real `Verb`, preserving bursts, cooldowns, and ammunition/fuel/charge consumption; the actual spawned projectile becomes a transient space object and later runs that same instance's virtual `Impact` on the struck map. The real Verb now receives only an in-map placeholder while its universe firing direction is carried separately, fixing an IsoRim crash on out-of-bounds targets and preventing failed shots from leaving local projectiles that could hit their shooter. Personnel rounds are not point-defense targets, and the first compatibility mode does not yet capture instant beams or fully self-managed launch Verbs. Grapples remain secondary-group held weapons, and their force now counts as operator input instead of being cancelled by flight assist or an active automatic task. Active egress focuses, drafts, pilots, and enters manual fire control when armed. Flying personnel may eject inventory cargo but cannot change equipment. Moon pools—including empty ones—open docking ports, uncovered decks, and vacuum edges support egress and exact-cell boarding. The Board command shares the shuttle hard-docking lifecycle while personnel keep collision avoidance enabled. Guidance targets a 1.5 cells/s pass-through speed relative to the selected landing point and completes below the 2 cells/s safety ceiling instead of requiring a near stop. Pawn and EVA grapples use real bilateral impulses for lightweight bodies and pull their user toward fixed structures; ship coordinate collectors and structural tractors retain their existing policies.
+- 修正舱外人员的活动资格、武器朝向和喷射类武器兼容。至少一件覆盖躯干、被原版认定为防真空的服装现在提供一组基础四角斜推，第三方合格服装不再需要 `requiredForFlight` 专用补丁；多件基础服装不重复叠加，跳跃背包等扩展来源继续增加推力。总真空抗性只决定原版持续暴露风险，不再阻止升格或直接触发降格。点击有效出舱口后才分别检查活动装备与真空风险：缺少活动来源可确认后保持不可控漂浮，防护不足者仍可活动但会随时间受伤。诊断分别显示活动资格与真空风险。真实 `Verb` 继续使用安全的图内占位；每次手动瞄准都会更新独立宇宙射向，手动瞄准会话期间原版不再把空闲征召人员强制转回南方，基类及派生 `AimAngleOverride` 均读取该射向且每个真实 getter 只补丁一次。最终公共装备绘制入口会为当前舱外人员主武器恢复同一角度，并把重合占位导致的错误北向前伸量旋转到准星方向，兼容 NewRatkinPlus 将全局持枪流程替换后绕过 `AimAngleOverride` 的行为。调用原版 `Projectile.Launch` 的喷射／扫射 Verb 也可接入真实弹丸转交；读档恢复聚焦人员时重新应用手动驾驶与手动火控规则。
+  Corrected EVA personnel mobility eligibility, weapon orientation, and projectile-spray compatibility. At least one torso-covering apparel item recognized by the base game as vacuum-protective now supplies one set of diagonal corner thrusters, so qualifying third-party apparel no longer needs a `requiredForFlight` patch. Multiple base garments do not multiply base thrust, while jump packs and other extension sources still add thrust. Total vacuum resistance now controls native exposure risk only; it no longer blocks promotion or directly forces demotion. Mobility gear and vacuum danger are checked only after the player clicks a valid exit: personnel without mobility gear may be released as uncontrollable drifting objects, while inadequately protected personnel may maneuver but will be harmed by prolonged exposure. Diagnostics report mobility eligibility and vacuum risk separately. The real `Verb` keeps its safe in-map placeholder. Every manual aim sample updates the independent universe direction; while that manual aim session is active, vanilla no longer forces an idle drafted pawn back to south. Base and overridden `AimAngleOverride` getters read the saved direction, with each real getter patched only once. The final shared equipment-draw entry restores that same angle for the active personnel weapon and rotates the erroneous northward reach from an overlapping placeholder toward the reticle, covering NewRatkinPlus replacing the global weapon renderer and bypassing `AimAngleOverride`. Spray Verbs that call the native `Projectile.Launch` use the same real-projectile handoff, while restoring a focused pawn after load reapplies manual piloting and fire control.
 
 @寒月融雪（bilibili）：为什么逆重飞船会显示无法到达地面？因为我有一些其他MOD需要到地表上触发/接取（幻想乡物流沃芬“社长”到来事件，米莉拉坠机魔法少女，超凡斯安威斯坦空投）
 - 修复从 Delta-V 自由飞行口袋图启动逆重引擎时，地面目的地显示无法到达并因无效 tile 循环报错的问题。即使所在星区没有 POI，或先前降落产生的地图已经被抛弃，也会从飞船当前宇宙位姿对应的星区正常选择目的地；同时修复降落到普通地表后的收尾空引用。

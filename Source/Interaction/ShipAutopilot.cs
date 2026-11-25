@@ -42,6 +42,8 @@ namespace DeltaV
             public Func<bool> referenceValid;
             public bool motionOnly;
             public bool finishWhenMatched;
+            public float arrivalVelocityTolerance = DefaultArrivalVelocityTolerance;
+            public float arrivalApproachSpeed;
             public bool intercept;
             public Vector3 direction;
             public float angle;
@@ -119,7 +121,7 @@ namespace DeltaV
         private const float VoidRampRadius = 4.5f;
 
         private const float ArrivePositionEpsilon = 0.05f; // 格
-        private const float ArriveVelocityEpsilon = 0.15f; // cells/s
+        internal const float DefaultArrivalVelocityTolerance = 0.15f; // cells/s
         private const float ArriveAngleEpsilon = 0.01f;    // rad
         private const float ArriveOmegaEpsilon = 0.03f;    // rad/s
 
@@ -157,10 +159,14 @@ namespace DeltaV
                 allowVoidThrust = false, playerInitiated = true });
 
         internal void NavigateToReference(DriveSubject subject, Func<SpacePose, SpacePose> reference,
-            Func<bool> valid, Action onArrived, Action<string> onFailed, bool longRange = false)
+            Func<bool> valid, Action onArrived, Action<string> onFailed, bool longRange = false,
+            float arrivalVelocityTolerance = DefaultArrivalVelocityTolerance,
+            float arrivalApproachSpeed = 0f)
             => Register(new Flight { subject = subject, tracked = true, reference = reference,
                 referenceValid = valid, finishWhenMatched = true, onArrived = onArrived,
                 onFailedWithReason = onFailed, allowVoidThrust = false, playerInitiated = true,
+                arrivalVelocityTolerance = Mathf.Max(0f, arrivalVelocityTolerance),
+                arrivalApproachSpeed = Mathf.Max(0f, arrivalApproachSpeed),
                 // A star-map route can span arbitrary sector scales. Reference/subject/
                 // thrust loss still fail explicitly; an elapsed-time cutoff must not drop
                 // control while the ship is braking and leave it drifting through the goal.
@@ -303,6 +309,13 @@ namespace DeltaV
             SpacePose combatTarget = default;
             if (flight.combatOrbit && (flight.combatTarget == null || !flight.combatTarget(out combatTarget)))
             { Fail(container, flight, "combat reference unavailable"); return; }
+            // A player-maintained EVA/personnel grapple is an operator force. Keep the
+            // selected task, but do not spend this tick's autopilot output opposing it.
+            if (universe.TractorLinks.HasOperatorForce(container))
+            {
+                container.ClearDrive();
+                return;
+            }
             const float dt = 1f / 60f; // 游戏 tick 时间；绝不使用帧时钟（AGENTS §18 #20）
             flight.elapsed += 1;
             int ticksGame = Find.TickManager.TicksGame;
@@ -385,7 +398,8 @@ namespace DeltaV
 
             if ((!flight.tracked || flight.finishWhenMatched)
                 && posErr.sqrMagnitude < ArrivePositionEpsilon * ArrivePositionEpsilon
-                && vel.sqrMagnitude < ArriveVelocityEpsilon * ArriveVelocityEpsilon
+                && vel.sqrMagnitude < flight.arrivalVelocityTolerance
+                    * flight.arrivalVelocityTolerance
                 && Mathf.Abs(angleErr) < ArriveAngleEpsilon
                 && Mathf.Abs(omega) < ArriveOmegaEpsilon)
             {
@@ -459,18 +473,19 @@ namespace DeltaV
                 flight.brakingAcceleration = report.PreviewBraking(towardLocal);
                 float closing = posErr.sqrMagnitude > 1e-8f
                     ? Mathf.Max(0f, Vector2.Dot(vel, posErr.normalized)) : 0f;
+                float excessClosing = Mathf.Max(0f, closing - flight.arrivalApproachSpeed);
                 double safeAcceleration = flight.brakingAcceleration * BrakingGuidanceFallback.SafetyFactor;
-                double stopping = BrakingGuidanceFallback.StoppingDistance(closing, safeAcceleration);
+                double stopping = BrakingGuidanceFallback.StoppingDistance(excessClosing, safeAcceleration);
                 flight.stoppingDistance = double.IsInfinity(stopping)
                     ? float.PositiveInfinity : (float)stopping;
                 // 巡航计划最多再回放四个微步；从切换判据中扣除这段闭合距离。
                 float remaining = posErr.magnitude;
-                float brakeMargin = flight.stoppingDistance + closing *
+                float brakeMargin = flight.stoppingDistance + excessClosing *
                     (FarSolvePeriodSteps * GuidanceMicroStepTicks / 60f);
                 unsafePlan = flight.brakingAcceleration > 1e-6f
-                    && closing > 0.15f
+                    && excessClosing > 0.15f
                     && remaining <= flight.stoppingDistance
-                        + closing * (GuidanceMicroStepTicks / 60f);
+                        + excessClosing * (GuidanceMicroStepTicks / 60f);
                 ApproachPhase next = remaining <= TightSolveDistance
                     ? ApproachPhase.Precision
                     : remaining <= brakeMargin || flight.brakingAcceleration <= 1e-6f
@@ -644,6 +659,11 @@ namespace DeltaV
                 report.PreviewUnboostedModel(flight.unboostedModel);
                 BuildControlAcceleration(pose, flight.unboostedModel, 0f, flight.unboostedAcceleration, referencePosition);
             }
+            Vector2 arrivalVelocity = !flight.motionOnly && flight.arrivalApproachSpeed > 0f
+                && posErr.sqrMagnitude > 1e-8f
+                ? posErr.normalized * flight.arrivalApproachSpeed : Vector2.zero;
+            float excessClosing = posErr.sqrMagnitude > 1e-8f
+                ? Mathf.Max(0f, Vector2.Dot(vel - arrivalVelocity, posErr.normalized)) : 0f;
             var request = new GuidanceRequest
             {
                 positionError = posErr,
@@ -656,6 +676,7 @@ namespace DeltaV
                 unboostedModel = boostSeconds > 0f ? flight.unboostedModel : null,
                 unboostedAcceleration = flight.unboostedAcceleration,
                 relativeVelocity = vel,
+                arrivalVelocity = arrivalVelocity,
                 angleError = angleErr,
                 relativeAngularVelocity = omega,
                 dt = GuidanceMicroStepTicks / 60f,
@@ -677,8 +698,7 @@ namespace DeltaV
                 referenceLocalPoint = report.comLocal,
                 approachReserveDistance = flight.phase == ApproachPhase.Braking
                     && posErr.sqrMagnitude > 1e-8f
-                    ? Mathf.Max(0f, Vector2.Dot(vel, posErr.normalized))
-                        * (solvePeriod - 1) * GuidanceMicroStepTicks / 60f
+                    ? excessClosing * (solvePeriod - 1) * GuidanceMicroStepTicks / 60f
                     : 0.0
             };
             bool wasRecovering = flight.recovery.Active;

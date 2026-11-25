@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using RimWorld;
 using UnityEngine;
@@ -22,7 +23,8 @@ namespace DeltaV
     {
         private static readonly List<SpaceObject> PickOrderScratch = new List<SpaceObject>();
 
-        public static SpaceObject ShellAtFramePoint(UniverseManager universe, Map frameMap, Vector3 frameMapPoint)
+        public static SpaceObject ShellAtFramePoint(UniverseManager universe, Map frameMap,
+            Vector3 frameMapPoint, Func<Map, IntVec3, bool> acceptsHiddenCell = null)
         {
             SpaceObject frame = universe.FrameOf(frameMap);
             if (frame == null)
@@ -44,6 +46,12 @@ namespace DeltaV
                     if (Mathf.Abs(local.x) <= .5f && Mathf.Abs(local.y) <= .5f) return obj;
                     continue;
                 }
+                if (obj is MapSpaceObject { PersonnelPawn: Pawn })
+                {
+                    Vector2 local = SpaceTransform.UniverseToShipLocal(obj.pose, universeDir);
+                    if (Mathf.Abs(local.x) <= .5f && Mathf.Abs(local.y) <= .5f) return obj;
+                    continue;
+                }
                 Map objectMap = obj.map;
                 if (objectMap == null || objectMap == frameMap) continue;
                 // UniverseToMapPoint：universe → 地图坐标（含中心偏移）——
@@ -56,7 +64,8 @@ namespace DeltaV
                 {
                     continue;
                 }
-                if (MapOverlayRenderer.ContainsVisibleContent(objectMap, cell))
+                if (MapOverlayRenderer.ContainsVisibleContent(objectMap, cell)
+                    || acceptsHiddenCell?.Invoke(objectMap, cell) == true)
                 {
                     return obj;
                 }

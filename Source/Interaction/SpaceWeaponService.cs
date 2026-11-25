@@ -173,6 +173,25 @@ namespace DeltaV
             // 只在地图注册、读档和场景重建时补齐索引；日常结构变化不走全图发现。
             foreach (var weapon in universe.ShipStructure.For(map).Weapons)
             { RegisterWeapon(weapon); QueuePower(weapon); }
+            foreach (CompSpaceWeapon weapon in ShipRegistry.AllShipsOnMap(map)
+                .SelectMany(ship => ship.Weapons).Distinct())
+            { RegisterWeapon(weapon); QueuePower(weapon); }
+        }
+
+        internal void RefreshPersonnelWeapons(PawnSpaceflightShip ship)
+        {
+            if (ship?.IsValid != true) return;
+            Map map = ship.Map;
+            var current = new HashSet<CompSpaceWeapon>(ship.Weapons);
+            if (weaponsByMap.TryGetValue(map, out HashSet<CompSpaceWeapon> registered))
+                foreach (CompSpaceWeapon stale in registered.Where(weapon => weapon.OwnerShip.IsPersonnel
+                    && !current.Contains(weapon)).ToArray())
+                    UnregisterWeapon(stale, map);
+            foreach (CompSpaceWeapon weapon in current)
+            {
+                RegisterWeapon(weapon);
+                QueuePower(weapon);
+            }
         }
 
         internal bool HasPointDefenseWeapons(Map map, bool hasInterceptionTargets, bool hasScatterTargets)

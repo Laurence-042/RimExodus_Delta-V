@@ -60,6 +60,11 @@ namespace DeltaV
             public CompSpaceWeapon weapon;
             /// <summary>「自毁」后效执行回调（弹体服务闭包：标记死亡 + 帧边界销毁/归池）。</summary>
             public System.Action onSelfDestruct;
+            /// <summary>
+            /// Native map-projectile handoff. A true result means the owner accepted this
+            /// confirmed structure contact and will retire/replay the attacker itself.
+            /// </summary>
+            public System.Func<SpaceObject, Thing, IntVec3, Vector3, Vector2, bool> onStructureImpact;
             /// <summary>结算死亡标记：跳过本弹体的后续事件（§3.5）。</summary>
             public bool dead;
             /// <summary>本 tick 是否产生命中（激光线段视觉取命中点而非全射程）。</summary>
@@ -498,7 +503,7 @@ namespace DeltaV
                 if (first.defender == null) return false;
 
                 RayContact ray = first.ray;
-                if (ray.kind == SpaceCellKind.Empty
+                if (body.onStructureImpact != null || ray.kind == SpaceCellKind.Empty
                     || SpaceImpactEffects.HitTest(body.projectileDef, ray.kind, ray.building, first.effect))
                 {
                     first.ray = ConfirmedStructureContact(first.target.map, ray);
@@ -577,7 +582,7 @@ namespace DeltaV
             return true;
         }
 
-        private static bool TryEntityFootprint(Building entity, Vector2 from, Vector2 direction,
+        private static bool TryEntityFootprint(Thing entity, Vector2 from, Vector2 direction,
             float length, float radius, out RayContact ray)
         {
             ray = default;
@@ -787,6 +792,22 @@ namespace DeltaV
                     ? Mathf.Max(blastRadius,
                         defenderPart.penetrationLayers?.Count > 0
                             ? defenderPart.penetrationLayers[0].halfWidth : 0f) : 0f;
+                if (body.onStructureImpact?.Invoke(defender, bestThing, bestCell,
+                    evt.hitUniverse, evt.incidentDir) == true)
+                {
+                    body.resolvedHitExplosive = false;
+                    body.resolvedHitShield = false;
+                    body.resolvedHitRadius = 0f;
+                    PublishVisualContact(body, target, new VisualContact
+                    {
+                        defender = defender, projectileDef = body.projectileDef,
+                        position = evt.hitUniverse, pathFrom = body.from,
+                        localPoint = p, localDirection = dir, localNormal = normal,
+                        damageScale = 1f
+                    });
+                    body.dead = true;
+                    return;
+                }
                 if (projectileProps?.continuousBeam != true && DeltaVLog.Enabled(DeltaVLogModule.Combat)) DeltaVLog.Message(DeltaVLogModule.Combat,
                     $"impact: {body.projectileDef?.defName} -> " +
                     (evt.defenderIsSubstructure

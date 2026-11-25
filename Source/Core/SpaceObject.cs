@@ -31,7 +31,10 @@ namespace DeltaV
         /// <summary>派生角色：承载任意 ShipBase 的容器。永不手写。</summary>
         Ship = 16,
         Scattered = 32,
-        GravityRegion = 64
+        GravityRegion = 64,
+
+        /// <summary>真实 Pawn 的抽象漂浮或独立有图飞行表示。</summary>
+        Personnel = 128
     }
 
     /// <summary>
@@ -201,13 +204,17 @@ namespace DeltaV
                 ? ShipStructureIndex.Read(map)?.InterceptionBody
                 : null);
 
+        internal Thing InterceptionThing => Payload?.Entity ?? (this is MapSpaceObject mapped
+            && HasTag(SpaceObjectTag.Personnel) ? mapped.PersonnelPawn : InterceptionBody);
+
         internal SpaceObjectTag InterceptionTargetTag
         {
             get
             {
                 SpaceObjectTag roles = Tag;
                 return (roles & SpaceObjectTag.Shuttle) != 0
-                    ? SpaceObjectTag.Shuttle : roles & SpaceObjectTag.Projectile;
+                    ? SpaceObjectTag.Shuttle : (roles & SpaceObjectTag.Personnel) != 0
+                        ? SpaceObjectTag.Personnel : roles & SpaceObjectTag.Projectile;
             }
         }
 

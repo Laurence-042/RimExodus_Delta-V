@@ -90,6 +90,8 @@ namespace DeltaV
         private PlayerNavigationTarget navigationTarget;
         private int taskRevision;
         internal PlayerAutoTaskKind AutoTask => autoTask;
+        internal bool HasActiveAutoTask => autoTask != PlayerAutoTaskKind.Drift
+            || universe.Autopilot.IsActive(OwnerId);
         internal bool ManualControl => target.IsValid && target.Identity == OwnerId;
         internal string AutoTaskLabel => TaskName(autoTask);
 
@@ -155,6 +157,12 @@ namespace DeltaV
                 new FloatMenuOption(TaskName(PlayerAutoTaskKind.Navigate),
                     () => universe.Pilot.BeginNavigationTargeting(panelTarget))
             };
+            if (panelTarget.Vessel.IsPersonnel)
+            {
+                options.RemoveAt(1); // personnel do not run ship-scale automatic combat tactics
+                Find.WindowStack.Add(new FloatMenu(options));
+                return;
+            }
             if (panelTarget.Vessel.State == ShipDerivedState.FreeFlight)
             {
                 options.Insert(1, new FloatMenuOption(TaskName(PlayerAutoTaskKind.Sync),

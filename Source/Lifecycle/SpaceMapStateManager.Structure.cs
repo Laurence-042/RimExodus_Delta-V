@@ -41,7 +41,7 @@ namespace DeltaV
 
         private static bool UsesSeparateLifecycle(SpaceObject owner) => owner.projectileRoleOverride
             || ((owner.baseTag | (owner.Payload?.Role ?? 0))
-                & (SpaceObjectTag.Projectile | SpaceObjectTag.Scattered)) != 0;
+                & (SpaceObjectTag.Projectile | SpaceObjectTag.Scattered | SpaceObjectTag.Personnel)) != 0;
 
         internal static bool HasMapSupport(SpaceObject owner)
         {

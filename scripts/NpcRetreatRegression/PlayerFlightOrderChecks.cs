@@ -12,6 +12,10 @@ internal static partial class Program
 {
     static void CheckPlayerFlightOrders(UniverseManager universe)
     {
+        Check(CollisionCalls(AccessTools.Method(typeof(PilotService), "ComposePlayerCommand"))
+                .Any(method => method.DeclaringType == typeof(TractorLinkService)
+                    && method.Name == "TryGetOperatorForce"),
+            "flight assist preserves grapple-driven translation and torque as operator input");
         CheckPlayerControlAuthority(universe);
         Type goalType = typeof(ShipAutopilot).Assembly.GetType("DeltaV.PlayerNavigationTarget", true);
         ConstructorInfo constructor = goalType.GetConstructor(Private, null,

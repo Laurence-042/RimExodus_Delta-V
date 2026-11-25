@@ -359,6 +359,11 @@ namespace DeltaV
         internal IEnumerable<GlobeDisplayEntry> Entries(SpaceObject obj)
         {
             if (!obj.ParticipatesInOverlays) yield break;
+            if (obj.HasTag(SpaceObjectTag.Personnel))
+            {
+                yield return new GlobeDisplayEntry { owner = obj, area = 1f };
+                yield break;
+            }
             if (obj.Payload?.Recoverable == true)
             {
                 yield return new GlobeDisplayEntry { owner = obj, area = 1f };

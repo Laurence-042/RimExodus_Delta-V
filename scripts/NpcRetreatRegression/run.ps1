@@ -1,7 +1,7 @@
 ﻿param([string]$GameRoot, [string]$HarmonyPath, [string]$ProductionDll, [string]$OutputRoot, [switch]$HullCollisionPerformance, [switch]$AimInputOnly, [switch]$PlayerFlightOnly,
       [switch]$SalvageOnly, [switch]$DrivePerformanceOnly, [switch]$ProjectileOnly, [switch]$ArchiveRecoveryOnly,
       [switch]$DockingOnly, [switch]$NpcOnly, [switch]$ProjectileFullOnly, [switch]$HullContactOnly, [switch]$SeparationOnly,
-      [switch]$ThrusterPauseOnly, [switch]$TractorOnly, [switch]$EvaOnly, [switch]$GlobeOnly, [switch]$CombatManeuverOnly, [switch]$EngagementBaseline, [switch]$EngagementRegression, [switch]$EngagementBattle, [switch]$AutoVolleyOnly,
+      [switch]$ThrusterPauseOnly, [switch]$TractorOnly, [switch]$EvaOnly, [switch]$PawnSpaceflightOnly, [switch]$GlobeOnly, [switch]$CombatManeuverOnly, [switch]$EngagementBaseline, [switch]$EngagementRegression, [switch]$EngagementBattle, [switch]$AutoVolleyOnly,
       [ValidateSet('Count', 'Time', 'Parity')][string]$StaticEngagement,
       [ValidateSet('Normal', 'Dense')][string]$StaticScene = 'Normal',
       [ValidateSet('Wide', 'Point')][string]$CollisionFleet,
@@ -346,6 +346,7 @@ if ($SeparationOnly) { $regressionArguments += '--separation-only' }
 if ($ThrusterPauseOnly) { $regressionArguments += '--thruster-pause-only' }
 if ($EvaOnly) { $regressionArguments += '--eva-only' }
 if ($TractorOnly) { $regressionArguments += '--tractor-only' }
+if ($PawnSpaceflightOnly) { $regressionArguments += '--pawn-spaceflight-only' }
 if ($Mothership -in @('Experiment','AimRefresh')) {
     $modes = if ($Mothership -eq 'AimRefresh') { @('topology','aim-cause','health','production','heading') } else { @('health','production','heading') }
     foreach ($mode in $modes) {

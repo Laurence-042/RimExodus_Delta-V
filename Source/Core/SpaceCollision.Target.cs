@@ -12,28 +12,40 @@ namespace DeltaV
         {
             internal readonly SpaceObject owner;
             internal readonly Map map;
-            internal readonly Building entity;
+            internal readonly Thing entity;
             internal readonly SpacePose pose;
             private readonly int version;
+            private readonly bool entityBacked;
+            private readonly bool requiresPersonnelProxy;
 
             private TargetView(SpaceObject owner, SpacePose pose)
             {
                 this.owner = owner; this.pose = pose;
                 map = owner?.map;
-                entity = map == null ? owner?.Payload?.InterceptionBody : null;
+                Thing resolved = owner?.InterceptionThing;
+                bool personnel = owner?.HasTag(SpaceObjectTag.Personnel) == true;
+                requiresPersonnelProxy = map != null && personnel;
+                entityBacked = resolved != null && (map == null || personnel);
+                entity = entityBacked ? resolved : null;
                 version = owner?.RepresentationVersion ?? 0;
             }
             private TargetView(TargetView source, SpacePose pose)
             {
                 owner = source.owner; map = source.map; entity = source.entity;
+                entityBacked = source.entityBacked;
+                requiresPersonnelProxy = source.requiresPersonnelProxy;
                 version = source.version; this.pose = pose;
             }
             internal static TargetView Of(SpaceObject owner) => new TargetView(owner, owner?.pose ?? default);
             internal TargetView AtPose(SpacePose value) => new TargetView(this, value);
             internal bool Valid => owner != null && owner.RepresentationVersion == version
-                && owner.map == map && (map != null ? !map.Disposed
-                    : entity != null && !entity.Destroyed && owner.Payload?.InterceptionBody == entity);
-            internal bool HasRigidStructure => Valid && map != null;
+                && owner.map == map && (!requiresPersonnelProxy
+                    || Current.Game?.GetComponent<UniverseManager>()?.Projectiles
+                        .HasPersonnelProxy(owner, entity) == true) && (entityBacked
+                    ? entity != null && !entity.Destroyed && (map == null || entity.Spawned && entity.Map == map)
+                    : map != null && !map.Disposed);
+            internal bool HasEntity => Valid && entityBacked;
+            internal bool HasRigidStructure => Valid && map != null && !entityBacked;
             internal bool CanHullContact => HasRigidStructure && !owner.projectileRoleOverride && !owner.IsScattered;
             internal Vector2 ToLocal(Vector2 backendPoint) => map != null
                 ? SpaceTransform.MapToShipLocal(map, backendPoint) : backendPoint;
@@ -45,14 +57,14 @@ namespace DeltaV
                 SpaceTransform.ShipDirectionToUniverseTangent(pose, point, direction);
             internal Vector2 DirectionFromUniverse(Vector3 point, Vector2 direction) =>
                 SpaceTransform.UniverseTangentToShipDirection(pose, point, direction);
-            internal float BoundsRadius => !Valid ? 0f : map != null
-                ? SurfaceFor(owner).boundsRadius : entity.def.Size.ToVector2().magnitude * .5f;
+            internal float BoundsRadius => !Valid ? 0f : entityBacked
+                ? entity.def.Size.ToVector2().magnitude * .5f : SurfaceFor(owner).boundsRadius;
             internal float OriginBoundsRadius
             {
                 get
                 {
                     if (!Valid) return 0f;
-                    if (map == null) return BoundsRadius;
+                    if (entityBacked) return BoundsRadius;
                     Surface surface = SurfaceFor(owner);
                     return surface.boundsRadius + ToLocal(surface.boundsCenter).magnitude;
                 }
@@ -66,7 +78,7 @@ namespace DeltaV
             {
                 contact = default;
                 if (!Valid || length <= 0f || direction.sqrMagnitude < 1e-8f) return false;
-                bool found = map != null
+                bool found = !entityBacked
                     ? query.NextMap(ToBackend(from), direction.normalized, length, projectile, radius,
                         passed, passedCells, includeLine, includeGuard, out contact,
                         skipSubstructure, coverBuildings, coverCells, skipHull)
@@ -82,7 +94,7 @@ namespace DeltaV
             {
                 hit = default;
                 if (!Valid) return false;
-                bool found = map != null
+                bool found = !entityBacked
                     ? TrySweepContact(body, owner, map, sourceStructure, passed, out hit)
                     : TrySweepEntity(body, this, passed?.buildings, out hit);
                 if (!found) return false;
@@ -99,7 +111,7 @@ namespace DeltaV
             {
                 kind = SpaceCellKind.Empty; thing = null;
                 if (!Valid) return false;
-                if (map == null) { kind = SpaceCellKind.Building; thing = entity; return true; }
+                if (entityBacked) { kind = SpaceCellKind.Building; thing = entity; return true; }
                 if (!cell.InBounds(map)) return false;
                 kind = SpaceStructureRules.ClassifyCell(map, cell, out thing);
                 return kind != SpaceCellKind.Empty;
@@ -109,7 +121,7 @@ namespace DeltaV
                 float penetration, DamageDef damage, Thing instigator, ThingDef projectile, Vector2 local)
             {
                 if (!Valid) return 0f;
-                if (map != null) return SpaceImpactEffects.ApplyStructureDamage(this, cell, thing, part,
+                if (!entityBacked) return SpaceImpactEffects.ApplyStructureDamage(this, cell, thing, part,
                     amount, penetration, damage, instigator, projectile);
                 bool explosive = !part.penetrates && part.explosionRadius > 0f;
                 var info = new DamageInfo(damage, explosive ? Mathf.Max(1, Mathf.RoundToInt(amount)) : amount,

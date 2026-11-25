@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <!-- Runtime-only collision proxy. It is never spawned or drawn; the personnel map and Pawn remain authoritative. -->
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_PawnSpaceflightProxy</defName>
+    <label>personnel spaceflight proxy</label>
+    <thingClass>Building</thingClass><size>(1,1)</size>
+    <graphicData><texPath>Void</texPath><graphicClass>Graphic_Single</graphicClass></graphicData>
+    <selectable>false</selectable><tickerType>Never</tickerType>
+    <passability>PassThroughOnly</passability><fillPercent>0</fillPercent>
+    <comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+      <timeoutTicks>7200</timeoutTicks><ignoresShields>true</ignoresShields><hasMap>true</hasMap>
+      <collisionRadius>0.35</collisionRadius>
+    </li></comps>
+  </ThingDef>
+
+  <!-- Collision contract for a real Verse.Projectile held by an AbstractProjectile payload.
+       The payload supplies the visible sprite; this Def is never spawned or drawn. -->
+  <ThingDef ParentName="BuildingBase">
+    <defName>DeltaV_PawnNativeProjectileProxy</defName>
+    <label>personnel weapon projectile proxy</label>
+    <thingClass>Building</thingClass><size>(1,1)</size>
+    <graphicData><texPath>Void</texPath><graphicClass>Graphic_Single</graphicClass></graphicData>
+    <selectable>false</selectable><tickerType>Never</tickerType>
+    <passability>PassThroughOnly</passability><fillPercent>0</fillPercent>
+    <comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+      <hasMap>false</hasMap><timeoutTicks>7200</timeoutTicks>
+      <collisionRadius>0.08</collisionRadius><visualStyle>Kinetic</visualStyle>
+      <tracerLength>0.2</tracerLength><tracerWidth>0.04</tracerWidth>
+    </li></comps>
+  </ThingDef>
+
+  <DeltaV.SpaceImpactEffectDef>
+    <defName>DeltaV_Impact_PawnHardDockVsStructure</defName>
+    <projectileDefs><li>DeltaV_PawnSpaceflightProxy</li></projectileDefs>
+    <buildingHitChance>1</buildingHitChance>
+    <attackerEffect><kind>PlaceBody</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef>
+    <defName>DeltaV_Impact_PawnHardDockVsSubstructure</defName>
+    <projectileDefs><li>DeltaV_PawnSpaceflightProxy</li></projectileDefs>
+    <targetsSubstructure>true</targetsSubstructure><substructureHitChance>1</substructureHitChance>
+    <attackerEffect><kind>PlaceBody</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+  <DeltaV.SpaceImpactEffectDef>
+    <defName>DeltaV_Impact_PawnNativeProjectileVsShield</defName>
+    <projectileDefs><li>DeltaV_PawnNativeProjectileProxy</li></projectileDefs>
+    <targetThingDefs>
+      <li>GravshipShieldGenerator</li>
+      <li>DeltaV_ShieldGenerator</li><li>DeltaV_ShieldGeneratorSmall</li>
+    </targetThingDefs>
+    <!-- Ship shields stop personnel rounds but do not spend meaningful capital-ship capacity. -->
+    <defenderEffect><kind>ShieldDrain</kind><damage>0</damage></defenderEffect>
+    <attackerEffect><kind>DestroySelf</kind></attackerEffect>
+  </DeltaV.SpaceImpactEffectDef>
+
+  <DeltaV.VirtualWeaponDef>
+    <defName>DeltaV_PawnGrapple</defName><label>grapple</label>
+    <comps>
+      <li Class="DeltaV.CompProperties_SpaceWeapon">
+        <projectileDef>DeltaV_Beam_PawnGrapple</projectileDef><manualOnly>true</manualOnly><tractor>true</tractor>
+        <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>1</defaultGroupNumber>
+        <range>35</range><cooldownTicks>1</cooldownTicks><baseSpreadDeg>0</baseSpreadDeg>
+        <intrinsicAimSkill>20</intrinsicAimSkill>
+      </li>
+      <li Class="DeltaV.CompProperties_PawnGrapple" />
+    </comps>
+  </DeltaV.VirtualWeaponDef>
+  <ThingDef ParentName="DeltaV_EngineeringBeam">
+    <defName>DeltaV_Beam_PawnGrapple</defName><label>grapple line</label>
+    <comps><li Class="DeltaV.CompProperties_SpaceProjectile">
+      <hasMap>false</hasMap><speed>2000</speed><laserRange>35</laserRange>
+      <laserBeamWidth>0.12</laserBeamWidth><visualStyle>Tractor</visualStyle><continuousBeam>true</continuousBeam>
+    </li></comps>
+  </ThingDef>
+</Defs>

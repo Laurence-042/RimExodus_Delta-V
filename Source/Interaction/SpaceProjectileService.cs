@@ -91,6 +91,8 @@ namespace DeltaV
             public ThingDef def;
             public CompProperties_SpaceProjectile props;
             public Building building;
+            public Verse.Projectile nativeProjectile;
+            public int timeoutTicks;
             public Thing launcher;
             public CompSpaceWeapon weapon;
             private int sourceContainerId;
@@ -101,6 +103,13 @@ namespace DeltaV
             public int targetSampleTick = -1;
             public int targetContainerId;
             public SpacePose targetPose;
+            public IHardDockingExecutor hardDockingExecutor;
+            // A mapped spaceflight Pawn owns one runtime collision proxy for the whole
+            // representation lifetime. Hard docking only arms that existing proxy.
+            public bool personnelProxy;
+            public bool hardDockingActive;
+            // Compatibility/runtime cache: true for every adopted hard docker.
+            // The executor remains the behavior authority. Personnel proxies do not use it.
             public bool adoptedShuttle;
             public DriveSubject boardingDriver;
             public System.Func<SpacePose, SpacePose> boardingReference;
@@ -176,17 +185,20 @@ namespace DeltaV
         private const float ImpactHearFar = 120f;
 
         private readonly List<Projectile> projectiles = new List<Projectile>();
+        private static bool IsHardDocker(Projectile p) => p?.hardDockingExecutor != null
+            || p?.adoptedShuttle == true;
         private readonly Dictionary<ThingDef, GlobeProjectileVisual> globeVisuals = new Dictionary<ThingDef, GlobeProjectileVisual>();
 
         internal void CollectGlobeEntries(List<GlobeDisplayEntry> entries)
         {
             foreach (Projectile p in projectiles)
             {
-                if (p.dead || p.laser || p.adoptedShuttle || p.container == null) continue;
+                if (p.dead || p.laser || IsHardDocker(p) || p.container == null) continue;
                 if (p.globeEntry == null)
                 {
-                    if (!globeVisuals.TryGetValue(p.def, out var visual))
-                        globeVisuals[p.def] = visual = new GlobeProjectileVisual(p.def);
+                    ThingDef visualDef = p.nativeProjectile?.def ?? p.def;
+                    if (!globeVisuals.TryGetValue(visualDef, out var visual))
+                        globeVisuals[visualDef] = visual = new GlobeProjectileVisual(visualDef);
                     p.globeEntry = new GlobeDisplayEntry { owner = p.container, projectile = visual,
                         area = visual.Size.x * visual.Size.y, armament = GlobeArmament.Unknown };
                 }
@@ -220,6 +232,11 @@ namespace DeltaV
         internal void OnRepresentationChanged(SpaceObject previous, SpaceObject current)
         {
             ForgetHullFrame(previous, removeSource: false);
+            bool previousPersonnel = previous is MapSpaceObject { PersonnelPawn: not null };
+            bool currentPersonnel = current is MapSpaceObject { PersonnelPawn: not null };
+            if (previousPersonnel && (!currentPersonnel || previous.map != current.map))
+                RetirePersonnelProxy(previous.objectId);
+            if (currentPersonnel) EnsurePersonnelProxy((MapSpaceObject)current);
             if (current.IsArchived && previous.map is Map unloaded)
                 ReviewTargetsLeavingMap(unloaded, current.objectId);
         }
@@ -292,7 +309,7 @@ namespace DeltaV
             Projectile fragment = projectiles[projectiles.Count - 1];
             if (remainingLifetimeTicks >= 0)
                 fragment.spawnedAtTick = Find.TickManager.TicksGame
-                    + Mathf.Min(fragment.props.timeoutTicks, remainingLifetimeTicks) - fragment.props.timeoutTicks;
+                    + Mathf.Min(fragment.timeoutTicks, remainingLifetimeTicks) - fragment.timeoutTicks;
             fragment.sourceContainer = source;
             fragment.reflectedByShield = reflectedByShield || Vector2.Dot(relativeVelocity, outwardNormal) > 0f;
             fragment.container.pose.velocity = SpaceTransform.TransportTangent(
@@ -323,6 +340,8 @@ namespace DeltaV
             Projectile projectile = projectilePool.Count > 0 ? projectilePool.Pop() : new Projectile();
             projectile.def = def;
             projectile.props = props;
+            projectile.nativeProjectile = null;
+            projectile.timeoutTicks = props.timeoutTicks;
             projectile.launcher = launcher;
             projectile.weapon = weapon;
             projectile.sourceContainer = source;
@@ -439,36 +458,144 @@ namespace DeltaV
             return true;
         }
 
-        /// <summary>为在飞 shuttle 登记共同碰撞工作项；运动仍经真实推进器与截击 MPC。</summary>
-        internal bool AdoptShuttle(SpaceObject shuttle, Building hull, CombatTarget target)
+        internal bool PersonnelProxyDefinitionAvailable
         {
-            CompProperties_SpaceProjectile props = hull?.def.GetCompProperties<CompProperties_SpaceProjectile>();
-            if (props == null || !props.hasMap || shuttle?.map != hull.Map
-                || hull.TryGetComp<CompSpaceShuttle>()?.Vessel.CanDriveIn(shuttle) != true
-                || !target.TryResolve(universe, out var resolved) || resolved.Container == null || projectiles.Any(p => p.container == shuttle)) return false;
-            Projectile p = projectilePool.Count > 0 ? projectilePool.Pop() : new Projectile();
-            p.container = shuttle;
-            p.building = hull;
-            p.def = hull.def;
+            get
+            {
+                ThingDef def = DefDatabase<ThingDef>.GetNamed("DeltaV_PawnSpaceflightProxy", false);
+                return def?.GetCompProperties<CompProperties_SpaceProjectile>() is { hasMap: true };
+            }
+        }
+
+        /// <summary>
+        /// Bind one non-persistent collision work item to a mapped spaceflight Pawn. It shares
+        /// the personnel SpaceObject pose and never creates another universe object or motion state.
+        /// </summary>
+        internal bool EnsurePersonnelProxy(MapSpaceObject source)
+        {
+            PawnSpaceflightShip vessel = source?.PersonnelShip;
+            IHardDockingExecutor executor = vessel?.HardDockingExecutor;
+            Thing body = executor?.Body;
+            ThingDef collisionDef = executor?.CollisionDef;
+            CompProperties_SpaceProjectile props = collisionDef?.GetCompProperties<CompProperties_SpaceProjectile>();
+            if (props == null || !props.hasMap || source?.map != body?.Map
+                || executor.ValidFor(source) != true) return false;
+            Projectile existing = projectiles.FirstOrDefault(p => !p.dead && p.personnelProxy
+                && p.containerId == source.objectId);
+            if (existing != null)
+                return existing.launcher == body && existing.def == collisionDef;
+            if (projectiles.Any(p => !p.dead && p.containerId == source.objectId)) return false;
+            Projectile proxy = projectilePool.Count > 0 ? projectilePool.Pop() : new Projectile();
+            InitializeAttachedProjectile(proxy, source, executor, body, collisionDef, props);
+            proxy.personnelProxy = true;
+            proxy.adoptedShuttle = false;
+            projectiles.Add(proxy);
+            return true;
+        }
+
+        internal bool HasPersonnelProxy(SpaceObject source, Thing pawn = null)
+        {
+            if (source == null) return false;
+            // TargetView.Valid is a collision hot path; avoid LINQ/delegate allocation here.
+            for (int i = 0; i < projectiles.Count; i++)
+            {
+                Projectile p = projectiles[i];
+                if (!p.dead && p.personnelProxy && p.containerId == source.objectId
+                    && (pawn == null || p.launcher == pawn)) return true;
+            }
+            return false;
+        }
+
+        internal void RebuildPersonnelProxies()
+        {
+            foreach (Projectile stale in projectiles.Where(p => p.personnelProxy
+                && (p.container is not MapSpaceObject { PersonnelPawn: not null } personnel
+                    || personnel.PersonnelPawn != p.launcher)).ToArray())
+                QueueProjectileCleanup(stale, destroyContainer: false);
+            foreach (MapSpaceObject personnel in universe.objects
+                .OfType<MapSpaceObject>().Where(obj => obj.PersonnelPawn != null))
+                if (!EnsurePersonnelProxy(personnel))
+                    Log.Error($"[DeltaV] Could not rebuild personnel collision proxy for object #{personnel.objectId}.");
+        }
+
+        private void RetirePersonnelProxy(int objectId)
+        {
+            Projectile proxy = projectiles.FirstOrDefault(p => p.personnelProxy
+                && p.containerId == objectId);
+            if (proxy != null) QueueProjectileCleanup(proxy, destroyContainer: false);
+        }
+
+        private static void InitializeAttachedProjectile(Projectile p, SpaceObject source,
+            IHardDockingExecutor executor, Thing body, ThingDef collisionDef,
+            CompProperties_SpaceProjectile props)
+        {
+            p.container = source;
+            p.building = body as Building;
+            p.def = collisionDef;
             p.props = props;
-            p.launcher = hull;
+            p.nativeProjectile = null;
+            p.timeoutTicks = props.timeoutTicks;
+            p.launcher = body;
             p.sourceContainer = null;
             p.selfFire = default;
             p.launchSweepStart = null;
             p.reflectedByShield = false;
-            p.target = target;
+            p.target = default;
             p.targetSampleTick = -1;
-            p.adoptedShuttle = true;
+            p.targetContainerId = 0;
+            p.targetPose = default;
+            p.hardDockingExecutor = executor;
+            p.hardDockingActive = false;
             p.spawnedAtTick = Find.TickManager.TicksGame;
             p.dead = false;
             p.laser = false;
-            ShipBase vessel = hull.TryGetComp<CompSpaceShuttle>().Vessel;
-            p.prevPosition = shuttle.pose.position;
+            p.prevPosition = source.pose.position;
             p.energyFraction = p.damageScale = p.armorPenetrationScale = p.mass = p.beamEnergyScale = 1f;
-            shuttle.projectileRoleOverride = true;
+            p.boardingDriver = default;
+            p.boardingReference = null;
+        }
+
+        /// <summary>Register or arm an existing vessel as a collision-completed hard docker.</summary>
+        internal bool AdoptHardDocker(SpaceObject source, IHardDockingExecutor executor,
+            CombatTarget target)
+        {
+            Thing body = executor?.Body;
+            ThingDef collisionDef = executor?.CollisionDef;
+            CompProperties_SpaceProjectile props = collisionDef?.GetCompProperties<CompProperties_SpaceProjectile>();
+            if (props == null || !props.hasMap || source?.map != body?.Map
+                || !executor.ValidFor(source) || !target.TryResolve(universe, out var resolved)
+                || resolved.Container == null) return false;
+            Projectile p = projectiles.FirstOrDefault(item => !item.dead
+                && item.containerId == source.objectId);
+            if (p != null)
+            {
+                if (!p.personnelProxy || p.hardDockingActive) return false;
+                p.hardDockingExecutor = executor;
+                return ArmHardDocker(p, source, executor, target, resolved.Container);
+            }
+            p = projectilePool.Count > 0 ? projectilePool.Pop() : new Projectile();
+            InitializeAttachedProjectile(p, source, executor, body, collisionDef, props);
+            p.personnelProxy = false;
+            p.adoptedShuttle = true;
             projectiles.Add(p);
+            if (executor.UsesProjectileRole) source.projectileRoleOverride = true;
+            if (ArmHardDocker(p, source, executor, target, resolved.Container)) return true;
+            QueueProjectileCleanup(p, destroyContainer: false);
+            return false;
+        }
+
+        private bool ArmHardDocker(Projectile p, SpaceObject source, IHardDockingExecutor executor,
+            CombatTarget target, SpaceObject resolvedTarget)
+        {
+            ShipBase vessel = executor.Vessel;
+            if (p.dead || p.hardDockingActive || vessel?.IsValid != true) return false;
+            p.target = target;
+            p.targetSampleTick = -1;
+            p.hardDockingActive = true;
+            p.prevPosition = source.pose.position;
+            p.body.dead = false;
+            executor.NotifyHardDockingActive(true);
             p.boardingDriver = DriveSubject.Of(vessel);
-            hull.TryGetComp<CompSpaceShuttle>().intrusionDriveActive = true;
             p.boardingReference = pose =>
             {
                 SpacePose reference = p.targetPose;
@@ -481,21 +608,51 @@ namespace DeltaV
             };
             ResolveTarget(p);
             universe.Autopilot.Intercept(p.boardingDriver, p.boardingReference,
-                () => !p.dead && ResolveTarget(p), () => ReleaseShuttle(shuttle));
+                () => !p.dead && p.hardDockingActive && ResolveTarget(p),
+                () => ReleaseHardDocker(source));
             if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
                 DeltaVLog.Message(DeltaVLogModule.Combat,
-                    $"boarding intercept adopted shuttle #{shuttle.objectId} target #{resolved.Container.objectId}");
+                    $"hard-docking intercept armed object #{source.objectId} target #{resolvedTarget.objectId}");
             return true;
         }
 
-        internal bool ReleaseShuttle(SpaceObject shuttle)
+        internal bool ReleaseHardDocker(SpaceObject source)
         {
-            if (shuttle == null) return false;
-            Projectile p = projectiles.FirstOrDefault(item => item.adoptedShuttle && item.containerId == shuttle.objectId);
+            if (source == null) return false;
+            Projectile p = projectiles.FirstOrDefault(item => IsHardDocker(item)
+                && item.hardDockingActive && item.containerId == source.objectId);
             if (p == null) return false;
+            if (p.personnelProxy)
+            {
+                DisarmHardDocker(p);
+                return true;
+            }
             QueueProjectileCleanup(p, destroyContainer: false);
             return true;
         }
+
+        private void DisarmHardDocker(Projectile p)
+        {
+            if (p?.hardDockingActive != true) return;
+            int sourceId = p.containerId;
+            IHardDockingExecutor executor = p.hardDockingExecutor;
+            universe.Autopilot.DetachReference(p.boardingDriver, p.boardingReference);
+            p.hardDockingActive = false;
+            p.target = default;
+            p.targetSampleTick = -1;
+            p.targetContainerId = 0;
+            p.targetPose = default;
+            p.boardingDriver = default;
+            p.boardingReference = null;
+            p.body.dead = true;
+            universe.HardDocking.NotifyReleased(sourceId, executor);
+        }
+
+        // Kept as a narrow compatibility seam for the existing shuttle regression fixture.
+        internal bool AdoptShuttle(SpaceObject shuttle, Building hull, CombatTarget target)
+            => AdoptHardDocker(shuttle, hull?.TryGetComp<CompSpaceShuttle>(), target);
+
+        internal bool ReleaseShuttle(SpaceObject shuttle) => ReleaseHardDocker(shuttle);
 
         internal void NotifyContainerRemoving(SpaceObject container)
         {
@@ -513,7 +670,7 @@ namespace DeltaV
                         && flight.target.TryResolve(universe, out var resolved) && resolved.Container == container)
                     ForgetTarget(flight);
             Projectile p = projectiles.FirstOrDefault(item => item.containerId == container.objectId);
-            if (p != null) QueueProjectileCleanup(p, destroyContainer: !p.adoptedShuttle);
+            if (p != null) QueueProjectileCleanup(p, destroyContainer: !IsHardDocker(p));
         }
 
         // ---- tick（制导/超时；容器积分之前）----
@@ -557,31 +714,31 @@ namespace DeltaV
                 {
                     Projectile p = projectiles[i];
                     if (p.dead) continue;
-                    if (p.container == null) { QueueProjectileCleanup(p, !p.adoptedShuttle); continue; }
+                    if (p.container == null) { QueueProjectileCleanup(p, !IsHardDocker(p)); continue; }
                     // 有图弹体被图内结算摧毁（PD/毁伤链经 TakeDamage）→ 销毁收尾。
                     if (p.building?.Destroyed == true || p.container?.Payload is AbstractMissile { InterceptionBody: null })
                     {
-                        if (p.adoptedShuttle) ReleaseShuttle(p.container);
+                        if (IsHardDocker(p)) ReleaseHardDocker(p.container);
                         else DestroyProjectile(p, "intercepted");
                         continue;
                     }
                     // 超时自毁（无后效；激光同 tick 结算不超时）。
-                    if (!p.laser && now - p.spawnedAtTick > p.props.timeoutTicks)
+                    if (!p.laser && !IsHardDocker(p)
+                        && now - p.spawnedAtTick > p.timeoutTicks)
                     {
-                        if (p.adoptedShuttle) ReleaseShuttle(p.container);
+                        if (IsHardDocker(p)) ReleaseHardDocker(p.container);
                         else DestroyProjectile(p, "timeout");
                         continue;
                     }
-                    bool hasTarget = ResolveTarget(p);
-                    if (p.adoptedShuttle && (p.building.Map != p.container.map
-                        || p.building.TryGetComp<CompSpaceShuttle>()?.Vessel.CanDriveIn(p.container) != true
+                    bool hasTarget = p.hardDockingActive && ResolveTarget(p);
+                    if (p.hardDockingActive && (!p.hardDockingExecutor.ValidFor(p.container)
                         || !hasTarget || !universe.Autopilot.IsFollowing(p.boardingDriver, p.boardingReference)))
                     {
-                        ReleaseShuttle(p.container);
+                        ReleaseHardDocker(p.container);
                         continue;
                     }
                     p.prevPosition = p.container.pose.position;
-                    if (!p.laser && !p.adoptedShuttle) AdvanceFlight(p, hasTarget, now);
+                    if (!p.laser && !IsHardDocker(p)) AdvanceFlight(p, hasTarget, now);
                     if (p.props.exhaustTrail && now % 3 == 0
                         && (p.phase != FlightPhase.PoweredFlight || p.motorThrusting))
                         EmitTrail(p, now);
@@ -678,7 +835,7 @@ namespace DeltaV
 
         private void EmitTrail(Projectile p, int now)
         {
-            if (p.adoptedShuttle) return; // shuttle 使用推进器 Comp 的宇宙烟焰，不复用导弹贴片。
+            if (IsHardDocker(p)) return; // Hard dockers use their real thruster visuals.
             bool powered = p.phase == FlightPhase.PoweredFlight;
             SpacePose nozzle = ExhaustPose(p);
             trailPuffs.Add(new TrailPuff
@@ -714,7 +871,7 @@ namespace DeltaV
             p.targetSampleTick = Find.TickManager.TicksGame;
             p.body.requiredDefender = null;
             // 若失效发生在同一批碰撞后效中，不能把已提交的侵入扫掠变成不限定守方。
-            if (p.adoptedShuttle) p.body.dead = true;
+            if (p.hardDockingActive) p.body.dead = true;
         }
 
         // ---- 碰撞调度（容器积分之后）----
@@ -751,6 +908,7 @@ namespace DeltaV
             {
                 Projectile p = projectiles[i];
                 if (p.dead) continue;
+                if (p.personnelProxy && !p.hardDockingActive) continue;
                 if (p.props.continuousBeam)
                 {
                     if (p.launcher?.Spawned != true || p.sourceContainer?.map != p.launcher.Map)
@@ -762,8 +920,13 @@ namespace DeltaV
                 bool hasTarget = ResolveTarget(p);
                 SpaceObject targetContainer = hasTarget ? universe.ObjectById(p.targetContainerId) : null;
                 // 解除接管会立即移出工作表；保留其余弹体的处理顺序，容器已消失也能收尾。
-                if (p.adoptedShuttle && !hasTarget)
-                { QueueProjectileCleanup(p, destroyContainer: false); i--; continue; }
+                if (p.hardDockingActive && !hasTarget)
+                {
+                    bool remainsAttached = p.personnelProxy;
+                    ReleaseHardDocker(p.container);
+                    if (!remainsAttached) i--;
+                    continue;
+                }
                 AddProjectileSweep(p, targetContainer);
                 if (p.cannonTrace is { reported: false }) traceCannons = true;
             }
@@ -833,7 +996,7 @@ namespace DeltaV
             body.attackerBuilding = p.building;
             body.excludeContainer = p.reflectedByShield ? null : p.sourceContainer;
             body.selfFire = p.reflectedByShield ? default : p.selfFire;
-            body.requiredDefender = p.adoptedShuttle ? targetContainer : null;
+            body.requiredDefender = p.hardDockingActive ? targetContainer : null;
             body.ignoreNonHostileProjectiles = !p.reflectedByShield;
             body.launcher = p.launcher;
             body.weapon = p.weapon;
@@ -845,8 +1008,10 @@ namespace DeltaV
             body.reflectedByShield = false;
             body.continued = body.didContinue = false;
             body.sweepRadius = FootprintRadius(p.def);
-            body.noseHalfWidth = p.adoptedShuttle ? p.def.Size.x * 0.5f : 0f;
-            body.noseForwardOffset = p.adoptedShuttle ? (p.def.Size.z - 1) * 0.5f : 0f;
+            body.noseHalfWidth = p.hardDockingExecutor?.NoseHalfWidth
+                ?? (p.adoptedShuttle ? p.def.Size.x * 0.5f : 0f);
+            body.noseForwardOffset = p.hardDockingExecutor?.NoseForwardOffset
+                ?? (p.adoptedShuttle ? (p.def.Size.z - 1) * 0.5f : 0f);
             body.damageScale = p.damageScale;
             body.energyFraction = p.energyFraction;
             body.armorPenetrationScale = p.armorPenetrationScale;
@@ -874,26 +1039,22 @@ namespace DeltaV
             p.beamStart = p.laser ? BeamAnchor(p.sourceContainer, body.from) : null;
             body.onSelfDestruct = delegate
             {
-                if (captured.adoptedShuttle) ReleaseShuttle(captured.container);
+                if (IsHardDocker(captured)) ReleaseHardDocker(captured.container);
                 else
                 {
                     DestroyProjectile(captured, "impact");
                 }
             };
-            body.onPlace = p.adoptedShuttle
+            body.onStructureImpact = p.nativeProjectile != null
+                ? (defender, hitThing, hitCell, hit, localDirection) => QueueNativeImpact(
+                    captured, defender, hitThing, hitCell, hit, localDirection)
+                : null;
+            body.onPlace = p.hardDockingActive && p.hardDockingExecutor != null
                 ? (System.Action<SpaceObject, Vector3, Vector2>)((defender, hit, _) =>
                 {
-                    SpaceObject shuttle = captured.container;
-                    Vector2 forwardAtHit = SpaceTransform.TransportTangent(
-                        SpaceTransform.Rotate(Vector2.right, shuttle.pose.angle
-                            + ShipOrientation.AngleFromRot4(captured.building.Rotation)),
-                        shuttle.pose.position, hit);
-                    Vector2 direction = SpaceTransform.UniverseTangentToMapDirection(
-                        defender, defender.map, hit, forwardAtHit);
-                    Rot4 facing = ShipOrientation.Rot4FromAngle(Mathf.Atan2(direction.y, direction.x));
-                    ReleaseShuttle(shuttle);
-                    universe.Shuttles.PlaceBoardedShuttle(shuttle, captured.building, defender,
-                        captured.body.resolvedHitCell, facing);
+                    universe.HardDocking.NotifyContact(captured.hardDockingExecutor,
+                        captured.container, defender, hit, captured.body.resolvedHitLocal,
+                        captured.body.resolvedHitCell);
                 }) : null;
             body.onShieldRedirect = delegate (Vector3 from, Vector3 hit, SpaceObject defender)
             {
@@ -911,7 +1072,7 @@ namespace DeltaV
                     captured.sourceContainer, defender, captured.launcher, hit,
                     relativeVelocity, outwardNormal, impulse, captured.mass,
                     captured.armorPenetrationScale, captured.reflectedByShield, captured.body.damageScale * captured.body.energyFraction,
-                    fragmentCount, Mathf.Max(0, captured.props.timeoutTicks
+                    fragmentCount, Mathf.Max(0, captured.timeoutTicks
                         - (Find.TickManager.TicksGame - captured.spawnedAtTick)));
             };
             sweepScratch.Add(p);
@@ -1082,14 +1243,17 @@ namespace DeltaV
             int expectedVersion = original?.RepresentationVersion ?? 0;
             if (!destroyContainer)
             {
-                if (p.adoptedShuttle)
+                bool wasHardDocking = p.hardDockingActive;
+                if (wasHardDocking)
                 {
                     universe.Autopilot.DetachReference(p.boardingDriver, p.boardingReference);
-                    CompSpaceShuttle shuttle = p.building?.TryGetComp<CompSpaceShuttle>();
-                    if (shuttle != null) shuttle.intrusionDriveActive = false;
                 }
                 projectiles.Remove(p);
-                if (original != null) original.projectileRoleOverride = false;
+                if (original != null && (p.hardDockingExecutor?.UsesProjectileRole == true
+                    || p.hardDockingExecutor == null && p.adoptedShuttle))
+                    original.projectileRoleOverride = false;
+                if (wasHardDocking)
+                    universe.HardDocking.NotifyReleased(expectedId, p.hardDockingExecutor);
             }
             universe.QueueFrameAction(delegate
             {
@@ -1110,6 +1274,8 @@ namespace DeltaV
             p.def = null;
             p.props = null;
             p.building = null;
+            p.nativeProjectile = null;
+            p.timeoutTicks = 0;
             p.globeEntry = null;
             p.launcher = null;
             p.weapon = null;
@@ -1119,6 +1285,9 @@ namespace DeltaV
             p.targetSampleTick = -1;
             p.targetContainerId = 0;
             p.targetPose = default;
+            p.hardDockingExecutor = null;
+            p.personnelProxy = false;
+            p.hardDockingActive = false;
             p.adoptedShuttle = false;
             p.boardingDriver = default;
             p.boardingReference = null;
@@ -1148,6 +1317,7 @@ namespace DeltaV
             p.body.launcher = null;
             p.body.weapon = null;
             p.body.onSelfDestruct = null;
+            p.body.onStructureImpact = null;
             p.body.onVisualContact = null;
             p.body.onPlace = null;
             p.body.resolvedHitDefender = null;
@@ -1166,7 +1336,7 @@ namespace DeltaV
             globeVisuals.Clear();
             for (int i = projectiles.Count - 1; i >= 0; i--)
             {
-                QueueProjectileCleanup(projectiles[i], !projectiles[i].adoptedShuttle);
+                QueueProjectileCleanup(projectiles[i], !IsHardDocker(projectiles[i]));
             }
             FinishHullContacts();
             hullSources.Clear();
@@ -1247,7 +1417,7 @@ namespace DeltaV
                 {
                     if (p.dead) continue;
                     // 接管的跳帮艇继续由真实 Map 的船壳代理绘制，弹体层只添尾焰。
-                    if (!p.laser && !p.adoptedShuttle)
+                    if (!p.laser && !IsHardDocker(p))
                     {
                         Vector3 pos = SpaceTransform.FocusedDrawPosition(frame, frameMap,
                             p.container.pose.position, altitude);
@@ -1271,7 +1441,7 @@ namespace DeltaV
                             slotForMissile.layer.Emit(slotForMissile);
                         }
                     }
-                    if (!p.adoptedShuttle && p.props.exhaustTrail && p.motorThrusting)
+                    if (!IsHardDocker(p) && p.props.exhaustTrail && p.motorThrusting)
                     {
                         EnsureImpactMaterials();
                         float ramp = MotorProgress(p, Find.TickManager.TicksGame);
@@ -1279,7 +1449,7 @@ namespace DeltaV
                         EmitEngineFlame(ExhaustPose(p), size, frame, frameMap,
                             altitude, layer, ref slot);
                     }
-                    if (!p.adoptedShuttle && p.props.exhaustTrail && p.rcsTurnSign != 0f)
+                    if (!IsHardDocker(p) && p.props.exhaustTrail && p.rcsTurnSign != 0f)
                     {
                         EnsureImpactMaterials();
                         // 向左折转时朝右喷气；喷口位于弹体前半段的外侧。

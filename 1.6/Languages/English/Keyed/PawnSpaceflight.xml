@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_PointDefensePersonnel>Extravehicular personnel</DeltaV_PointDefensePersonnel>
+  <DeltaV_Grapple>Grapple</DeltaV_Grapple>
+  <DeltaV_GrappleRelease>Release grapple</DeltaV_GrappleRelease>
+  <DeltaV_GrappleDesc>Aim the grapple. Movable targets pull both ways; cargo is stowed on contact, personnel are carried, and structures pull the user toward them.</DeltaV_GrappleDesc>
+  <DeltaV_GrappleAttached>Grapple attached: {0}</DeltaV_GrappleAttached>
+  <DeltaV_GrappleReleased>Grapple released.</DeltaV_GrappleReleased>
+  <DeltaV_GrappleNoTarget>No grapple target lies in that direction.</DeltaV_GrappleNoTarget>
+  <DeltaV_GrappleReceiveBlocked>The target was reached but cannot be received or carried.</DeltaV_GrappleReceiveBlocked>
+  <DeltaV_PersonnelLanding>Board</DeltaV_PersonnelLanding>
+  <DeltaV_PersonnelLandingDesc>Select a standable moon pool, open docking port, uncovered deck, or deck cell directly beside vacuum on a friendly or hostile vessel. The pawn flies to that exact cell and enters; collision avoidance stays enabled and walls are never breached.</DeltaV_PersonnelLandingDesc>
+  <DeltaV_PersonnelLandingCancel>Abort structure entry</DeltaV_PersonnelLandingCancel>
+  <DeltaV_PersonnelLandingCancelDesc>Stop tracking the target structure and resume EVA flight at the current position and velocity.</DeltaV_PersonnelLandingCancelDesc>
+  <DeltaV_PersonnelLandingNoTarget>No boardable vessel was selected.</DeltaV_PersonnelLandingNoTarget>
+  <DeltaV_PersonnelLandingBlocked>The selected cell is not a standable moon pool, open docking port, uncovered deck, or deck cell beside vacuum.</DeltaV_PersonnelLandingBlocked>
+  <DeltaV_PersonnelLandingEngaged>Approaching: {0}</DeltaV_PersonnelLandingEngaged>
+  <DeltaV_PersonnelLandingComplete>The EVA pawn entered the vessel.</DeltaV_PersonnelLandingComplete>
+  <DeltaV_PersonnelLandingFailed>Boarding failed; the pawn remains in EVA flight.</DeltaV_PersonnelLandingFailed>
+  <DeltaV_PawnSpaceflightExit>Exit to space</DeltaV_PawnSpaceflightExit>
+  <DeltaV_PawnSpaceflightExitDesc>Leave through a moon pool, open docking port, uncovered deck, or deck edge beside vacuum. The exit is checked only when clicked. The pawn first becomes a floating space object, then controllable EVA flight when capable.</DeltaV_PawnSpaceflightExitDesc>
+  <DeltaV_PawnSpaceflightNoOpenEdge>The pawn must stand on a moon pool, open docking port, uncovered deck, or deck edge beside vacuum, and may not be carrying another object.</DeltaV_PawnSpaceflightNoOpenEdge>
+  <DeltaV_PawnSpaceflightNoMobilityWarning>{0} is not wearing torso-covering apparel that provides vacuum resistance. After exiting they will remain an uncontrollable drifting object and must be carried back by EVA-capable personnel or recovered by a tractor system.</DeltaV_PawnSpaceflightNoMobilityWarning>
+  <DeltaV_PawnSpaceflightVacuumWarningMobile>{0} has insufficient vacuum resistance. They can still maneuver after exiting, but prolonged exposure will cause harm.</DeltaV_PawnSpaceflightVacuumWarningMobile>
+  <DeltaV_PawnSpaceflightVacuumWarningDrifting>{0} also has insufficient vacuum resistance; if they later enter a mapped vacuum environment where they can maneuver, prolonged exposure will cause harm.</DeltaV_PawnSpaceflightVacuumWarningDrifting>
+  <DeltaV_PawnSpaceflightExitRiskConfirm>{0}\n\nSend {1} outside anyway?</DeltaV_PawnSpaceflightExitRiskConfirm>
+  <DeltaV_HardDockNoTarget>No enterable structure is present there.</DeltaV_HardDockNoTarget>
+  <DeltaV_HardDockEngaged>Approaching: {0}</DeltaV_HardDockEngaged>
+  <DeltaV_HardDockRequiresFlight>Available only in independent flight.</DeltaV_HardDockRequiresFlight>
+  <DeltaV_HardDockInProgress>Hard docking is in progress.</DeltaV_HardDockInProgress>
+  <DeltaV_PawnSpaceflightEquipmentLocked>Equipment cannot be changed, removed, or voluntarily dropped during EVA flight.</DeltaV_PawnSpaceflightEquipmentLocked>
+  <DeltaV_PawnSpaceflightCargoDropFailed>That item could not be ejected into space.</DeltaV_PawnSpaceflightCargoDropFailed>
+</LanguageData>

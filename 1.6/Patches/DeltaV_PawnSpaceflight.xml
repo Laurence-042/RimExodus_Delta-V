@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+  <Operation Class="PatchOperationSequence">
+    <operations>
+      <li Class="PatchOperationFindMod">
+        <mods><li>Royalty</li></mods>
+        <match Class="PatchOperationAdd">
+          <xpath>Defs/ThingDef[defName="Apparel_PackJump"]</xpath>
+          <value>
+            <modExtensions>
+              <li Class="DeltaV.DefModExtension_PawnSpaceflight">
+                <thrust>300</thrust>
+              </li>
+            </modExtensions>
+          </value>
+        </match>
+      </li>
+    </operations>
+  </Operation>
+</Patch>

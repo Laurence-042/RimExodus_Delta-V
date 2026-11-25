@@ -442,6 +442,8 @@ namespace DeltaV
             {
                 sb.AppendLine($"- payload={payload.GetType().Name} defName={entity.def.defName}" +
                     $" thingId={entity.ThingID} stackCount={entity.stackCount}");
+                if (payload is AbstractPawn)
+                    sb.AppendLine($"- personnelPromotion={um.Personnel.DescribePromotion(target)}");
             }
             Log.Message(sb.ToString());
         }

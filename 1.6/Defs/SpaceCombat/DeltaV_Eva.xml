@@ -3,7 +3,7 @@
   <!-- Construction economy remains provisional. -->
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_EvaSuit</defName><label>EVA engineering suit</label>
-    <description>A single-person craft for work outside a ship. Load one pilot and up to 60 kg of cargo, then launch from an open deck or moon pool. Movement follows the camera. Its manual tools cut structures and mine rock, weld damage and clean exposed decks, or pull loose cargo into its pack. Mining yields the full amount for the current difficulty, and cutting yields the full normal dismantling return. Both drift into space from the point of impact for tractor recovery. It cannot launch to a world-map destination.</description>
+    <description>A single-person craft for work outside a ship. Load one pilot and up to 60 kg of cargo, then launch from an open deck or moon pool. Movement follows the camera. Its manual tools cut structures and mine rock, weld damage and clean exposed decks, or grapple loose cargo. The grapple exchanges momentum with movable targets and pulls the EVA toward fixed structures; cargo enters the pack on contact. Mining yields the full amount for the current difficulty, and cutting yields the full normal dismantling return. Both drift into space from the point of impact for tractor recovery. It cannot launch to a world-map destination.</description>
     <thingClass>Building</thingClass><size>(1,1)</size><rotatable>true</rotatable>
     <!-- Native south-only Graphic_Multi supplies the 180-degree artwork correction. -->
     <graphicData>

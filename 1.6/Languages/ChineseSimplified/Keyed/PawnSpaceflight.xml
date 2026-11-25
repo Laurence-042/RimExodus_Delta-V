@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <DeltaV_PointDefensePersonnel>舱外人员</DeltaV_PointDefensePersonnel>
+  <DeltaV_Grapple>抓钩</DeltaV_Grapple>
+  <DeltaV_GrappleRelease>松开抓钩</DeltaV_GrappleRelease>
+  <DeltaV_GrappleDesc>选择抓钩方向。抓钩会双向牵引可移动目标；接触货物后收入背包，接触人员后将其抱起，钩住结构时把自己拉向结构。</DeltaV_GrappleDesc>
+  <DeltaV_GrappleAttached>抓钩已连接：{0}</DeltaV_GrappleAttached>
+  <DeltaV_GrappleReleased>抓钩已松开。</DeltaV_GrappleReleased>
+  <DeltaV_GrappleNoTarget>该方向没有可抓取的目标。</DeltaV_GrappleNoTarget>
+  <DeltaV_GrappleReceiveBlocked>已经接触目标，但无法收取或抱起。</DeltaV_GrappleReceiveBlocked>
+  <DeltaV_PersonnelLanding>登舰</DeltaV_PersonnelLanding>
+  <DeltaV_PersonnelLandingDesc>选择友方或敌方舰体上可站立的月池、开放对接口、露天甲板或与真空相邻的甲板格。人员会用真实推进器飞到所选格并进入结构；无需关闭碰撞规避，也不会破坏墙体或主动制造缺口。</DeltaV_PersonnelLandingDesc>
+  <DeltaV_PersonnelLandingCancel>中止进入结构</DeltaV_PersonnelLandingCancel>
+  <DeltaV_PersonnelLandingCancelDesc>停止追踪目标结构，按当前位置和速度恢复舱外飞行。</DeltaV_PersonnelLandingCancelDesc>
+  <DeltaV_PersonnelLandingNoTarget>没有选中可进入的舰体。</DeltaV_PersonnelLandingNoTarget>
+  <DeltaV_PersonnelLandingBlocked>所选格不是可站立的月池、开放对接口、露天甲板或与真空相邻的甲板。</DeltaV_PersonnelLandingBlocked>
+  <DeltaV_PersonnelLandingEngaged>正在接近：{0}</DeltaV_PersonnelLandingEngaged>
+  <DeltaV_PersonnelLandingComplete>舱外人员已进入舰体。</DeltaV_PersonnelLandingComplete>
+  <DeltaV_PersonnelLandingFailed>人员落脚失败；仍保持舱外飞行。</DeltaV_PersonnelLandingFailed>
+  <DeltaV_PawnSpaceflightExit>出舱</DeltaV_PawnSpaceflightExit>
+  <DeltaV_PawnSpaceflightExitDesc>从月池、开放的对接口、露天甲板或相邻真空的甲板离开。点击时才检查出口；人员和随身物品先成为漂浮宇宙对象，具备太空移动能力时再转为可控舱外飞行。</DeltaV_PawnSpaceflightExitDesc>
+  <DeltaV_PawnSpaceflightNoOpenEdge>必须站在月池、开放的对接口、露天甲板或与真空相邻的甲板上，且手部不能抱持其他对象。</DeltaV_PawnSpaceflightNoOpenEdge>
+  <DeltaV_PawnSpaceflightNoMobilityWarning>{0} 没有穿戴覆盖躯干并提供真空抗性的服装。出舱后将保持不可控漂浮，只能由具备舱外活动能力的人员抱回，或由牵引系统回收。</DeltaV_PawnSpaceflightNoMobilityWarning>
+  <DeltaV_PawnSpaceflightVacuumWarningMobile>{0} 的真空抗性不足。出舱后仍可活动，但持续暴露会造成伤害。</DeltaV_PawnSpaceflightVacuumWarningMobile>
+  <DeltaV_PawnSpaceflightVacuumWarningDrifting>{0} 的真空抗性也不足；如果之后进入可活动的有图真空环境，持续暴露会造成伤害。</DeltaV_PawnSpaceflightVacuumWarningDrifting>
+  <DeltaV_PawnSpaceflightExitRiskConfirm>{0}\n\n仍要让 {1} 出舱吗？</DeltaV_PawnSpaceflightExitRiskConfirm>
+  <DeltaV_HardDockNoTarget>这里没有可进入的结构。</DeltaV_HardDockNoTarget>
+  <DeltaV_HardDockEngaged>正在接近：{0}</DeltaV_HardDockEngaged>
+  <DeltaV_HardDockRequiresFlight>只有独立飞行时才能使用。</DeltaV_HardDockRequiresFlight>
+  <DeltaV_HardDockInProgress>正在进行硬对接。</DeltaV_HardDockInProgress>
+  <DeltaV_PawnSpaceflightEquipmentLocked>舱外飞行期间不能更换、穿脱或主动丢弃装备。</DeltaV_PawnSpaceflightEquipmentLocked>
+  <DeltaV_PawnSpaceflightCargoDropFailed>无法把该物品抛入太空。</DeltaV_PawnSpaceflightCargoDropFailed>
+</LanguageData>

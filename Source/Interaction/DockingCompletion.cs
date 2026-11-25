@@ -14,15 +14,18 @@ namespace DeltaV
 
         private readonly ShipBase vessel;
         private readonly string label;
+        private readonly string successMessageKey;
 
         internal DockingCompletion(UniverseManager universe, ShipBase vessel, Map targetMap, Map sourceMap,
-            ShipFlightTransitionService.DockingFocusHandoff handoff)
+            ShipFlightTransitionService.DockingFocusHandoff handoff,
+            string successMessageKey = "DeltaV_DockSuccess")
         {
             this.universe = universe;
             this.vessel = vessel;
             label = vessel.Label;
             this.targetMap = targetMap;
             this.sourceMap = sourceMap;
+            this.successMessageKey = successMessageKey;
 
             this.handoff = handoff;
         }
@@ -63,7 +66,7 @@ namespace DeltaV
             }
             HostColonistBarVisibility.NotifyDockingStateChanged();
             Building_DockingPort.NotifyLandingSettled(targetMap);
-            Messages.Message("DeltaV_DockSuccess".Translate(label),
+            Messages.Message(successMessageKey.Translate(label),
                 MessageTypeDefOf.PositiveEvent, false);
 
         }

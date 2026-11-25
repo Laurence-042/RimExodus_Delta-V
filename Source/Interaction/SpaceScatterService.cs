@@ -408,13 +408,20 @@ namespace DeltaV
                 return true;
             }
 
+            return CaptureReleasedCargo(item, count, pose, holder: holder) != null;
+        }
+
+        private SpaceObject CaptureReleasedCargo(Thing item, int count, SpacePose pose,
+            Map source = null, IntVec3 origin = default, ThingOwner holder = null)
+        {
             if (count == item.stackCount)
-                return universe.CapturePayload(item, pose, item.Faction, holder: holder) != null;
+                return universe.CapturePayload(item, pose, item.Faction, source, origin, holder);
+            if (holder == null || count <= 0 || count > item.stackCount) return null;
 
             Thing part = item.SplitOff(count);
             try
             {
-                return universe.CapturePayload(part, pose, part.Faction) != null;
+                return universe.CapturePayload(part, pose, part.Faction);
             }
             finally
             {
@@ -434,12 +441,82 @@ namespace DeltaV
         internal bool TryScatter(Thing thing) => thing?.Spawned == true
             && TryScatter(thing, thing.Map, thing.Position, null);
 
+        internal bool TryQueuePersonnelRelease(Pawn pawn)
+        {
+            Map source = pawn?.Map;
+            SpaceObject owner = universe.FrameOf(source);
+            if (pawn?.Spawned != true || pawn.Dead || source?.Disposed != false || owner == null
+                || owner.IsScattered || owner.HasTag(SpaceObjectTag.Personnel)
+                || pawn.carryTracker?.CarriedThing != null) return false;
+            if (!PersonnelAccess.TryResolveExit(pawn, out PersonnelExitSite exit))
+            {
+                Messages.Message("DeltaV_PawnSpaceflightNoOpenEdge".Translate(), pawn,
+                    MessageTypeDefOf.RejectInput, false);
+                return false;
+            }
+            IntVec3 origin = exit.cell;
+            int version = owner.RepresentationVersion;
+            var focus = ShipFlightTransitionService.LaunchFocusHandoff.Capture(universe, source);
+            void QueueRelease() => universe.QueueFrameAction(() =>
+            {
+                if (source.Disposed || universe.FrameOf(source) != owner
+                    || owner.RepresentationVersion != version || !PersonnelAccess.StillValid(pawn, exit)) return;
+                var launch = exit.Vertical ? Vector2.zero : new Vector2(exit.outward.x, exit.outward.z);
+                SpaceObject released = CaptureReleasedCargo(pawn, 1,
+                    EjectionPose(owner, source, origin, launch * 0.75f, launch), source, origin);
+                if (released != null && focus.Valid)
+                    universe.Personnel.RequestLaunchFocus(released, focus);
+            });
+            string warning = PersonnelReleaseWarning(pawn);
+            if (!warning.NullOrEmpty())
+                Find.WindowStack.Add(Dialog_MessageBox.CreateConfirmation(warning,
+                    QueueRelease, destructive: true));
+            else QueueRelease();
+            return true;
+        }
+
+        private static string PersonnelReleaseWarning(Pawn pawn)
+        {
+            bool canMove = PawnSpaceflightSnapshot.HasMobilityApparel(pawn);
+            bool vacuumRisk = pawn?.HarmedByVacuum == true;
+            if (canMove && !vacuumRisk) return null;
+            var warnings = new List<string>(2);
+            if (!canMove)
+                warnings.Add("DeltaV_PawnSpaceflightNoMobilityWarning".Translate(pawn.LabelShortCap));
+            if (vacuumRisk)
+                warnings.Add((canMove
+                    ? "DeltaV_PawnSpaceflightVacuumWarningMobile"
+                    : "DeltaV_PawnSpaceflightVacuumWarningDrifting").Translate(pawn.LabelShortCap));
+            return "DeltaV_PawnSpaceflightExitRiskConfirm".Translate(
+                string.Join("\n\n", warnings), pawn.LabelShortCap);
+        }
+
+        internal bool TryDropPawnInventory(Pawn pawn, Thing item)
+        {
+            if (!universe.Personnel.IsActive(pawn) || item == null
+                || pawn.inventory?.innerContainer == null
+                || item.holdingOwner != pawn.inventory.innerContainer) return false;
+            if (item.def.destroyOnDrop)
+            {
+                pawn.inventory.innerContainer.Remove(item);
+                item.Destroy();
+                return true;
+            }
+            SpaceObject source = universe.FrameOf(pawn.Map);
+            if (source == null) return false;
+            Vector2 outward = SpaceTransform.Rotate(Vector2.right,
+                ShipOrientation.AngleFromRot4(pawn.Rotation)) * .75f;
+            SpacePose pose = SpaceTransform.RigidPointPose(source.pose, outward, 0f);
+            return CaptureReleasedCargo(item, item.stackCount, pose,
+                holder: pawn.inventory.innerContainer) != null;
+        }
+
         private bool TryScatter(Thing thing, Map source, IntVec3 origin, ThingOwner holder)
         {
             SpaceObject owner = universe.FrameOf(source);
             if (owner == null || owner.IsScattered) return false;
-            return universe.CapturePayload(thing, EjectionPose(owner, source, origin, default, default),
-                thing.Faction, source, origin, holder) != null;
+            return CaptureReleasedCargo(thing, thing.stackCount,
+                EjectionPose(owner, source, origin, default, default), source, origin, holder) != null;
         }
 
         private static SpacePose EjectionPose(SpaceObject owner, Map source, IntVec3 origin,

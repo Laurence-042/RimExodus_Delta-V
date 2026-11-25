@@ -120,7 +120,7 @@ namespace DeltaV
             {
                 this.target = TargetView.Of(target);
                 map = this.target.map;
-                surface = map != null && this.target.Valid ? SurfaceFor(target) : null;
+                surface = map != null && this.target.Valid && !this.target.HasEntity ? SurfaceFor(target) : null;
                 includeBody = Includes;
                 if (scope != null)
                 {

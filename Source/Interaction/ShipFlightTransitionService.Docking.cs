@@ -107,6 +107,8 @@ namespace DeltaV
                 return false;
             }
             ShipBase ship = target.Vessel;
+            // 人员能力只存在于已经独立的 1x1 飞行表示，不参与船体提取或散落物拆分。
+            if (ship.IsPersonnel) return true;
             var transfer = ship.Transfer;
             if (transfer.body == null)
             {
@@ -458,6 +460,39 @@ namespace DeltaV
             return frame == null ? null : MoveForceDomain(frame, PlanForceDomain(ship.Map, null, ship));
         }
 
+        internal readonly struct LaunchFocusHandoff
+        {
+            private readonly int sourceId;
+            private readonly Vector3 viewUniverse;
+            private readonly float zoom;
+
+            private LaunchFocusHandoff(SpaceObject source)
+            {
+                sourceId = source.objectId;
+                Vector3 center = Find.CameraDriver.CurrentViewRect.CenterVector3;
+                viewUniverse = SpaceTransform.MapPointToUniverse(source, source.map,
+                    new Vector2(center.x, center.z));
+                zoom = Find.CameraDriver.RootSize;
+            }
+
+            internal bool Valid => sourceId > 0;
+
+            internal static LaunchFocusHandoff Capture(UniverseManager universe, Map sourceMap)
+            {
+                SpaceObject source = sourceMap != null ? universe?.FrameOf(sourceMap) : null;
+                return source != null && Find.CurrentMap == sourceMap
+                    ? new LaunchFocusHandoff(source) : default;
+            }
+
+            internal void Apply(UniverseManager universe, SpaceObject destination, DriveSubject identity)
+            {
+                if (!Valid || destination?.map == null) return;
+                ShipStatusPanel.SelectStructure(destination.map, identity);
+                universe.SetFocusedWithCamera(destination,
+                    SpaceTransform.UniverseToMapPoint(destination, destination.map, viewUniverse), zoom);
+            }
+        }
+
         internal readonly struct DockingFocusHandoff
         {
             internal readonly int hostId;
@@ -561,6 +596,36 @@ namespace DeltaV
                 universe.PublishPlayerMapActivity(targetMap, PlayerContactKind.Docking,
                     target.Vessel.Anchor);
             return true;
+        }
+
+        internal bool TransferPersonnelIntoHost(UniverseManager universe, MapSpaceObject source,
+            Map targetMap, IntVec3 landingCell, out Map transferredSource)
+        {
+            transferredSource = source?.map;
+            Pawn pawn = source?.PersonnelPawn;
+            Map sourceMap = transferredSource;
+            if (pawn?.Spawned != true || pawn.Map != sourceMap || targetMap == null
+                || targetMap.Disposed || !landingCell.InBounds(targetMap)
+                || universe.ObjectById(source.objectId) != source) return false;
+            var cells = new HashSet<IntVec3> { pawn.Position };
+            Gravship transfer = GravshipInterop.CaptureDomain(sourceMap, cells, null,
+                pawn.Faction, includeTerrain: false, includeItems: true);
+            if (transfer == null) return false;
+            transfer.Rotation = Rot4.North;
+            GravshipInterop.StripDomain(transfer, sourceMap, cells, includeTerrain: false);
+            int ownerId = SubstructureOwnership.TryGet(targetMap)?.OwnerAt(landingCell)
+                ?? SubstructureOwnership.Unassigned;
+            GravshipInterop.PlaceIntoMap(transfer, landingCell, targetMap, ownerId);
+            universe.UnregisterObject(source);
+            QueueEmptyDepartedMapCleanup(universe, sourceMap);
+            if (pawn.Faction == Faction.OfPlayerSilentFail)
+            {
+                universe.SetFocusedWithCamera(universe.FrameOf(targetMap),
+                    new Vector2(landingCell.x + .5f, landingCell.z + .5f), Find.CameraDriver.RootSize);
+                Find.Selector.Select(pawn, playSound: false, forceDesignatorDeselect: true);
+            }
+            universe.PublishPlayerMapActivity(targetMap, PlayerContactKind.Docking, pawn);
+            return pawn.Spawned && pawn.Map == targetMap;
         }
 
         private static string BuildLeftBehindSummary(Map map, List<Thing> leftovers)

@@ -67,6 +67,8 @@ internal static class Program
         passed &= Run("dock-20-v8", new Vector2(-20, 0), new Vector2(8, 0), 0, 0, strict, precision: true, baselineSeconds: 9.48);
         passed &= Run("dock-5-v2", new Vector2(-5, 0), new Vector2(2, 0), 0, 0, strict, precision: true, baselineSeconds: 7.60);
         passed &= Run("dock-weak160", new Vector2(-160, 0), new Vector2(20, 0), 0, 0, strict, reverseFactor: .55f, precision: true, requireFullThrust: true, baselineSeconds: 19.42);
+        passed &= Run("personnel-pass-through", new Vector2(-20, 0), new Vector2(8, 0),
+            0, 0, strict, precision: true, arrivalSpeed: 1.5f, completionSpeed: 2f);
         return passed ? 0 : 1;
     }
 
@@ -220,7 +222,8 @@ internal static class Program
 
     static bool Run(string name, Vector2 position, Vector2 velocity, float angle, float targetAngle, bool strict,
         float reverseFactor = 1f, int playbackSteps = 1, bool drag = false, Vector2 targetVelocity = default,
-        bool precision = false, bool requireFullThrust = false, double baselineSeconds = 0)
+        bool precision = false, bool requireFullThrust = false, double baselineSeconds = 0,
+        float arrivalSpeed = 0f, float completionSpeed = .15f)
     {
         DeltaVMod.CurrentSettings.passiveDrag = drag;
         var report = new ShipPhysics.MassReport { mass = 1200f, inertia = 63926f };
@@ -264,10 +267,12 @@ internal static class Program
                 bool solved;
                 double braking = ShipPhysics.PreviewBrakingAcceleration(report, SpaceTransform.RotateInverse(-position.normalized, angle));
                 double closing = Math.Max(0, Vector2.Dot(velocity, -position.normalized));
+                double excessClosing = Math.Max(0, closing - arrivalSpeed);
                 (float decay, _) = ShipPhysics.PassiveDragFactors(1f / 60f);
-                double stop = BrakingGuidanceFallback.StoppingDistance(closing, .8 * braking, Math.Pow(decay, 60));
+                double stop = BrakingGuidanceFallback.StoppingDistance(excessClosing,
+                    .8 * braking, Math.Pow(decay, 60));
                 GuidanceAccuracy accuracy = position.magnitude <= 9 || lastAccuracy == GuidanceAccuracy.Strict && position.magnitude <= 18
-                    ? GuidanceAccuracy.Strict : position.magnitude <= stop + closing * .4
+                    ? GuidanceAccuracy.Strict : position.magnitude <= stop + excessClosing * .4
                         ? GuidanceAccuracy.Braking : GuidanceAccuracy.Cruise;
                 int period = playbackSteps > 0 ? playbackSteps : accuracy == GuidanceAccuracy.Strict ? 1 : accuracy == GuidanceAccuracy.Braking ? 2 : 4;
                 bool changed = accuracy != lastAccuracy;
@@ -280,14 +285,18 @@ internal static class Program
                 }
                 else
                 {
+                    Vector2 arrivalVelocity = position.sqrMagnitude > 1e-8f
+                        ? -position.normalized * arrivalSpeed : Vector2.zero;
                     solved = guidance.Compute(new GuidanceRequest {
                         positionError = -position, relativeVelocity = velocity, referenceVelocity = targetVelocity,
+                        arrivalVelocity = arrivalVelocity,
                         angleError = SpaceTransform.WrapAngle(targetAngle - angle), relativeAngularVelocity = omega,
                         dt = 0.1f, elapsedSteps = Math.Max(1, planStep + 1), previousX = held.normalizedX,
                         previousZ = held.normalizedZ, previousAngular = held.normalizedAngular,
                         controlModel = model, controlAcceleration = b,
                         brakingAcceleration = braking, accuracy = exactOnly ? GuidanceAccuracy.Strict : accuracy,
-                        approachReserveDistance = accuracy == GuidanceAccuracy.Braking ? closing * (period - 1) * .1 : 0
+                        approachReserveDistance = accuracy == GuidanceAccuracy.Braking
+                            ? excessClosing * (period - 1) * .1 : 0
                     }, out held);
                     planStep = 0;
                     solves++;
@@ -329,11 +338,21 @@ internal static class Program
             maxSpeed = Math.Max(maxSpeed, velocity.magnitude);
             furthestPastTarget = Math.Max(furthestPastTarget, -Vector2.Dot(position, initialDirection));
             float positionTolerance = precision ? .05f : .35f;
+            if (arrivalSpeed > 0f && position.magnitude <= positionTolerance)
+            {
+                float speed = velocity.magnitude;
+                bool clean = fallback == 0 && speed >= arrivalSpeed - .35f
+                    && speed < completionSpeed && Math.Abs(omega) < .03f;
+                Console.WriteLine($"{(clean ? "PASS" : "FAIL")} {name}: seconds={(tick+1)/60f:F2} "
+                    + $"d={position.magnitude:F4} speed={speed:F4} target={arrivalSpeed:F2} "
+                    + $"ceiling={completionSpeed:F2} fallback={fallback}/{solves}");
+                return clean;
+            }
             bool window = position.magnitude <= positionTolerance && Math.Abs(SpaceTransform.WrapAngle(targetAngle - angle)) <= (precision ? .01f : 1.15f * Mathf.Deg2Rad)
-                && (!precision || velocity.magnitude < .15f && Math.Abs(omega) < .03f);
+                && (!precision || velocity.magnitude < completionSpeed && Math.Abs(omega) < .03f);
             if (!window && heldTicks > 0) { losses++; Console.WriteLine($"WINDOW LOST {name} tick={tick} d={position.magnitude:F4} v={velocity.magnitude:F4} angle={SpaceTransform.WrapAngle(targetAngle-angle)*Mathf.Rad2Deg:F2} hold={heldTicks}"); }
             heldTicks = window ? heldTicks + 1 : 0;
-            if (heldTicks >= 60 && velocity.magnitude < 0.15f && Math.Abs(omega) < 0.03f)
+            if (heldTicks >= 60 && velocity.magnitude < completionSpeed && Math.Abs(omega) < 0.03f)
             {
                 solveTimes.Sort();
                 bool clean = fallback == 0 && losses == 0 && furthestPastTarget <= positionTolerance

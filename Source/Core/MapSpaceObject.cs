@@ -14,13 +14,27 @@ namespace DeltaV
         private IReadOnlyList<ShipBase> members = System.Array.Empty<ShipBase>();
         private int membersVersion = -1;
         private int rolesVersion = -1;
+        private Pawn personnelPawn;
+        private PawnSpaceflightSnapshot personnelSnapshot;
+        [Unsaved] private PawnSpaceflightShip personnelShip;
+        internal Pawn PersonnelPawn => personnelPawn;
+        internal PawnSpaceflightSnapshot PersonnelSnapshot => personnelSnapshot;
+        internal PawnSpaceflightShip PersonnelShip => personnelPawn == null || personnelSnapshot == null
+            ? null : personnelShip ??= new PawnSpaceflightShip(personnelPawn, personnelSnapshot);
         public override Map map
         {
             get => interior;
-            internal set { interior = value; rolesVersion = membersVersion = -1; members = System.Array.Empty<ShipBase>(); }
+            internal set { interior = value; rolesVersion = membersVersion = -1; members = System.Array.Empty<ShipBase>(); personnelShip = null; }
         }
         public MapSpaceObject() { }
         public MapSpaceObject(int id, Map map, SpacePose pose) : base(id, pose) { interior = map; }
+        internal void SetPersonnel(Pawn pawn, PawnSpaceflightSnapshot snapshot)
+        {
+            personnelPawn = pawn;
+            personnelSnapshot = snapshot;
+            personnelShip = null;
+            ClearMemberCaches();
+        }
         public override IEnumerable<ShipBase> Ships
         {
             get
@@ -88,12 +102,13 @@ namespace DeltaV
             get
             {
                 if (interior == null || interior.Disposed) return ShipPhysics.PointMassReport;
-                return ShipPhysics.GetReport(this);
+                return ShipPhysics.ApplyPersonnelMass(ShipPhysics.GetReport(this), personnelPawn);
             }
         }
         // Pure drift needs mass/COM but does not consume real-time thruster availability.
         protected override ShipPhysics.MassReport DriftReport =>
-            interior == null || interior.Disposed ? ShipPhysics.PointMassReport : ShipPhysics.GetReport(this);
+            interior == null || interior.Disposed ? ShipPhysics.PointMassReport
+                : ShipPhysics.ApplyPersonnelMass(ShipPhysics.GetReport(this), personnelPawn);
         private PilotTarget ResolvePilot(DriveSubject subject)
         {
             if (interior == null || interior.Disposed || subject.key <= 0) return default;
@@ -170,7 +185,16 @@ namespace DeltaV
             archived.dynamics = DriveSnapshot.Capture(info, subject);
             return archived;
         }
-        public override void ExposeData() { base.ExposeData(); Scribe_References.Look(ref interior, "map"); }
+        public override string label => personnelPawn?.LabelCap ?? base.label;
+        public override void ExposeData()
+        {
+            if (Scribe.mode == LoadSaveMode.Saving) personnelSnapshot?.CaptureWeaponRuntime();
+            base.ExposeData();
+            Scribe_References.Look(ref interior, "map");
+            Scribe_References.Look(ref personnelPawn, "personnelPawn");
+            Scribe_Deep.Look(ref personnelSnapshot, "personnelFlight");
+            if (Scribe.mode == LoadSaveMode.PostLoadInit) personnelShip = null;
+        }
     }
 
     public sealed class ArchivedSpaceObject : SpaceObject

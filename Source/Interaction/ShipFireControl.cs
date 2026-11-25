@@ -311,7 +311,7 @@ namespace DeltaV
         }
 
         private static int CompareIdentity(DriveSubject a, DriveSubject b)
-        { int kind = a.shuttle.CompareTo(b.shuttle); return kind != 0 ? kind : a.key.CompareTo(b.key); }
+        { int kind = a.kind.CompareTo(b.kind); return kind != 0 ? kind : a.key.CompareTo(b.key); }
 
         internal bool TryGetIntent(ShipBase ship, SpaceObject own, bool suppressSystems, out ShipVolleyIntent intent)
         {
@@ -639,15 +639,16 @@ namespace DeltaV
         private static bool PdCoverageFull(SpaceObject target, Dictionary<int, float> reservedDamage)
         {
             if (reservedDamage == null || !reservedDamage.TryGetValue(target.objectId, out float damage)) return false;
-            return target.InterceptionBody is Building building && damage >= building.HitPoints;
+            return target.InterceptionThing is Thing thing && damage >= thing.HitPoints;
         }
 
         private static float PdDamageAgainst(CompSpaceWeapon weapon, SpaceObject target)
         {
             ThingDef projectile = weapon.SelectMagazine()?.SelectedProjectileDef ?? weapon.WeaponProps.projectileDef;
-            if (projectile == null || target.InterceptionBody is not Building building) return 0f;
+            if (projectile == null || target.InterceptionThing is not Thing thing) return 0f;
             return weapon.WeaponProps.projectilesPerShot > 1 ? EstimateFanHits(weapon, target, projectile)
-                : SpaceWeaponBallistics.ExpectedDamage(weapon, projectile, building.def);
+                : thing is Building building ? SpaceWeaponBallistics.ExpectedDamage(weapon, projectile, building.def)
+                : Mathf.Max(1f, projectile.projectile?.GetDamageAmount(weapon.parent) ?? 1f);
         }
 
         private static float EstimateFanHits(CompSpaceWeapon weapon, SpaceObject target, ThingDef projectile)

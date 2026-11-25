@@ -6,19 +6,30 @@ using Verse;
 
 namespace DeltaV
 {
+    public enum DriveSubjectKind : byte
+    {
+        Foundation,
+        Shuttle,
+        Personnel
+    }
+
     /// <summary>驾驶主体身份与容器身份分开；分离后由主体重新解析当前容器。</summary>
     public readonly struct DriveSubject : IEquatable<DriveSubject>
     {
         public readonly int objectId, key;
-        public readonly bool shuttle;
+        public readonly DriveSubjectKind kind;
+        public bool shuttle => kind == DriveSubjectKind.Shuttle;
+        public bool personnel => kind == DriveSubjectKind.Personnel;
         public DriveSubject(int objectId, int key, bool shuttle = false)
-        { this.objectId = objectId; this.key = key; this.shuttle = shuttle; }
-        public DriveSubject InContainer(int id) => new DriveSubject(id, key, shuttle);
+            : this(objectId, key, shuttle ? DriveSubjectKind.Shuttle : DriveSubjectKind.Foundation) { }
+        public DriveSubject(int objectId, int key, DriveSubjectKind kind)
+        { this.objectId = objectId; this.key = key; this.kind = kind; }
+        public DriveSubject InContainer(int id) => new DriveSubject(id, key, kind);
         public static DriveSubject Of(Ship ship) => Of(PilotTarget.Of(ship));
         public static DriveSubject Of(ShipBase ship) => Of(PilotTarget.Of(ship));
         public static DriveSubject Of(PilotTarget target) => !target.IsValid ? default
             : new DriveSubject(Current.Game?.GetComponent<UniverseManager>()?.FrameOf(target.Map)?.objectId ?? 0,
-                target.Identity.key, target.Identity.shuttle);
+                target.Identity.key, target.Identity.kind);
         public SpaceObject Resolve(UniverseManager universe)
         {
             SpaceObject current = universe?.ObjectById(objectId);
@@ -28,12 +39,13 @@ namespace DeltaV
             SpaceObject frame = ship != null ? universe?.FrameOf(ship.Map) : null;
             return ship?.CanDriveIn(frame) == true ? frame : null;
         }
-        public bool Equals(DriveSubject other) => key == other.key && shuttle == other.shuttle;
+        public bool Equals(DriveSubject other) => key == other.key && kind == other.kind;
         public override bool Equals(object obj) => obj is DriveSubject other && Equals(other);
-        public override int GetHashCode() => (key * 397) ^ (shuttle ? 1 : 0);
+        public override int GetHashCode() => (key * 397) ^ (int)kind;
         public static bool operator ==(DriveSubject a, DriveSubject b) => a.Equals(b);
         public static bool operator !=(DriveSubject a, DriveSubject b) => !a.Equals(b);
-        public override string ToString() => (shuttle ? "thing:" : "structure:") + key;
+        public override string ToString() => (kind == DriveSubjectKind.Shuttle ? "thing:"
+            : kind == DriveSubjectKind.Personnel ? "pawn:" : "structure:") + key;
     }
 
     /// <summary>Map-plane input axes, including cameras whose projected axes are not perpendicular.</summary>
@@ -192,6 +204,7 @@ namespace DeltaV
         public Vector2 comLocal;
         public int ownerId;
         public bool shuttle;
+        public DriveSubjectKind kind;
         public bool allowsAngularMotion = true;
         public List<Vector2> positions = new List<Vector2>(), directions = new List<Vector2>();
         public List<float> forces = new List<float>();
@@ -207,13 +220,17 @@ namespace DeltaV
                 return report;
             }
         }
-        internal DriveSubject Identity => new DriveSubject(0, ownerId, shuttle);
+        internal DriveSubject Identity => new DriveSubject(0, ownerId,
+            kind == DriveSubjectKind.Foundation && shuttle ? DriveSubjectKind.Shuttle : kind);
         internal static DriveSnapshot Capture(DriveInfo info, DriveSubject subject) =>
-            Capture(info, subject.key, subject.shuttle);
+            Capture(info, subject.key, subject.kind);
         internal static DriveSnapshot Capture(DriveInfo info, int ownerId, bool shuttle = false)
+            => Capture(info, ownerId, shuttle ? DriveSubjectKind.Shuttle : DriveSubjectKind.Foundation);
+        internal static DriveSnapshot Capture(DriveInfo info, int ownerId, DriveSubjectKind kind)
         {
             var result = new DriveSnapshot { mass = info.mass, inertia = info.inertia, allowsAngularMotion = info.AllowsAngularMotion,
-                comLocal = info.comLocal, frameAngle = info.frameAngle, ownerId = ownerId, shuttle = shuttle };
+                comLocal = info.comLocal, frameAngle = info.frameAngle, ownerId = ownerId,
+                shuttle = kind == DriveSubjectKind.Shuttle, kind = kind };
             foreach (var t in info.thrusters)
             { result.positions.Add(t.localPos); result.directions.Add(t.dir); result.forces.Add(t.operational ? t.thrust : 0f); }
             return result;
@@ -224,6 +241,9 @@ namespace DeltaV
             Scribe_Values.Look(ref frameAngle, "frameAngle"); Scribe_Values.Look(ref comLocal, "comLocal");
             Scribe_Values.Look(ref ownerId, "ownerId");
             Scribe_Values.Look(ref shuttle, "shuttle");
+            Scribe_Values.Look(ref kind, "kind", DriveSubjectKind.Foundation);
+            if (Scribe.mode == LoadSaveMode.PostLoadInit && kind == DriveSubjectKind.Foundation && shuttle)
+                kind = DriveSubjectKind.Shuttle;
             Scribe_Values.Look(ref allowsAngularMotion, "allowsAngularMotion", true);
             Scribe_Collections.Look(ref positions, "positions", LookMode.Value);
             Scribe_Collections.Look(ref directions, "directions", LookMode.Value);

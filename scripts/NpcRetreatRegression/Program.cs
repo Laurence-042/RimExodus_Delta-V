@@ -119,6 +119,8 @@ internal static partial class Program
         { CheckEva(universe, faction); return; }
         if (Environment.GetCommandLineArgs().Contains("--tractor-only"))
         { CheckTractorControl(universe, faction, other); CheckPlacementGeometry(); CheckSmallScaleMovement(); return; }
+        if (Environment.GetCommandLineArgs().Contains("--pawn-spaceflight-only"))
+        { CheckPawnSpaceflight(universe); return; }
         if (Environment.GetCommandLineArgs().Contains("--thruster-pause-only"))
         {
             CheckDriveExecutionReuse(faction); return;

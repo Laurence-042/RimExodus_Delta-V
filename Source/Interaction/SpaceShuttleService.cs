@@ -36,7 +36,7 @@ namespace DeltaV
         }
     }
 
-    public class CompSpaceShuttle : ThingComp
+    public class CompSpaceShuttle : ThingComp, IHardDockingExecutor
     {
         public ShipCombatState combat = new ShipCombatState();
         private const int DefaultBoostRestartPercent = 50;
@@ -135,15 +135,67 @@ namespace DeltaV
         /// <summary>所在图是否为宇宙容器图（太空侧语义适用）。</summary>
         public SpaceObject Container => Current.Game?.GetComponent<UniverseManager>()?.FrameOf(parent.Map);
 
+        ShipBase IHardDockingExecutor.Vessel => Vessel;
+        Thing IHardDockingExecutor.Body => parent;
+        ThingDef IHardDockingExecutor.CollisionDef => parent.def;
+        HardDockingCompletion IHardDockingExecutor.Completion => HardDockingCompletion.Collision;
+        bool IHardDockingExecutor.RequiresAvoidanceDisabled => true;
+        bool IHardDockingExecutor.UsesProjectileRole => true;
+        float IHardDockingExecutor.ArrivalVelocityTolerance =>
+            ShipAutopilot.DefaultArrivalVelocityTolerance;
+        float IHardDockingExecutor.ArrivalApproachSpeed => 0f;
+        float IHardDockingExecutor.NoseHalfWidth => parent.def.Size.x * 0.5f;
+        float IHardDockingExecutor.NoseForwardOffset => (parent.def.Size.z - 1) * 0.5f;
+        string IHardDockingExecutor.StartLabelKey => "DeltaV_ShuttleBoardGizmo";
+        string IHardDockingExecutor.StartTipKey => "DeltaV_ShuttleBoardGizmoTip";
+        string IHardDockingExecutor.CancelLabelKey => "DeltaV_ShuttleBoardCancel";
+        string IHardDockingExecutor.CancelTipKey => "DeltaV_ShuttleBoardCancelTip";
+        string IHardDockingExecutor.BlockReasonKey(UniverseManager universe, SpaceObject source,
+            bool playerInitiated) => CanBoard && Vessel.CanDriveIn(source)
+                ? null : "DeltaV_ShuttleBoardRequiresFlight";
+        bool IHardDockingExecutor.ValidFor(SpaceObject source) => parent?.Spawned == true
+            && !parent.Destroyed && source?.map == parent.Map && Vessel.CanDriveIn(source) && CanBoard;
+        bool IHardDockingExecutor.TryResolveTarget(SpaceObject target, Vector2 targetMapPoint,
+            out IntVec3 targetCell)
+        {
+            targetCell = new IntVec3(Mathf.FloorToInt(targetMapPoint.x), 0,
+                Mathf.FloorToInt(targetMapPoint.y));
+            return target?.map != null && targetCell.InBounds(target.map);
+        }
+        bool IHardDockingExecutor.TargetStillValid(SpaceObject target, IntVec3 targetCell)
+            => target?.map != null && targetCell.InBounds(target.map);
+        void IHardDockingExecutor.NotifyHardDockingActive(bool active) => intrusionDriveActive = active;
+        void IHardDockingExecutor.CompleteHardDocking(UniverseManager universe, HardDockingContact contact)
+        {
+            Vector2 forwardAtHit = SpaceTransform.TransportTangent(
+                SpaceTransform.Rotate(Vector2.right, contact.source.pose.angle
+                    + ShipOrientation.AngleFromRot4(parent.Rotation)),
+                contact.source.pose.position, contact.universePoint);
+            Vector2 direction = SpaceTransform.UniverseTangentToMapDirection(
+                contact.target, contact.target.map, contact.universePoint, forwardAtHit);
+            Rot4 facing = ShipOrientation.Rot4FromAngle(Mathf.Atan2(direction.y, direction.x));
+            universe.Shuttles.PlaceBoardedShuttle(contact.source, (Building)parent,
+                contact.target, contact.targetCell, facing);
+        }
+
         public override void PostDestroy(DestroyMode mode, Map previousMap)
         {
             base.PostDestroy(mode, previousMap);
+            CompTransporter transporter = parent.TryGetComp<CompTransporter>();
+            List<Thing> released = transporter?.innerContainer?.ToList() ?? new List<Thing>();
             // 原版 transporter 在 lastLaunchTick == 当前 tick 时跳过 DeSpawn 卸货。
             // 若同 tick 已实际毁艇，复用原版卸货入口，再让帧边界清理检查幸存人员/物资。
             if (previousMap != null && !previousMap.Disposed)
-                parent.TryGetComp<CompTransporter>()?.innerContainer.TryDropAll(
+                transporter?.innerContainer.TryDropAll(
                     parent.Position, previousMap, ThingPlaceMode.Near);
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe != null && previousMap != null && !previousMap.Disposed && released.Count > 0)
+                universe.QueueFrameAction(() =>
+                {
+                    foreach (Thing thing in released)
+                        if (thing?.Spawned == true && thing.Map == previousMap)
+                            universe.Scatter.TryScatter(thing);
+                });
             universe?.ShipTransitions.QueueEmptyDepartedMapCleanup(universe, previousMap);
         }
 
@@ -299,105 +351,24 @@ namespace DeltaV
         internal bool CanStartIntrusion(ShipBase vessel, SpaceObject container, bool playerInitiated)
             => IntrusionBlockReasonKey(vessel, container, playerInitiated) == null;
 
-        internal string IntrusionBlockReasonKey(ShipBase vessel, SpaceObject container, bool playerInitiated)
-        {
-            if (container?.projectileRoleOverride == true) return "DeltaV_ShuttleBoardInProgress";
-            if (vessel?.CanBoard != true || container == null || !vessel.CanDriveIn(container))
-                return "DeltaV_ShuttleBoardRequiresFlight";
-            if (playerInitiated && universe.Controls.CollisionAvoidanceEnabled(vessel))
-                return "DeltaV_ShuttleBoardDisableAvoidance";
-            return null;
-        }
+        internal string IntrusionBlockReasonKey(ShipBase vessel, SpaceObject container,
+            bool playerInitiated) => universe.HardDocking.BlockReasonKey(
+                vessel, container, playerInitiated);
 
         /// <summary>侵入指挥：点击敌舰外壳指定目标容器（Targeter 流程内经 ShellPicking 解析）。</summary>
         public void BeginBoardTargeting(PilotTarget shuttle)
-        {
-            Building body = shuttle.Vessel?.Anchor as Building;
-            if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
-                DeltaVLog.Message(DeltaVLogModule.Combat,
-                    $"boarding targeter begin tick={Find.TickManager.TicksGame} hull=#{body?.thingIDNumber} " +
-                    $"spawned={body?.Spawned} current={UniverseManager.MapTag(Find.CurrentMap)} " +
-                    $"hullMap={UniverseManager.MapTag(body?.Map)}");
-            if (body == null || !body.Spawned || !CanStartIntrusion(shuttle.Vessel, universe.FrameOf(body.Map), true)) return;
-            Find.Targeter.BeginTargeting(new TargetingParameters
-            {
-                canTargetPawns = false,
-                canTargetBuildings = false,
-                canTargetItems = false,
-                canTargetSelf = false,
-            }, localTarget =>
-            {
-                // 目标 = 点击处命中的宇宙容器（ShellPicking 在瞄准会话内解析）。
-                Map frameMap = Find.CurrentMap;
-                SpaceObject frame = universe.FrameOf(frameMap);
-                Vector3 mouse = UI.MouseMapPosition();
-                SpaceObject target = frame != null
-                    ? ShellPicking.ShellAtFramePoint(universe, frameMap, mouse)
-                    : null;
-                if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
-                    DeltaVLog.Message(DeltaVLogModule.Combat,
-                        $"boarding targeter callback tick={Find.TickManager.TicksGame} " +
-                        $"local={localTarget} mouse={UI.MouseMapPosition()} frame=#{frame?.objectId} " +
-                        $"picked=#{target?.objectId} tag={target?.Tag} " +
-                        $"targetMap={UniverseManager.MapTag(target?.map)}");
-                if (target == null || target == frame)
-                {
-                    Messages.Message("DeltaV_ShuttleBoardNoTarget".Translate(),
-                        MessageTypeDefOf.RejectInput, false);
-                    return;
-                }
-                Vector3 hitDirection = SpaceTransform.MapPointToUniverse(frame, frameMap,
-                    new Vector2(mouse.x, mouse.z));
-                Vector2 hitMapPoint = SpaceTransform.UniverseToMapPoint(target, target.map, hitDirection);
-                EngageIntrusion(body, CombatTarget.ForContainer(target, hitMapPoint), true);
-            }, highlightAction: null, targetValidator: localTarget =>
-            {
-                // 原版 LocalTargetInfo 仅接受当前 Map 内的格；非聚焦船壳可显示在
-                // 11×13 shuttle 口袋图之外。让 Targeter 交付点击，再由 ShellPicking 判壳。
-                if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
-                    DeltaVLog.Message(DeltaVLogModule.Combat,
-                        $"boarding targeter validate tick={Find.TickManager.TicksGame} " +
-                        $"local={localTarget} valid={localTarget.IsValid} " +
-                        $"mouseCell={UI.MouseCell()} current={UniverseManager.MapTag(Find.CurrentMap)}");
-                return true;
-            });
-        }
+            => universe.HardDocking.BeginTargeting(shuttle.Vessel);
 
         /// <summary>
         /// 进入侵入：弹体服务登记现有艇体并请求截击 MPC，不创建第二个容器。
         /// </summary>
         public void EngageIntrusion(Building body, CombatTarget handle, bool playerInitiated = true)
-        {
-            if (!handle.TryResolve(universe, out var resolved)) return;
-            SpaceObject target = resolved.Container;
-            SpaceObject container = universe.FrameOf(body.Map);
-            if (DeltaVLog.Enabled(DeltaVLogModule.Combat))
-                DeltaVLog.Message(DeltaVLogModule.Combat,
-                    $"boarding engage request tick={Find.TickManager.TicksGame} hull=#{body.thingIDNumber} " +
-                    $"shuttle=#{container?.objectId} baseTag={container?.baseTag} " +
-                    $"target=#{target?.objectId} targetTag={target?.Tag} " +
-                    $"targetMap={UniverseManager.MapTag(target?.map)} " +
-                    $"ordinaryProjectiles={universe.Projectiles.InFlightCount} player={playerInitiated}");
-            if (!CanStartIntrusion(body.TryGetComp<CompSpaceShuttle>()?.Vessel, container, playerInitiated)
-                || target == null || target == container) return;
-            universe.Autopilot.Detach(DriveSubject.Of(PilotTarget.Of(body)), "boarding missile launch");
-            if (universe.Pilot.PilotedTarget(universe).Identity == PilotTarget.Of(body).Identity)
-                universe.Pilot.Exit(universe);
-            if (!universe.Projectiles.AdoptShuttle(container, body, handle)) return;
-            DeltaVLog.Message(DeltaVLogModule.Combat,
-                $"intrusion engaged: shuttle container #{container.objectId} -> '{target.label}' (tag->projectile)");
-            Messages.Message("DeltaV_ShuttleBoardEngaged".Translate(target.label),
-                MessageTypeDefOf.NeutralEvent, false);
-        }
+            => universe.HardDocking.Engage(body?.TryGetComp<CompSpaceShuttle>()?.Vessel,
+                handle, playerInitiated);
 
         /// <summary>退出侵入（打断/目标失效/读档后）：移除弹体角色（目标默认保留可重入）。</summary>
         public void BreakIntrusion(SpaceObject container, bool dropTarget)
-        {
-            if (container == null) return;
-            universe.Projectiles.ReleaseShuttle(container);
-            DeltaVLog.Message(DeltaVLogModule.Combat,
-                $"intrusion broken off: shuttle container #{container.objectId} (projectile role removed)");
-        }
+            => universe.HardDocking.Cancel(container);
 
         /// <summary>侵入命中后效：在帧边界以真正的 Gravship 搬运链降落。</summary>
         public void PlaceBoardedShuttle(SpaceObject container, Building hull, SpaceObject defender,

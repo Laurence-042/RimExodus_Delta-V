@@ -10,7 +10,7 @@ namespace DeltaV
         public float collectionRadius = .5f;
         public CompProperties_CargoTractor() { compClass = typeof(CompCargoTractor); }
     }
-    public class CompCargoTractor : CompSpaceTractor
+    public class CompCargoTractor : CompSpaceTractor, ILightTractorEmitter
     {
         public override bool ManualCargo => true;
         public override bool CanOperate(CompSpaceWeapon weapon) => parent.TryGetComp<CompTransporter>() is CompVehicleCargo
@@ -33,5 +33,22 @@ namespace DeltaV
                 : Mathf.Min(thing.stackCount, Mathf.FloorToInt((cargo.Remaining + .0001f) / unitMass));
             return payload.Handoff(cargo.innerContainer, count);
         }
+
+        float ILightTractorEmitter.ContactRadius =>
+            ((CompProperties_CargoTractor)props).collectionRadius;
+        float ILightTractorEmitter.ImpulsePerTick => CompPawnGrapple.ImpulsePerTick;
+        bool ILightTractorEmitter.ValidSource(UniverseManager universe, SpaceObject source,
+            CompSpaceWeapon weapon) => weapon?.parent == parent && source?.map == parent.Map
+                && SpaceTractor.CanOperate(weapon);
+        bool ILightTractorEmitter.AllowsTarget(SpaceObject target) =>
+            (target?.map != null && !target.HasTag(SpaceObjectTag.Personnel))
+            || (target?.IsScattered == true && target.Payload?.Recoverable == true
+                && Allows(target.Payload.Entity));
+        bool ILightTractorEmitter.MoveTarget(SpaceObject target) => target?.IsScattered == true;
+        TractorReceiveResult ILightTractorEmitter.TryReceive(UniverseManager universe,
+            SpaceObject source, SpaceObject target)
+            => TryReceive(new TractorReceiveContext(universe,
+                parent.TryGetComp<CompVirtualWeapons>()?.WeaponFor(this), target, source));
+        void ILightTractorEmitter.NotifyBlocked() => NotifyBlocked();
     }
 }

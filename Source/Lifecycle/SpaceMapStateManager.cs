@@ -168,6 +168,13 @@ namespace DeltaV
             // 弹体服务（超时/碰撞结算）独占管理，生命周期扫描不得收纳/销毁在飞弹体的图
             //（图池空闲图的豁免同样见弹体服务）。
             if (container.HasTag(SpaceObjectTag.Projectile) == true) return;
+            if (container.HasTag(SpaceObjectTag.Personnel))
+            {
+                float personnelDistance = distances.Distance(container);
+                if (!float.IsPositiveInfinity(personnelDistance) && personnelDistance > deleteRadius)
+                    universe.Personnel.RequestAbstract(container);
+                return;
+            }
             // 悬死自愈：图被外部销毁 → 容器随图消亡。
             if (map.Disposed || !Find.Maps.Contains(map))
             {
@@ -553,6 +560,11 @@ namespace DeltaV
                     || universe.Missions.Protects(obj) || universe.Approach.ApproachShipMap == map
                     || universe.Approach.ActivePlan?.targetMap == map || universe.SoftDock.UsesMap(map)
                     || !ArchivedMapStore.CanUnloadLosslessly(map)) continue;
+                if (obj.HasTag(SpaceObjectTag.Personnel))
+                {
+                    universe.Personnel.RequestAbstract(obj);
+                    continue;
+                }
                 if (obj is PoiState poi)
                 {
                     // Native sites use the vanilla removal contract and only unload outside activation range.
@@ -571,6 +583,11 @@ namespace DeltaV
         internal void ArchiveContainer(SpaceObject container, Map map, bool force = false, bool departing = false)
         {
             if (container.IsScattered) { universe.Scatter.RetireLost(container, departing); return; }
+            if (container.HasTag(SpaceObjectTag.Personnel))
+            {
+                universe.Personnel.RequestAbstract(container);
+                return;
+            }
             int objectId = container.objectId, version = container.RepresentationVersion;
             if (!TryBeginTransition(container, MapTransitionKind.Archive, map)) return;
             universe.QueueFrameAction(delegate

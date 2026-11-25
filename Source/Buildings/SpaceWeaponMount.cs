@@ -74,6 +74,41 @@ namespace DeltaV
         }
     }
 
+    internal sealed class PawnWeaponMount : ISpaceWeaponMount
+    {
+        public ThingWithComps Host { get; }
+        public long Identity { get; }
+        public Vector2 Offset => Vector2.zero;
+        public IReadOnlyList<ThingComp> Components => components;
+        internal readonly CompSpaceWeapon Weapon;
+        private readonly List<ThingComp> components = new List<ThingComp>();
+
+        internal PawnWeaponMount(Pawn pawn, uint identitySuffix, VirtualWeaponDef definition,
+            int cooldownUntilTick)
+        {
+            Host = pawn;
+            Identity = ((long)pawn.thingIDNumber << 32) | identitySuffix;
+            Weapon = AddComponents(pawn, definition.comps, cooldownUntilTick);
+        }
+
+        private CompSpaceWeapon AddComponents(Pawn pawn, IEnumerable<CompProperties> properties,
+            int cooldownUntilTick)
+        {
+            foreach (CompProperties property in properties)
+            {
+                var comp = (ThingComp)Activator.CreateInstance(property.compClass);
+                comp.parent = pawn;
+                comp.Initialize(property);
+                components.Add(comp);
+            }
+            CompSpaceWeapon weapon = components.OfType<CompSpaceWeapon>().Single();
+            weapon.cooldownUntilTick = cooldownUntilTick;
+            weapon.SetMount(this);
+            weapon.PostSpawnSetup(respawningAfterLoad: cooldownUntilTick > 0);
+            return weapon;
+        }
+    }
+
     public class CompVirtualWeapons : ThingComp
     {
         private List<VirtualWeaponMount> mounts;

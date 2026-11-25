@@ -112,6 +112,23 @@ namespace DeltaV
                 target.layer.Emit(target);
                 return true;
             }
+            if (obj is MapSpaceObject { PersonnelPawn: Pawn pawn } && pawn.Spawned)
+            {
+                Vector3 point = SpaceTransform.FocusedDrawPosition(frame, frameMap, obj.pose.position, 0f);
+                if (!Find.CameraDriver.CurrentViewRect.ExpandedBy(2).Contains(point.ToIntVec3())) return false;
+                Quaternion bodyRotation = SpaceTransform.FocusedMeshRotation(frame, obj.pose.angle);
+                MapOverlayRenderer.BeginQuadBatch();
+                ShellDrawCapture.Capture(() =>
+                {
+                    pawn.DynamicDrawPhaseAt(DrawPhase.EnsureInitialized, Vector3.zero);
+                    pawn.DynamicDrawPhaseAt(DrawPhase.Draw, Vector3.zero);
+                }, Matrix4x4.TRS(point, bodyRotation, Vector3.one), ShellSurfaceLayer.Exposed, 0f);
+                if (TryGetMapDisplayTransform(frame, frameMap, obj, out Matrix4x4 personnelMatrix,
+                    out Quaternion personnelRotation))
+                    ThrusterEffects.CollectShellFlames(obj, obj.map, personnelMatrix, personnelRotation);
+                target.layer.Emit(target, mapShell: true);
+                return true;
+            }
             if (!HasDrawableMap(universe, obj)) return false;
             Map map = obj.map;
             if (!TryGetMapDisplayTransform(frame, frameMap, obj, out Matrix4x4 matrix,
@@ -139,6 +156,8 @@ namespace DeltaV
             SpaceObject frame, Map frameMap, ShellLayer.Slot target)
         {
             if (obj.Payload != null) return DrawObjectShell(universe, obj, frame, frameMap, target);
+            if (obj.HasTag(SpaceObjectTag.Personnel))
+                return DrawObjectShell(universe, obj, frame, frameMap, target);
             if (!HasDrawableMap(universe, obj)
                 || !TryGetMapDisplayTransform(frame, frameMap, obj, out Matrix4x4 matrix,
                     out Quaternion rotation)) return false;

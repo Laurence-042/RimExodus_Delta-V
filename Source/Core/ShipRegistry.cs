@@ -85,7 +85,11 @@ namespace DeltaV
         internal static IEnumerable<ShipBase> DiscoverShipsOnMap(Map map)
         {
             if (map == null || map.Disposed) yield break;
-            var index = Current.Game?.GetComponent<UniverseManager>()?.ShipStructure.For(map);
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe?.FrameOf(map) is MapSpaceObject { PersonnelShip: { } personnel }
+                && personnel.IsValid)
+                yield return personnel;
+            var index = universe?.ShipStructure.For(map);
             if (index == null) yield break;
             foreach (CompDeltaVPilotConsole console in index.Primaries)
                 if (console.Ship.IsValid) yield return console.Vessel;
@@ -99,6 +103,9 @@ namespace DeltaV
         public static ShipBase ShipOf(Thing thing, bool requireWholeFootprint = false)
         {
             if (thing?.Map == null) return ShipBase.Invalid;
+            if (Current.Game?.GetComponent<UniverseManager>()?.FrameOf(thing.Map)
+                is MapSpaceObject { PersonnelShip: { } personnel } && personnel.Contains(thing))
+                return personnel;
             // 单建筑船内置的武器归于自身，而非脚下宿主基架。
             CompSpaceShuttle hull = thing.TryGetComp<CompSpaceShuttle>();
             if (hull != null) return hull.Vessel;
@@ -125,16 +132,16 @@ namespace DeltaV
             foreach (int owner in byOwner?.Keys.OrderBy(id => id) ?? Enumerable.Empty<int>())
                 yield return new DriveSubject(0, owner);
             foreach (ShipBase ship in AllShipsOnMap(map))
-                if (ship.Identity.shuttle) yield return ship.Identity;
+                if (ship.Identity.kind != DriveSubjectKind.Foundation) yield return ship.Identity;
         }
 
-        internal static bool HasStructure(Map map, DriveSubject identity) => identity.shuttle
+        internal static bool HasStructure(Map map, DriveSubject identity) => identity.kind != DriveSubjectKind.Foundation
             ? AllShipsOnMap(map).Any(ship => ship.Identity == identity)
             : FoundationDomains(map)?.ContainsKey(identity.key) == true;
 
         internal static IEnumerable<IntVec3> StructureCells(Map map, DriveSubject identity)
         {
-            if (identity.shuttle)
+            if (identity.kind != DriveSubjectKind.Foundation)
                 return AllShipsOnMap(map).FirstOrDefault(ship => ship.Identity == identity)?.HullCells
                     ?? Enumerable.Empty<IntVec3>();
             var byOwner = FoundationDomains(map);
@@ -144,7 +151,7 @@ namespace DeltaV
 
         internal static int StructureCellCount(Map map, DriveSubject identity)
         {
-            if (identity.shuttle)
+            if (identity.kind != DriveSubjectKind.Foundation)
             {
                 ShipBase ship = ShipByIdentity(identity);
                 return ship.IsValid && ship.Map == map ? HullBounds(ship).Area : 0;
@@ -152,7 +159,7 @@ namespace DeltaV
             return FoundationDomains(map)?.TryGetValue(identity.key, out var cells) == true ? cells.Count : 0;
         }
 
-        internal static Vector2 StructureCenter(Map map, DriveSubject identity) => identity.shuttle
+        internal static Vector2 StructureCenter(Map map, DriveSubject identity) => identity.kind != DriveSubjectKind.Foundation
             ? AllShipsOnMap(map).FirstOrDefault(ship => ship.Identity == identity)?.HullCenter ?? Vector2.zero
             : Current.Game?.GetComponent<UniverseManager>()?.FoundationTopology.OwnerCenter(map, identity.key) ?? Vector2.zero;
 

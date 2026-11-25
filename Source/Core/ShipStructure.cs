@@ -173,7 +173,7 @@ namespace DeltaV
 
         internal void RefreshVirtualThrusters()
         {
-            if (ship is ShuttleShip shuttle) VirtualThrusters = shuttle.CreateThrusters().ToArray();
+            VirtualThrusters = ship.CreateVirtualThrusters().ToArray();
         }
         internal ShipPhysics.Thruster InstalledThruster(Building building) =>
             installed.TryGetValue(building, out var entry) ? entry : null;

@@ -91,6 +91,27 @@ namespace DeltaV
             => For(ship, debugTakeover) as PlayerShipController;
         internal NpcShipController NpcFor(ShipBase ship) => For(ship) as NpcShipController;
 
+        /// <summary>
+        /// A focused, player-operable vessel defaults to direct control only when no real
+        /// automatic operation is active. Direct-axis craft also restore their manual aim
+        /// session while armed.
+        /// </summary>
+        internal void ActivateFocusedVessel(Map map)
+        {
+            ShipBase ship = map != null ? universe.Pilot.SelectedShipOnMap(map) : ShipBase.Invalid;
+            if (!ship.IsValid || ship.Map != map || !universe.Pilot.CanPlayerControl(ship)) return;
+            PlayerShipController player = PlayerFor(ship, debugTakeover: true);
+            if (player == null) return;
+            SpaceObject frame = universe.FrameOf(map);
+            bool automatic = player.HasActiveAutoTask
+                || universe.HardDocking.IsActive(frame)
+                || universe.Approach.FlowTarget.Identity == ship.Identity;
+            if (!automatic && universe.Pilot.GetControlState(ship) != ShipControlState.Manual)
+                universe.Pilot.Enter(universe, ship);
+            if (ship.UsesCameraInput && WeaponsArmed(ship))
+                SetFireControlMode(ship, ShipFireControlMode.Manual);
+        }
+
         internal void ReleaseDebugControl(DriveSubject ownerId)
         {
             if (AimActiveFor(ShipRegistry.ShipByIdentity(ownerId))
@@ -410,7 +431,7 @@ namespace DeltaV
             if (!ship.IsValid) return false;
             PlayerShipController player = PlayerFor(ship);
             if (player == null || player.EntryBlockReason(PilotTarget.Of(ship)) != PilotEntryBlockReason.None
-                || universe.FrameOf(ship.Map)?.projectileRoleOverride == true) return false;
+                || universe.HardDocking.IsActive(universe.FrameOf(ship.Map))) return false;
             if (player.ManualControl) universe.Pilot.Exit(universe, resumeAutoTask: false);
             player.ReplaceAutoTask(task, navigation, activate);
             return true;

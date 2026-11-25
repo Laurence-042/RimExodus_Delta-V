@@ -43,6 +43,9 @@ namespace DeltaV
         public abstract bool Contains(Thing thing);
         /// <summary>数值布局使用容器 Map 的局部坐标；物理报告重建与出力前能力复核共用。</summary>
         public abstract IEnumerable<ShipPhysics.Thruster> BuildThrusters();
+        /// <summary>非建筑船体的数值推进器布局；由共同结构缓存持有。</summary>
+        internal virtual IEnumerable<ShipPhysics.Thruster> CreateVirtualThrusters() =>
+            System.Array.Empty<ShipPhysics.Thruster>();
         private Map weaponMap;
         private int weaponVersion = -1;
         private IReadOnlyList<CompSpaceWeapon> weapons = System.Array.Empty<CompSpaceWeapon>();
@@ -83,11 +86,15 @@ namespace DeltaV
             return true;
         }
         public virtual bool CanBoard => false;
+        internal virtual IHardDockingExecutor HardDockingExecutor => null;
+        public virtual bool IsPersonnel => false;
         public virtual bool RequiresHeadingAlignment => true;
         public virtual bool RequiresAngularVelocityMatch => true;
         public virtual bool MatchDockingPointVelocity => false;
         public virtual bool AllowsAngularMotion => true;
         public virtual bool UsesCameraInput => false;
+        /// <summary>Whether the player may disable hull avoidance for deliberate contact.</summary>
+        public virtual bool CanDisableCollisionAvoidance => true;
         public virtual int FlightMapMargin => ShipPocketMapFactory.StructureMargin;
         public virtual bool ReserveRotationBounds => false;
         public virtual bool HasGunnerStations => true;
@@ -96,6 +103,16 @@ namespace DeltaV
         public ShipFireControlMode EffectiveFireControlMode => Combat != null && SupportsFireControlMode(Combat.fireControlMode)
             ? Combat.fireControlMode : DefaultFireControlMode;
         public virtual ShipAimHandler CreateAimHandler(UniverseManager universe) => new ShipAimHandler(universe, this);
+        /// <summary>Representation-specific state refreshed by an accepted manual aim sample.</summary>
+        internal virtual void NotifyManualAim(Vector2 mapPoint) { }
+        /// <summary>
+        /// Representation-specific manual fire that is not a synthetic CompSpaceWeapon.
+        /// Ordinary ships do nothing; their volley remains entirely in ShipFireControl.
+        /// </summary>
+        internal virtual void HandleManualVolley(UniverseManager universe, SpaceObject container,
+            ShipVolleyIntent intent) { }
+        /// <summary>Representation-specific side effects of entering player manual control.</summary>
+        public virtual void NotifyManualControlEntered() { }
         public virtual void NotifyLanded() { }
 
         // 船体是面板的共同入口；控制器仍唯一提供权限、驾驶和侵入等操作。
@@ -114,15 +131,17 @@ namespace DeltaV
     public readonly struct ShipTransferSpec
     {
         public readonly Building console, body;
+        public readonly Pawn pawn;
         public readonly int ownerId;
         public readonly bool includeTerrain;
         public ShipTransferSpec(Building console, Building body, int ownerId,
-            bool includeTerrain)
+            bool includeTerrain, Pawn pawn = null)
         {
             this.console = console;
             this.body = body;
             this.ownerId = ownerId;
             this.includeTerrain = includeTerrain;
+            this.pawn = pawn;
         }
     }
 
@@ -238,7 +257,7 @@ namespace DeltaV
                 yield return thruster.NominalSnapshot();
         }
 
-        internal IEnumerable<ShipPhysics.Thruster> CreateThrusters()
+        internal override IEnumerable<ShipPhysics.Thruster> CreateVirtualThrusters()
         {
             if (!IsValid) yield break;
             Vector2 center = HullCenter - SpaceTransform.ShipLocalOrigin(Map);
@@ -280,6 +299,7 @@ namespace DeltaV
             return true;
         }
         public override bool CanBoard => Hull.CanBoard;
+        internal override IHardDockingExecutor HardDockingExecutor => Hull.CanBoard ? Hull : null;
         public override void NotifyLanded()
         {
             Hull.intrusionDriveActive = false;

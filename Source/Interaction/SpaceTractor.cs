@@ -37,8 +37,9 @@ namespace DeltaV
             && !parent.IsForbidden(Faction.OfPlayer) && MoonPoolUtility.IsMoonPoolAt(parent.Map, parent.Position);
         public bool TryLaunch(SpaceWeaponShot shot)
         {
-            var scatter = Current.Game.GetComponent<UniverseManager>().Scatter;
-            if (ManualCargo) return shot.manualFire && scatter.Pull(scatter.ManualTarget(shot), shot.weapon);
+            UniverseManager universe = Current.Game.GetComponent<UniverseManager>();
+            var scatter = universe.Scatter;
+            if (ManualCargo) return shot.manualFire && universe.TractorLinks.Trigger(shot);
             return shot.weapon.aimMode == SpaceWeaponAimMode.PointDefense
                 ? scatter.Pull(shot.target, shot.weapon) : shot.manualFire && shot.LaunchProjectile();
         }
