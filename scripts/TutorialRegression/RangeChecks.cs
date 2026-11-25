@@ -879,5 +879,73 @@ internal static partial class Program
             universe.Tutorial.Ended(quest);
         }
         finally {harmony.Unpatch(assetCheck,HarmonyPatchType.Prefix,harmony.Id);}
+        HandoverChecks(game, harmony, directory);
+    }
+
+    sealed class HandoverSignals : ISignalReceiver
+    {
+        internal readonly List<string> Tags = new List<string>();
+        public void Notify_SignalReceived(Signal signal) => Tags.Add(signal.tag);
+    }
+
+    static bool SkipHandoverMessage() => false;
+
+    static void HandoverChecks(Game game, Harmony harmony, string prefabRoot)
+    {
+        var universe = game.GetComponent<UniverseManager>();
+        var quest = new Quest { id = 85, acceptanceTick = 0 };
+        var run = new TutorialRunState { quest = quest, stage = TutorialStage.Visit };
+        var signals = new HandoverSignals();
+        var oldResearch = game.researchManager;
+        var oldLanguage = LanguageDatabase.activeLanguage;
+        var message = AccessTools.Method(typeof(Messages), nameof(Messages.Message),
+            new[] { typeof(string), typeof(MessageTypeDef), typeof(bool) });
+        string accept = DeltaVTutorialService.Signal(quest, "AcceptShip");
+        string completed = DeltaVTutorialService.Signal(quest, "Completed");
+        string path = Path.GetTempFileName();
+        universe.tutorialRun = run;
+        game.signalManager.RegisterReceiver(signals);
+        harmony.Patch(message, prefix: new HarmonyMethod(typeof(Program), nameof(SkipHandoverMessage)));
+        try
+        {
+            LanguageDatabase.activeLanguage = StatsFixtureLanguage(prefabRoot, "English");
+            game.researchManager = new ResearchManager();
+            universe.Tutorial.Receive(quest, accept);
+            Check(signals.Tags.Count == 0 && universe.Tutorial.Active,
+                "handover keeps waiting until the original inspection result is set");
+
+            game.researchManager.gravEngineInspected = true;
+            universe.Tutorial.Receive(quest, accept);
+            Check(signals.Tags.SequenceEqual(new[] { completed }),
+                "the inspection result alone completes handover during the visit");
+
+            signals.Tags.Clear();
+            run.stage = TutorialStage.Flight;
+            game.researchManager = new ResearchManager { gravEngineInspected = true };
+            var document = new XmlDocument();
+            document.LoadXml(Scribe.saver.DebugOutputFor(game.researchManager));
+            File.WriteAllText(path, "<root><researchManager>" + document.DocumentElement.InnerXml + "</researchManager></root>");
+            Scribe.loader.InitLoading(path);
+            ResearchManager reloaded = null;
+            Scribe_Deep.Look(ref reloaded, "researchManager");
+            game.researchManager = reloaded;
+            Scribe.loader.FinalizeLoading();
+            Check(reloaded?.gravEngineInspected == true, "native Scribe retains the earlier inspection");
+
+            run.stage = TutorialStage.Visit;
+            universe.Tutorial.Receive(quest, accept);
+            Check(signals.Tags.SequenceEqual(new[] { completed }),
+                "the reloaded inspection from flight training completes handover without a pawn or target ship");
+        }
+        finally
+        {
+            Scribe.ForceStop();
+            File.Delete(path);
+            harmony.Unpatch(message, HarmonyPatchType.Prefix, harmony.Id);
+            game.signalManager.DeregisterReceiver(signals);
+            game.researchManager = oldResearch;
+            LanguageDatabase.activeLanguage = oldLanguage;
+            universe.Tutorial.Ended(quest);
+        }
     }
 }

@@ -31,7 +31,7 @@ namespace DeltaV
 
         private bool CheckFlightAssets()
         {
-            if (Run.stage < TutorialStage.Design || Run.stage > TutorialStage.Visit) return true;
+            if (Run.stage < TutorialStage.Design || Run.stage >= TutorialStage.Visit) return true;
             if (Run.trainingConsole?.Spawned != true || Run.cargoShelf?.Spawned != true
                 || Run.trainingPort?.Spawned != true || Run.yardPort?.Spawned != true
                 || Run.giftConsole?.Spawned != true || Run.giftEngine?.Spawned != true
@@ -93,13 +93,9 @@ namespace DeltaV
             }
             if (Run.stage == TutorialStage.Visit && tag == Signal(Run.quest, "AcceptShip"))
             {
-                ShipBase gift = ShipRegistry.ShipOf(Run.giftConsole);
-                bool visited = Run.colonists.Any(p => p?.Spawned == true && !p.Dead && !p.Downed
-                    && p.Map == Run.giftEngine.Map && p.Position.InHorDistOf(Run.giftEngine.Position, 5f));
-                if (!visited || !gift.IsValid || Run.giftConsole.Faction != Faction.OfPlayer
-                    || ShipRegistry.ShipOf(Run.giftEngine).Identity != gift.Identity)
-                    Messages.Message("DeltaV_Tutorial_NeedVisit".Translate(), Run.giftEngine, MessageTypeDefOf.RejectInput, false);
-                else Find.SignalManager.SendSignal(new Signal(Signal(Run.quest, "Completed")));
+                if (Find.ResearchManager.gravEngineInspected)
+                    Find.SignalManager.SendSignal(new Signal(Signal(Run.quest, "Completed")));
+                else Messages.Message("DeltaV_Tutorial_NeedVisit".Translate(), MessageTypeDefOf.RejectInput, false);
                 return true;
             }
             return false;
