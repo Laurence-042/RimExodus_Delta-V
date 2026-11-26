@@ -36,6 +36,16 @@ internal static partial class Program
         Check(def.scenario.name == "轨道殖民者", "scenario selection reads the translated nested name");
         Check(def.scenario.description == xml.DocumentElement["DeltaV_OrbitalColonists.scenario.description"].InnerText,
             "scenario details read the translated nested description");
+        string scenarioPath = Path.Combine(version, "Defs/Tutorial/DeltaV_Tutorial.xml");
+        xml.Load(scenarioPath);
+        var grants = xml.SelectNodes("/Defs/ScenarioDef[defName='DeltaV_OrbitalColonists']/scenario/parts/li[@Class='ScenPart_StartingThing_Defined']");
+        Check(grants.Count == 1 && grants[0]["def"].InnerText == "StartingThing_Defined"
+            && grants[0]["thingDef"].InnerText == "Gun_ChargeRifle" && grants[0]["count"] == null && grants[0]["quality"] == null,
+            "shipped tutorial grants one default-quality charge rifle as a starting item");
+        // 1.7 content is a build-time mirror of 1.6 and is absent before the first 1.7 build.
+        string mirror = Path.GetFullPath(Path.Combine(prefabDirectory, "../../1.7/Defs/Tutorial/DeltaV_Tutorial.xml"));
+        Check(!File.Exists(mirror) || File.ReadAllText(mirror) == File.ReadAllText(scenarioPath),
+            "1.7 tutorial scenario mirrors the 1.6 source including the starting weapon");
     }
 
     static void SectorContentDefaults(string directory)

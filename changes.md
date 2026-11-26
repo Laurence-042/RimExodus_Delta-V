@@ -55,6 +55,14 @@ This file records player-visible changes in released versions and the near-term 
 - 小人给炮塔、轨道炮部件、采矿设备或货柜安装覆盖插件时，不再先拆除宿主。附加弹仓、自瞄、激光与轨道炮电容、轨道能量回收与快速复位、采矿货箱与目标识别器、货柜温控模块现在和电缆一样保留施工格上的既有建筑。
   Installing an overlay attachment no longer makes pawns deconstruct the host first. Auxiliary magazines, auto-aim, laser and railgun capacitors, railgun energy recovery and rapid reset, mining cargo modules and target identifiers, and the cargo temperature module now keep the existing building on their cell, like power conduits.
 
+@未知者-RX（bilibili）：建议是和本体开局给的教程一样给个教程白信封或者给个交易教程，比如开局摸到的75铁换几个白银做个演示
+- 最后一段领船对话说明本站交易：对接后在西泊口交易终端买卖，站内无人机按飞船的轨道交易信标取货，购入货物放在终端旁的取货柜自取。对话附开发人员注释：贸易系统目前为占位实现，其他贸易站的布局与货仓接线为自动生成、不保证可用，计划在空间站自我维持后重构。
+  The final ship handover dialogue now explains trading at this station: dock, then buy and sell at the west berth terminal. Station drones collect cargo through the ship's orbital trade beacon, and purchases are left in the pickup container near the terminal. It also carries a developer note: the trade system is a placeholder for now, other trade stations are auto-generated and not guaranteed to work, and a rework is planned after station self-sufficiency.
+
+@未知者-RX（bilibili）：最重要的，开局我没武器我拿头打第一波袭击😡至少起个斯捷奇金（自动手枪）让我e一局啊，富有冒险家开都有一把电步，空投袭击又必然是高科技派系，发一个战锤一把自动手枪一把重冲完全没问题吧
+- 教程开局在队长休眠舱旁新增一把电荷步枪。
+  The tutorial start now includes a charge rifle beside the captain's cryptosleep casket.
+
 ### 0.1.2 — 2026-11-26
 
 #### 核心开发路线进度 / Core development progress

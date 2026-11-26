@@ -98,6 +98,10 @@
           <def>StartingResearch</def>
           <project>Machining</project>
         </li>
+        <li Class="ScenPart_StartingThing_Defined">
+          <def>StartingThing_Defined</def>
+          <thingDef>Gun_ChargeRifle</thingDef>
+        </li>
       </parts>
     </scenario>
   </ScenarioDef>
