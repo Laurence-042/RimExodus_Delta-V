@@ -92,7 +92,7 @@ namespace DeltaV
         internal NpcShipController NpcFor(ShipBase ship) => For(ship) as NpcShipController;
 
         /// <summary>
-        /// A focused, player-operable vessel defaults to direct control only when no real
+        /// A focused, player-operable non-foundation vessel defaults to direct control only when no real
         /// automatic operation is active. Direct-axis craft also restore their manual aim
         /// session while armed.
         /// </summary>
@@ -106,7 +106,8 @@ namespace DeltaV
             bool automatic = player.HasActiveAutoTask
                 || universe.HardDocking.IsActive(frame)
                 || universe.Approach.FlowTarget.Identity == ship.Identity;
-            if (!automatic && universe.Pilot.GetControlState(ship) != ShipControlState.Manual)
+            if (ship is not FoundationShip && !automatic
+                && universe.Pilot.GetControlState(ship) != ShipControlState.Manual)
                 universe.Pilot.Enter(universe, ship);
             if (ship.UsesCameraInput && WeaponsArmed(ship))
                 SetFireControlMode(ship, ShipFireControlMode.Manual);

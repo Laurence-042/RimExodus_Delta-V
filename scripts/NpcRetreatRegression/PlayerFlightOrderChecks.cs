@@ -155,6 +155,7 @@ internal static partial class Program
             foreign.parent.AllComps.Add(foreignAi);
             ShipStructureChanges.Notify(map);
             CheckFlightKeysDoNotTakeOver(universe, own.Vessel);
+            CheckFocusedFlightActivation(universe, own.Vessel, shuttle.Vessel);
             foreach (bool godMode in new[] { false, true })
             {
                 DebugSettings.godMode = godMode;
@@ -222,6 +223,52 @@ internal static partial class Program
     }
 
     static Map flightInputMap;
+    static int focusedPilotEntries;
+    static bool CountFocusedPilotEntry() { focusedPilotEntries++; return false; }
+
+    static void CheckFocusedFlightActivation(UniverseManager universe, ShipBase foundation, ShipBase shuttle)
+    {
+        var patch = new Harmony("DeltaV.Regression.FocusedPiloting");
+        bool oldGodMode = DebugSettings.godMode;
+        Faction oldFaction = shuttle.Anchor.Faction;
+        try
+        {
+            DebugSettings.godMode = false;
+            Set(typeof(Thing), shuttle.Anchor, "factionInt", foundation.Faction);
+            patch.Patch(AccessTools.Method(typeof(PilotService), "SelectedShipOnMap"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(FlightSelection)));
+            patch.Patch(AccessTools.Method(typeof(PilotService), "Enter",
+                    new[] { typeof(UniverseManager), typeof(ShipBase) }),
+                prefix: new HarmonyMethod(typeof(Program), nameof(CountFocusedPilotEntry)));
+            focusedPilotEntries = 0;
+            flightInputShip = foundation;
+            Call(universe.Controls, "ActivateFocusedVessel", foundation.Map);
+            Check(focusedPilotEntries == 0, "focusing an idle foundation ship does not enter manual piloting");
+            flightInputShip = shuttle;
+            Call(universe.Controls, "ActivateFocusedVessel", shuttle.Map);
+            Check(focusedPilotEntries == 1, "focusing an idle non-foundation craft enters manual piloting");
+            var controller = universe.Controls.ExistingFor(shuttle);
+            var taskField = AccessTools.Field(typeof(PlayerShipController), "autoTask");
+            foreach (string task in new[] { "Navigate", "Sync", "Combat", "SoftDock" })
+            {
+                taskField.SetValue(controller, Enum.Parse(taskField.FieldType, task));
+                Call(universe.Controls, "ActivateFocusedVessel", shuttle.Map);
+                Check(focusedPilotEntries == 1 && taskField.GetValue(controller).ToString() == task,
+                    "focusing a non-foundation craft preserves active automatic task=" + task);
+            }
+            taskField.SetValue(controller, Enum.Parse(taskField.FieldType, "Drift"));
+        }
+        finally
+        {
+            patch.UnpatchAll(patch.Id);
+            Set(typeof(Thing), shuttle.Anchor, "factionInt", oldFaction);
+            universe.Controls.ReconcileOwner(shuttle.Identity);
+            DebugSettings.godMode = oldGodMode;
+            flightInputShip = null;
+            focusedPilotEntries = 0;
+        }
+    }
+
     static ShipBase flightInputShip;
     static bool FlightMap(ref Map __result) { __result = flightInputMap; return false; }
     static bool FlightSelection(ref ShipBase __result) { __result = flightInputShip; return false; }

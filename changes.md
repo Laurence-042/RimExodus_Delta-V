@@ -5,6 +5,10 @@ This file records player-visible changes in released versions and the near-term 
 
 ## 下一版本计划 / Next version plan
 
+- 修复聚焦空闲基架船时自动进入手动驾驶的问题；只有非基架且没有正在执行的自动任务、接近或硬对接流程的可控船会自动进入手动驾驶。读档恢复聚焦图沿用同一规则。
+  Focusing an idle foundation ship no longer automatically enters manual piloting. Automatic takeover applies only to controllable non-foundation craft without an active automatic task, approach, or hard docking operation, including when restoring focus after loading.
+- “现场保留”管理入口仅在 God Mode 开启时显示，关闭 God Mode 后管理窗口自动关闭；后台自动归档机制保持不变。
+  Site retention controls are visible only in God Mode, and the management window closes when God Mode is disabled. Automatic background archiving is unchanged.
 - 射失并远离所有潜在目标的太空弹体会按保守净空降低精确碰撞检测频率；移动目标的实际位移、目标增大和新增目标会在可能接触的同一 tick 恢复完整扫掠，点防仍可命中处于降频状态的导弹。
   Space projectiles that miss and move clear of every potential target now reduce the frequency of exact collision sweeps using conservative clearance. Actual target movement, expanding targets and newly added targets restore full sweeps in the same tick that contact becomes possible, while point defense can still hit missiles whose active sweeps are being skipped.
 

@@ -25,7 +25,7 @@ namespace DeltaV
 
         public override void DoWindowContents(Rect inRect)
         {
-            if (Current.Game?.GetComponent<UniverseManager>() != universe
+            if (!DebugSettings.godMode || Current.Game?.GetComponent<UniverseManager>() != universe
                 || universe.ObjectById(objectId) is not SpaceObject target)
             {
                 Close();

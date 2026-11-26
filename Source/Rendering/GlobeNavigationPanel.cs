@@ -80,7 +80,8 @@ namespace DeltaV
                 + "\n" + "DeltaV_PanelGlobeDistance".Translate(OrbitSphere.ArcCells(view.Reference, target.Pose.position).ToString("N0")).ToString());
             TooltipHandler.TipRegion(titleRect, title);
             y += 38f;
-            float actionWidth = (rect.width - 20f) / 6f;
+            int actionCount = DebugSettings.godMode ? 6 : 5;
+            float actionWidth = (rect.width - (actionCount - 1) * 4f) / actionCount;
             Rect ActionRect(int index) => new Rect(rect.x + index * (actionWidth + 4f), y, actionWidth, 24f);
             bool canAutopilot = GlobeNavigation.CanAutopilot(universe, view.ReferenceShip, target);
             if (Widgets.ButtonText(ActionRect(0), "DeltaV_NavAutopilot".Translate(), active: canAutopilot)
@@ -96,7 +97,7 @@ namespace DeltaV
             if (Widgets.ButtonText(ActionRect(4),
                 (target != null && state.IsBookmarked(target) ? "DeltaV_NavUnpin" : "DeltaV_NavPin").Translate(), active: target != null && !target.owner.IsTransient))
                 state.ToggleBookmark(target);
-            if (Widgets.ButtonText(ActionRect(5), "DeltaV_NavRetention".Translate(),
+            if (DebugSettings.godMode && Widgets.ButtonText(ActionRect(5), "DeltaV_NavRetention".Translate(),
                 active: target != null && !target.owner.IsTransient))
                 OpenRetention(universe, target.owner);
             y += 28f;
@@ -177,8 +178,9 @@ namespace DeltaV
                     options.Add(new FloatMenuOption((state.IsBookmarked(target)
                             ? "DeltaV_NavUnpin" : "DeltaV_NavPin").Translate(),
                         () => state.ToggleBookmark(target)));
-                    options.Add(new FloatMenuOption("DeltaV_NavRetention".Translate(),
-                        () => OpenRetention(universe, target.owner)));
+                    if (DebugSettings.godMode)
+                        options.Add(new FloatMenuOption("DeltaV_NavRetention".Translate(),
+                            () => OpenRetention(universe, target.owner)));
                 }
                 options.Add(new FloatMenuOption("DeltaV_NavClear".Translate(), () => state.Select(null)));
                 Find.WindowStack.Add(new FloatMenu(options));
@@ -269,7 +271,7 @@ namespace DeltaV
 
         private static void OpenRetention(UniverseManager universe, SpaceObject target)
         {
-            if (target == null || target.IsTransient) return;
+            if (!DebugSettings.godMode || target == null || target.IsTransient) return;
             Find.WindowStack.Add(new Dialog_MapRetention(universe, target));
         }
 
