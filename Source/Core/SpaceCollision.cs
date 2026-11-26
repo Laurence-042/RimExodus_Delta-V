@@ -95,6 +95,9 @@ namespace DeltaV
             public bool redirected;
             public bool didRedirect;
             public bool reflectedByShield;
+            // Post-sweep certificate for collision scheduling. This is the conservative
+            // endpoint clearance to every defender that was legal for this body.
+            internal float schedulingClearance;
             public Vector3 redirectPoint;
             public Vector2 redirectDirection;
             public float redirectRemaining;
@@ -294,6 +297,16 @@ namespace DeltaV
         internal static float OriginBoundsRadiusOf(SpaceObject obj)
             => TargetView.Of(obj).OriginBoundsRadius;
 
+        /// <summary>Conservative origin-centred bounds used by the projectile scheduler.</summary>
+        internal static bool TryGetSchedulingBounds(SpaceObject obj, out float radius)
+        {
+            radius = 0f;
+            TargetView target = TargetView.Of(obj);
+            if (!target.Valid) return false;
+            radius = target.OriginBoundsRadius;
+            return radius > 0f && !float.IsNaN(radius) && !float.IsInfinity(radius);
+        }
+
         /// <summary>
         /// 调试显示读取碰撞系统实际正在使用的缓存，而不是另算一份近似碰撞体。
         /// 输出格为对象 Map 坐标；调用方经 SpaceTransform 投影到当前聚焦参考系。
@@ -436,6 +449,7 @@ namespace DeltaV
             for (int b = 0; b < bodies.Count; b++)
             {
                 SweptBody body = bodies[b];
+                body.schedulingClearance = float.PositiveInfinity;
                 if (body.dead || body.attacker == null
                     || body.attacker.Payload is AbstractMissile { InterceptionBody: null }) continue;
                 Dictionary<SpaceObject, PassedContacts> passed = null;
@@ -488,6 +502,13 @@ namespace DeltaV
                         && !AreHostile(body.attacker.faction, defender.faction)) continue;
                     TargetView target = TargetView.Of(defender);
                     if (!target.Valid || universe.Projectiles.CollisionRetired(defender)) continue;
+                    // The origin-centred sphere encloses every structure, shield and entity
+                    // orientation. Subtracting the broad-phase padding makes the resulting
+                    // clearance safe for a later tick regardless of approach direction.
+                    float clearance = OrbitSphere.ArcCells(body.to, defender.pose.position)
+                        - target.OriginBoundsRadius - body.sweepRadius - 0.5f;
+                    if (clearance < body.schedulingClearance)
+                        body.schedulingClearance = clearance;
                     PassedContacts missed = null;
                     passed?.TryGetValue(defender, out missed);
                     SweepContact candidate;

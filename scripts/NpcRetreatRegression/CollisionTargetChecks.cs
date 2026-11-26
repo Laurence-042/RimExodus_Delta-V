@@ -72,7 +72,9 @@ internal static partial class Program
         type.GetProperty("container").SetValue(flight, owner);
         foreach (var pair in new (string name, object value)[] {
             ("def",def), ("props",def.GetCompProperties<CompProperties_SpaceProjectile>()),
-            ("prevPosition",from), ("launcher",launcher), ("spawnedAtTick",Find.TickManager.TicksGame) })
+            ("prevPosition",from), ("launcher",launcher),
+            ("timeoutTicks",def.GetCompProperties<CompProperties_SpaceProjectile>().timeoutTicks),
+            ("spawnedAtTick",Find.TickManager.TicksGame) })
             type.GetField(pair.name).SetValue(flight,pair.value);
         ProjectileRecords(universe.Projectiles).Add(flight); return flight;
     }
@@ -129,6 +131,108 @@ internal static partial class Program
             Check(craft.body.pose.position==original.position && craft.body.pose.angle==original.angle,"structure reads do not change universe pose");
         }
         finally {f.Clear();universe.UnregisterObject(missile);}
+    }
+
+    static void CheckCollisionScheduling(UniverseManager universe, Faction faction,
+        HullRoundFixture f, ThingDef bulletDef, ThingDef missileDef)
+    {
+        const int count = 64;
+        var target = f.Craft(faction, 100, 0, Vector2.zero, true);
+        var shots = new List<SpaceObject>();
+        var flights = new List<object>();
+        try
+        {
+            for (int i = 0; i < count; i++)
+            {
+                var pose = new SpacePose(OrbitSphere.Move(Vector3.forward,
+                    new Vector2(-i * .05f, 20 + i * .1f)), 0f) { velocity = new Vector2(-60f, 0f) };
+                var shot = new SpaceObject(60000 + i, pose) { baseTag = SpaceObjectTag.Projectile };
+                universe.RegisterObject(shot); shots.Add(shot);
+                flights.Add(CollisionFlight(universe, shot, bulletDef, pose.position));
+            }
+
+            f.Prepare();
+            foreach (SpaceObject shot in shots) shot.AdvanceDrift(1f / 60f);
+            universe.Projectiles.ResolveCollisions();
+            int firstExact = flights.Count(record =>
+                (bool)record.GetType().GetField("collisionCheckedThisTick").GetValue(record));
+            Check(firstExact == count,
+                $"new projectile certificates begin with one exact collision round: {firstExact}/{count}");
+
+            f.Prepare();
+            foreach (SpaceObject shot in shots) shot.AdvanceDrift(1f / 60f);
+            universe.Projectiles.ResolveCollisions();
+            Check(flights.All(record => !(bool)record.GetType().GetField("collisionCheckedThisTick").GetValue(record))
+                && ((ICollection)AccessTools.Field(typeof(SpaceProjectileService), "bodyScratch")
+                    .GetValue(universe.Projectiles)).Count == 0,
+                "far missed projectiles retain passive hit bodies while skipping active exact sweeps");
+
+            // Add a new legal defender after certificates were issued. It was absent from
+            // their proof, so every surviving shot must return to the exact path immediately.
+            f.Craft(faction, 300, 0, Vector2.zero, true);
+            f.Prepare();
+            foreach (SpaceObject shot in shots) shot.AdvanceDrift(1f / 60f);
+            universe.Projectiles.ResolveCollisions();
+            Check(flights.All(record => (bool)record.GetType().GetField("collisionCheckedThisTick").GetValue(record)),
+                "a newly eligible collision target invalidates existing miss certificates");
+        }
+        finally { f.Clear(); }
+
+        // A target may cross the whole reserved gap in one tick. Actual target displacement
+        // consumes the certificate before resolution, so the production moving-target sweep
+        // still observes the contact in that same tick.
+        target = f.Craft(faction, 100, 0, Vector2.zero, true);
+        var crossingPose = new SpacePose(OrbitSphere.Move(Vector3.forward, Vector2.zero), 0f)
+            { velocity = new Vector2(-60f, 0f) };
+        var crossingShot = new SpaceObject(60100, crossingPose) { baseTag = SpaceObjectTag.Projectile };
+        universe.RegisterObject(crossingShot);
+        object crossingFlight = CollisionFlight(universe, crossingShot, bulletDef, crossingPose.position);
+        try
+        {
+            f.Prepare(); crossingShot.AdvanceDrift(1f / 60f); universe.Projectiles.ResolveCollisions();
+            f.Prepare(); crossingShot.AdvanceDrift(1f / 60f); universe.Projectiles.ResolveCollisions();
+            Check(!(bool)crossingFlight.GetType().GetField("collisionCheckedThisTick").GetValue(crossingFlight),
+                "a distant miss enters the conservative skip path");
+
+            target.body.pose.velocity = new Vector2(-6150f, 0f);
+            f.Prepare();
+            crossingShot.AdvanceDrift(1f / 60f);
+            target.body.AdvanceDrift(1f / 60f);
+            universe.Projectiles.ResolveCollisions();
+            Check((bool)crossingFlight.GetType().GetField("collisionCheckedThisTick").GetValue(crossingFlight)
+                && (bool)crossingFlight.GetType().GetField("dead").GetValue(crossingFlight)
+                && target.wall.HitPoints == 290,
+                "same-tick target crossing exhausts clearance and resolves without a missed hit");
+        }
+        finally { f.Clear(); }
+
+        target = f.Craft(faction, 100, 0, Vector2.zero, true);
+        var passiveEntity = new CollisionEntity { def = missileDef, HitPoints = 25 };
+        var passiveCarrier = universe.CapturePayload(passiveEntity,
+            new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(0, 30)), 0f)
+                { velocity = new Vector2(-60f, 0f) }, null);
+        object passiveFlight = CollisionFlight(universe, passiveCarrier, missileDef,
+            passiveCarrier.pose.position);
+        try
+        {
+            f.Prepare(); passiveCarrier.AdvanceDrift(1f / 60f); universe.Projectiles.ResolveCollisions();
+            f.Prepare(); passiveCarrier.AdvanceDrift(1f / 60f); universe.Projectiles.ResolveCollisions();
+            Check(!(bool)passiveFlight.GetType().GetField("collisionCheckedThisTick").GetValue(passiveFlight),
+                "a distant interceptable missile can skip its own active sweep");
+
+            Vector3 from = OrbitSphere.Move(passiveCarrier.pose.position, new Vector2(-3f, 0f));
+            var interceptor = new SpaceObject(60101,
+                new SpacePose(OrbitSphere.Move(passiveCarrier.pose.position, new Vector2(3f, 0f)), 0f))
+                { baseTag = SpaceObjectTag.Projectile };
+            universe.RegisterObject(interceptor);
+            object interceptorFlight = CollisionFlight(universe, interceptor, bulletDef, from);
+            interceptorFlight.GetType().GetField("reflectedByShield").SetValue(interceptorFlight, true);
+            universe.Projectiles.ResolveCollisions();
+            Check(!(bool)passiveFlight.GetType().GetField("collisionCheckedThisTick").GetValue(passiveFlight)
+                && passiveEntity.HitPoints == 15,
+                "a missile that skips its active sweep remains a live defender for an exact projectile");
+        }
+        finally { f.Clear(); }
     }
     static void CheckHullMaplessContact(UniverseManager universe,Faction faction,HullRoundFixture f)
     {
@@ -269,6 +373,7 @@ internal static partial class Program
             finally { f.Clear(); universe.UnregisterObject(sameTimeCarrier); }
             CheckCollisionViews(universe,faction,f,missileDef);
             CheckPointDefenseFanAdapters(universe,faction,f,missileDef);
+            CheckCollisionScheduling(universe,faction,f,bulletDef,missileDef);
         }
         finally {collisionFailVisual=false;patch.UnpatchAll(patch.Id);collisionExplosions.Clear();DefDatabase<SpaceImpactEffectDef>.AllDefsListForReading.Remove(effect);SpaceImpactEffects.ResetCache();}
     }

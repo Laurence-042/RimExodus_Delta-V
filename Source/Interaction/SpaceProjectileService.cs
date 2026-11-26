@@ -136,6 +136,14 @@ namespace DeltaV
             public float armorPenetrationScale = 1f;
             public float mass = 1f, beamEnergyScale = 1f;
             public CannonShotTrace cannonTrace;
+            // Non-persistent certificate that the projectile cannot reach any legal target
+            // before this conservative clearance has been consumed by relative motion.
+            public float collisionClearance;
+            public int collisionTargetEpoch;
+            public Faction collisionFaction;
+            public bool collisionIgnoreNonHostile;
+            public bool collisionCheckedThisTick;
+            public int collisionSkipStreak;
             /// <summary>复用的扫掠查询（每 tick 重填字段，热路径零分配）。</summary>
             public readonly SpaceCollision.SweptBody body = new SpaceCollision.SweptBody();
         }
@@ -906,6 +914,9 @@ namespace DeltaV
             sweepScratch.Clear();
             bodyScratch.Clear();
             visualContacts.Clear();
+            long schedulingStart = universe.Performance.Start();
+            int targetCount = RefreshCollisionSchedulingTargets(out bool targetSetChanged);
+            int exactChecks = 0, skippedChecks = 0, invalidations = 0, maxSkipStreak = 0;
             bool traceCannons = false;
             for (int i = 0; i < projectiles.Count; i++)
             {
@@ -930,12 +941,32 @@ namespace DeltaV
                     if (!remainsAttached) i--;
                     continue;
                 }
+                bool forceExact = p.laser || p.hardDockingActive || p.launchSweepStart.HasValue
+                    || p.cannonTrace is { reported: false };
                 AddProjectileSweep(p, targetContainer);
+                p.collisionCheckedThisTick = RequiresExactCollision(p, forceExact, ref invalidations);
+                if (p.collisionCheckedThisTick)
+                {
+                    p.collisionSkipStreak = 0;
+                    bodyScratch.Add(p.body);
+                    exactChecks++;
+                }
+                else
+                {
+                    p.collisionSkipStreak++;
+                    if (p.collisionSkipStreak > maxSkipStreak) maxSkipStreak = p.collisionSkipStreak;
+                    skippedChecks++;
+                }
                 if (p.cannonTrace is { reported: false }) traceCannons = true;
             }
+            universe.Performance.RecordCollisionScheduling(targetCount, exactChecks, skippedChecks,
+                invalidations, targetSetChanged, maxSkipStreak);
+            universe.Performance.Record(PerformanceStage.CollisionSchedule, schedulingStart);
             if (traceCannons)
                 foreach (Projectile p in sweepScratch) SampleCannonTrace(p);
             SpaceCollision.SweepAndResolve(universe, bodyScratch);
+            foreach (Projectile p in sweepScratch)
+                if (p.collisionCheckedThisTick) StoreCollisionCertificate(p);
             if (traceCannons)
                 foreach (Projectile p in sweepScratch) ResolveCannonTrace(p);
             foreach (SpaceCollision.VisualContact contact in visualContacts) RegisterImpactFx(contact);
@@ -1079,7 +1110,6 @@ namespace DeltaV
                         - (Find.TickManager.TicksGame - captured.spawnedAtTick)));
             };
             sweepScratch.Add(p);
-            bodyScratch.Add(body);
             if (body.attacker != null) collisionBodies[body.attacker] = body;
         }
 
@@ -1306,6 +1336,12 @@ namespace DeltaV
             p.damageScale = p.energyFraction = 1f;
             p.armorPenetrationScale = p.mass = p.beamEnergyScale = 1f;
             p.cannonTrace = null;
+            p.collisionClearance = 0f;
+            p.collisionTargetEpoch = 0;
+            p.collisionFaction = null;
+            p.collisionIgnoreNonHostile = false;
+            p.collisionCheckedThisTick = false;
+            p.collisionSkipStreak = 0;
             p.body.attacker = null;
             p.body.projectileDef = null;
             p.body.attackerBuilding = null;
@@ -1328,6 +1364,7 @@ namespace DeltaV
             p.body.dead = false;
             p.body.resolvedHit = false;
             p.body.continued = p.body.didContinue = false;
+            p.body.schedulingClearance = 0f;
             if (projectilePool.Count < MaxPooledProjectiles) projectilePool.Push(p);
         }
 
@@ -1336,6 +1373,7 @@ namespace DeltaV
         public void ResetFlow()
         {
             ResetNativeProjectileFlow();
+            ResetCollisionScheduling();
             collisionBodies.Clear();
             globeVisuals.Clear();
             for (int i = projectiles.Count - 1; i >= 0; i--)

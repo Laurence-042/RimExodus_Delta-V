@@ -5,6 +5,9 @@ This file records player-visible changes in released versions and the near-term 
 
 ## 下一版本计划 / Next version plan
 
+- 射失并远离所有潜在目标的太空弹体会按保守净空降低精确碰撞检测频率；移动目标的实际位移、目标增大和新增目标会在可能接触的同一 tick 恢复完整扫掠，点防仍可命中处于降频状态的导弹。
+  Space projectiles that miss and move clear of every potential target now reduce the frequency of exact collision sweeps using conservative clearance. Actual target movement, expanding targets and newly added targets restore full sweeps in the same tick that contact becomes possible, while point defense can still hit missiles whose active sweeps are being skipped.
+
 默认使用类似pawn武器的机制适配，而不是以映射成速射炮之类的东西的适配？
 
 - 为跳帮艇被击毁时的乘员死亡补充明确通知。

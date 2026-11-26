@@ -25,7 +25,8 @@ namespace DeltaV
         EngagementObservation, EngagementScore, EngagementDamage,
         CombatPartSelection, EngagementCoverBuild,
         EngagementWeaponTable, EngagementProtectionScan, EngagementProtectionUpdate, EngagementTableQuery,
-        ShellTerrainBuild, ShellOverlaySort, ShellOverlaySubmit, HullPrepare, HullBroad, HullNarrow, HullOutcome, HullSweep,
+        ShellTerrainBuild, ShellOverlaySort, ShellOverlaySubmit, CollisionSchedule,
+        HullPrepare, HullBroad, HullNarrow, HullOutcome, HullSweep,
         NpcRound, NpcGate, NpcTarget, FireControlCandidates, NpcRetreat, NpcRetreatBaseline, NpcRetreatConsoles,
         NpcTactics, NpcThrustLog, NpcArchive, NpcCleanup,
         CombatFacts, CombatFactsHull, CombatFactsHullBaseline, CombatFactsThrust, CombatFactsShield, CombatFactsWeapons,
@@ -64,6 +65,7 @@ namespace DeltaV
             PerformanceStage.EngagementProtectionScan, PerformanceStage.EngagementProtectionUpdate,
             PerformanceStage.EngagementTableQuery, PerformanceStage.CombatRoute,
             PerformanceStage.CombatRouteShape, PerformanceStage.CombatTrajectory,
+            PerformanceStage.CollisionSchedule,
             PerformanceStage.HullPrepare, PerformanceStage.HullBroad, PerformanceStage.HullNarrow, PerformanceStage.HullSweep, PerformanceStage.HullOutcome,
             PerformanceStage.AutopilotSolve, PerformanceStage.MpcAssemble, PerformanceStage.MpcFeasibility,
             PerformanceStage.MpcQp, PerformanceStage.MpcBrakeRecovery
@@ -195,6 +197,8 @@ namespace DeltaV
         private long hullImpulses, hullCrushBatches;
         private int hullBudgetStops;
         private float hullBudgetLostFraction;
+        private long collisionExactChecks, collisionSkippedChecks, collisionInvalidations;
+        private int collisionTargetPeak, collisionTargetSetChanges, collisionSkipStreakPeak;
 
         private int structureBootstraps, structureBatches, structureSplits, structureReclaimPeak;
         private long structureBootstrapCells, structureBootstrapThings, structureEvents, structureSplitCells;
@@ -286,6 +290,18 @@ namespace DeltaV
             if (!Enabled) return;
             hullBudgetStops++;
             hullBudgetLostFraction += 1f - fraction;
+        }
+
+        internal void RecordCollisionScheduling(int targets, int exact, int skipped,
+            int invalidations, bool targetSetChanged, int maxSkipStreak)
+        {
+            if (!Enabled) return;
+            collisionExactChecks += exact;
+            collisionSkippedChecks += skipped;
+            collisionInvalidations += invalidations;
+            if (targets > collisionTargetPeak) collisionTargetPeak = targets;
+            if (targetSetChanged) collisionTargetSetChanges++;
+            if (maxSkipStreak > collisionSkipStreakPeak) collisionSkipStreakPeak = maxSkipStreak;
         }
 
         internal bool Enabled => DeltaVLog.Enabled(DeltaVLogModule.Performance);
@@ -607,6 +623,7 @@ namespace DeltaV
             AppendStage(sb, PerformanceStage.ObjectDrift, "objDrift", ticks);
             AppendStage(sb, PerformanceStage.ObjectArchive, "objArchive", ticks);
             AppendStage(sb, PerformanceStage.Collision, "collision", ticks);
+            AppendStage(sb, PerformanceStage.CollisionSchedule, "collisionSchedule", ticks);
             AppendStage(sb, PerformanceStage.MotionFeedback, "motionFx", ticks);
             AppendStage(sb, PerformanceStage.Lifecycle, "lifecycle", ticks);
             sb.Append(" tickFrameAvg=").Append((ticks / (float)frames).ToString("F2")).Append(" tickFrameMax=").Append(maxTicksPerFrame).Append(" capFrames=").Append(capFrames)
@@ -629,6 +646,12 @@ namespace DeltaV
                 .Append(" hullImpulses=").Append(hullImpulses).Append(" hullCrushBatches=").Append(hullCrushBatches)
                 .Append(" hullBudgetStops=").Append(hullBudgetStops)
                 .Append(" hullBudgetLostTicks=").Append(hullBudgetLostFraction.ToString("F3"));
+            sb.Append(" collisionTargetsMax=").Append(collisionTargetPeak)
+                .Append(" collisionExact=").Append(collisionExactChecks)
+                .Append(" collisionSkipped=").Append(collisionSkippedChecks)
+                .Append(" collisionInvalidated=").Append(collisionInvalidations)
+                .Append(" collisionTargetChanges=").Append(collisionTargetSetChanges)
+                .Append(" collisionSkipStreakMax=").Append(collisionSkipStreakPeak);
             AppendStructureStats(sb);
             AppendCombatStats(sb);
             AppendSlowestSamples(sb);
@@ -655,6 +678,8 @@ namespace DeltaV
             hullImpulses = hullCrushBatches = 0;
             hullBudgetStops = 0;
             hullBudgetLostFraction = 0f;
+            collisionExactChecks = collisionSkippedChecks = collisionInvalidations = 0;
+            collisionTargetPeak = collisionTargetSetChanges = collisionSkipStreakPeak = 0;
             System.Array.Clear(totals, 0, totals.Length);
             System.Array.Clear(peaks, 0, peaks.Length);
             System.Array.Clear(calls, 0, calls.Length);
