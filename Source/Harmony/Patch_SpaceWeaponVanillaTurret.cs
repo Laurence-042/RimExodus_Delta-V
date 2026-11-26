@@ -214,6 +214,22 @@ namespace DeltaV
         }
     }
 
+    /// <summary>
+    /// 太空模式下曲射弹由宇宙弹道接管，来源“屋顶下不得开火”的本地规则不再适用。
+    /// 地面模式与未适配炮塔保持原版判断。
+    /// </summary>
+    [HarmonyPatch(typeof(VerbUtility), nameof(VerbUtility.ProjectileFliesOverhead))]
+    public static class Patch_VerbUtility_AutoSpaceOverheadFire
+    {
+        public static bool Prefix(Verb verb, ref bool __result)
+        {
+            if (verb?.Caster is not Building_Turret turret
+                || !AutoSpaceWeaponTurretBridge.SpaceMode(turret)) return true;
+            __result = false;
+            return false;
+        }
+    }
+
     /// <summary>原版 ShotReport 仍负责距离、武器、天气、掩体；仅把炮塔射手能力换成炮手。</summary>
     [HarmonyPatch(typeof(ShotReport), nameof(ShotReport.HitFactorFromShooter))]
     public static class Patch_ShotReport_SpaceWeaponCrewAccuracy

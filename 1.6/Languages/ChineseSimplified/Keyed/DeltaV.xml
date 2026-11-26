@@ -254,7 +254,7 @@
   <DeltaV_SettingsTabAutoWeapons>自动适配</DeltaV_SettingsTabAutoWeapons>
   <DeltaV_SettingsTabLogging>日志</DeltaV_SettingsTabLogging>
   <DeltaV_SettingsTabDevelopment>开发调试</DeltaV_SettingsTabDevelopment>
-  <DeltaV_AutoWeaponRestartNotice>自动适配读取最终炮塔、Verb 和弹体 Def；设置将在重启游戏后生效。推荐模式只启用没有结构风险警告的武器。</DeltaV_AutoWeaponRestartNotice>
+  <DeltaV_AutoWeaponRestartNotice>自动适配读取最终炮塔与 Verb；未在 Def 中声明弹体的炮塔在首次开火时确定弹体。设置将在重启游戏后生效。推荐模式不自动启用已知自管飞行的武器。</DeltaV_AutoWeaponRestartNotice>
   <DeltaV_AutoAdaptationExport>导出适配分析报告</DeltaV_AutoAdaptationExport>
   <DeltaV_AutoAdaptationExportTip>报告包含全部已加载 Mod 的本机路径、武器支持与换算结果，以及护盾候选参数；文件只保存在本地。</DeltaV_AutoAdaptationExportTip>
   <DeltaV_AutoAdaptationExported>已导出自动适配分析报告：{0}</DeltaV_AutoAdaptationExported>
@@ -275,11 +275,16 @@
   <DeltaV_AutoWeaponFamilyLaser>激光炮</DeltaV_AutoWeaponFamilyLaser>
   <DeltaV_AutoWeaponWarnings>警告：{0}</DeltaV_AutoWeaponWarnings>
   <DeltaV_AutoWeaponWarningCustomVerb>非标准 Verb</DeltaV_AutoWeaponWarningCustomVerb>
-  <DeltaV_AutoWeaponWarningExplosiveProjectile>爆炸弹体按单发伤害换算</DeltaV_AutoWeaponWarningExplosiveProjectile>
-  <DeltaV_AutoWeaponWarningFlyOverhead>曲射弹体按直射换算</DeltaV_AutoWeaponWarningFlyOverhead>
+  <DeltaV_AutoWeaponWarningExplosiveProjectile>爆炸弹体</DeltaV_AutoWeaponWarningExplosiveProjectile>
+  <DeltaV_AutoWeaponWarningFlyOverhead>曲射弹体，太空模式直线飞行</DeltaV_AutoWeaponWarningFlyOverhead>
   <DeltaV_AutoWeaponWarningExternalResourceTransaction>来源使用特殊资源流程</DeltaV_AutoWeaponWarningExternalResourceTransaction>
   <DeltaV_AutoWeaponWarningThirdPartyMechanics>存在第三方运行机制</DeltaV_AutoWeaponWarningThirdPartyMechanics>
   <DeltaV_AutoWeaponWarningMortarBarrel>换管耐久不计入弹仓</DeltaV_AutoWeaponWarningMortarBarrel>
+  <DeltaV_AutoWeaponWarningCustomFlight>自管飞行，太空模式按普通弹道</DeltaV_AutoWeaponWarningCustomFlight>
+  <DeltaV_AutoWeaponWarningRuntimeProjectile>弹体在开火时确定</DeltaV_AutoWeaponWarningRuntimeProjectile>
+  <DeltaV_AutoWeaponWarningNonKineticDamage>非动能伤害（爆炸、EMP、燃烧等）</DeltaV_AutoWeaponWarningNonKineticDamage>
+  <DeltaV_AutoWeaponNoCapturableProjectile>{0}开火后没有产生可接管的射弹，已停止其在太空模式开火；地面模式不受影响。</DeltaV_AutoWeaponNoCapturableProjectile>
+  <DeltaV_AutoWeaponLaunchUnsupported>太空模式：来源开火不产生可接管的射弹</DeltaV_AutoWeaponLaunchUnsupported>
   <DeltaV_AutoWeaponRejected>不支持：{0}</DeltaV_AutoWeaponRejected>
   <DeltaV_AutoWeaponRejectionDisabled>Def 明确禁用</DeltaV_AutoWeaponRejectionDisabled>
   <DeltaV_AutoWeaponRejectionNotTurret>不是自动炮塔</DeltaV_AutoWeaponRejectionNotTurret>

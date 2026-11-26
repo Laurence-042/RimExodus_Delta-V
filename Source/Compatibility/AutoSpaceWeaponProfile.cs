@@ -1,4 +1,5 @@
 using System;
+using RimWorld;
 using Verse;
 
 namespace DeltaV
@@ -235,12 +236,38 @@ namespace DeltaV
             return 20;
         }
 
+        /// <summary>
+        /// Maps the Def-time projectile facts to an adaptation mode. A source that declares no
+        /// projectile enters as NativeProjectile; its first shot decides what is actually launched.
+        /// </summary>
+        public static AutoSpaceWeaponRejection ResolveProjectileMode(bool standardBeamVerb,
+            DamageDef damageDef, Type projectileClass, out bool nativeProjectile, out bool beam)
+        {
+            // Beam derives from Projectile but settles inside Launch, so it has no flight to capture.
+            bool beamThing = projectileClass != null && typeof(Beam).IsAssignableFrom(projectileClass);
+            nativeProjectile = projectileClass != null && !beamThing
+                && typeof(Verse.Projectile).IsAssignableFrom(projectileClass);
+            beam = !nativeProjectile && (standardBeamVerb || beamThing
+                || damageDef?.armorCategory?.defName == "Heat");
+            if (nativeProjectile) return AutoSpaceWeaponRejection.None;
+            if (beam)
+            {
+                // A standard beam verb without any beam damage has nothing to convert to a laser.
+                return projectileClass == null && damageDef == null
+                    ? AutoSpaceWeaponRejection.MissingProjectile : AutoSpaceWeaponRejection.None;
+            }
+            if (projectileClass != null) return AutoSpaceWeaponRejection.UnsupportedProjectile;
+            nativeProjectile = true;
+            return AutoSpaceWeaponRejection.None;
+        }
+
         public static AutoSpaceWeaponFamily Classify(AutoSpaceWeaponSource source)
         {
             if (source.beam) return AutoSpaceWeaponFamily.Laser;
             double sustained = Math.Max(.01, source.SustainedRate);
             double peak = Math.Max(sustained, source.PeakRate);
-            double damage = Math.Max(1, source.damage);
+            // A projectile resolved at fire time has no Def damage; rate alone decides the family.
+            double damage = source.damage > 0 ? source.damage : 24d;
             double rapidScore = Log2(sustained / .35) + .6 * Log2(peak / .35)
                 - .65 * Log2(damage / 24d);
             return rapidScore >= 0 ? AutoSpaceWeaponFamily.Rapid : AutoSpaceWeaponFamily.Heavy;
@@ -401,12 +428,14 @@ namespace DeltaV
 
         private static void Validate(AutoSpaceWeaponSource source)
         {
-            if (!(source.damage > 0) || !(source.armorPenetration >= 0) || !(source.projectileSpeed >= 0)
+            // Native replay reads damage from the launched instance, so an unresolved or
+            // non-kinetic source is valid; only the converted laser needs a positive Def damage.
+            if (!(source.damage >= 0) || float.IsInfinity(source.damage)
+                || source.beam && !(source.damage > 0)
+                || !(source.armorPenetration >= 0) || !(source.projectileSpeed >= 0)
                 || source.burstShotCount < 1 || source.ticksBetweenBurstShots < 0
                 || source.warmupSeconds < 0 || source.cooldownSeconds < 0 || source.footprintArea < 1)
                 throw new ArgumentException($"{source.defName ?? "<unnamed>"}: invalid automatic weapon source numbers");
-            if (!source.kinetic && !source.beam)
-                throw new ArgumentException($"{source.defName ?? "<unnamed>"}: neither kinetic nor beam");
         }
 
         private static double Positive(float value) => value > 0 && !float.IsInfinity(value) && !float.IsNaN(value) ? value : 1d;

@@ -1,7 +1,9 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using DeltaV;
+using RimWorld;
 using UnityEngine;
 using Verse;
 
@@ -173,6 +175,66 @@ internal static partial class Program
             .Invoke(shot, null);
         Check(launched && sourceOwned.launches == 1,
             "a native emitter can own its source transaction without invoking the synthetic Delta-V commit");
+
+        string weaponModel = File.ReadAllText(Path.Combine(repo,
+            "Source/Interaction/SpaceWeaponModel.cs"));
+        Check(nativePatch.Contains("class Patch_NativeSpaceWeapon_ShotResult")
+            && nativePatch.Contains("\"TryCastShot\"")
+            && nativePatch.Contains("if (!__result || !SpaceProjectileService.HasNativeAuthorizations) return;")
+            && nativePatch.Contains("NoteNativeShot(__instance)")
+            && nativeService.Contains("authorization.shotReported && !authorization.launched")
+            && nativeService.Contains("authorization.launched = true")
+            && nativeService.Contains("AutoSpaceWeaponTurretBridge.NotifyNativeLaunchUnsupported(turret)")
+            && nativeService.Contains("NotifyNativeCustomFlight(record.weapon, projectile)")
+            && turretBridge.Contains("&& !shot.weapon.nativeLaunchUnsupported"),
+            "a consumed source shot that registers no Launch is detected from the shot result alone and stops space fire for that turret");
+        Type shotPatch = typeof(SpaceProjectileService).Assembly.GetType("DeltaV.Patch_NativeSpaceWeapon_ShotResult");
+        var shotTargets = (shotPatch?.GetMethod("TargetMethods", BindingFlags.Static | BindingFlags.NonPublic)
+            ?.Invoke(null, null) as System.Collections.IEnumerable)?.Cast<MethodBase>().ToList();
+        Check(shotTargets?.Any(method => method.DeclaringType == typeof(Verb_LaunchProjectile)
+                && method.Name == "TryCastShot") == true
+            && shotTargets.All(method => !method.IsAbstract && typeof(Verb).IsAssignableFrom(method.DeclaringType)),
+            "the shot result hook targets the real TryCastShot overrides of the production assembly");
+        Check(turretPatch.Contains("class Patch_VerbUtility_AutoSpaceOverheadFire")
+            && turretPatch.Contains("nameof(VerbUtility.ProjectileFliesOverhead)")
+            && turretPatch.Contains("AutoSpaceWeaponTurretBridge.SpaceMode(turret)")
+            && typeof(VerbUtility).GetMethod("ProjectileFliesOverhead",
+                BindingFlags.Static | BindingFlags.Public) is MethodInfo overhead
+            && overhead.GetParameters()[0].ParameterType == typeof(Verb),
+            "space mode replaces the source's local overhead roof rule on the real VerbUtility extension");
+        Check(weaponModel.Contains("weapon.NativeProjectileSpeed ??")
+            && turretBridge.Contains("verb is Verb_LaunchProjectile launch")
+            && turretBridge.Contains("launch.Projectile : verb?.verbProps?.defaultProjectile")
+            && Math.Abs(AutoSpaceWeaponTurretBridge.SpeedCellsPerSecond(new ThingDef
+                { projectile = new ProjectileProperties { speed = 70f } }).Value - 42f) < 1e-4f
+            && Math.Abs(AutoSpaceWeaponTurretBridge.SpeedCellsPerSecond(new ThingDef
+                { projectile = new ProjectileProperties { speed = 41f } }).Value - 24.6f) < 1e-4f
+            && AutoSpaceWeaponTurretBridge.SpeedCellsPerSecond(new ThingDef
+                { projectile = new ProjectileProperties { speed = 0f } }) == null
+            && AutoSpaceWeaponTurretBridge.SpeedCellsPerSecond(null) == null,
+            "adapted turrets lead with the round their source Verb will launch at its real tiles-per-tick speed");
+        MethodInfo baseSpeed = typeof(CompSpaceWeapon).Assembly.GetType("DeltaV.SpaceWeaponBallistics")
+            ?.GetMethod("BaseSpeed", BindingFlags.Static | BindingFlags.NonPublic);
+        FieldInfo adaptedFlag = typeof(CompSpaceWeapon).GetField("nativeAdapted",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        var adapted = new CompSpaceWeapon { parent = new Building_TurretGun(), props = new CompProperties_SpaceWeapon() };
+        var ordinary = new CompSpaceWeapon { parent = new Building_TurretGun(), props = new CompProperties_SpaceWeapon() };
+        adaptedFlag?.SetValue(adapted, true);
+        Check(baseSpeed != null && adaptedFlag != null
+            && (float)baseSpeed.Invoke(null, new object[] { adapted, null, 60f }) == 60f
+            && (float)baseSpeed.Invoke(null, new object[] { ordinary, null, 48f }) == 48f
+            && !ordinary.nativeLaunchUnsupported,
+            "a native source with no resolvable round and an ordinary weapon both keep their proxy speed");
+        foreach (string language in new[] { "ChineseSimplified", "English" })
+        {
+            string keyed = File.ReadAllText(Path.Combine(repo, $"1.6/Languages/{language}/Keyed/DeltaV.xml"));
+            Check(keyed.Contains("<DeltaV_AutoWeaponWarningCustomFlight>")
+                && keyed.Contains("<DeltaV_AutoWeaponWarningRuntimeProjectile>")
+                && keyed.Contains("<DeltaV_AutoWeaponWarningNonKineticDamage>")
+                && keyed.Contains("<DeltaV_AutoWeaponNoCapturableProjectile>")
+                && keyed.Contains("<DeltaV_AutoWeaponLaunchUnsupported>"),
+                language + " translations name every adaptation warning and the uncapturable-shot notice");
+        }
 
         Check(AutoSpaceWeaponPolicy.Enabled(AutoSpaceWeaponModPolicy.Recommended,
                 AutoSpaceWeaponOverride.Inherit, true,

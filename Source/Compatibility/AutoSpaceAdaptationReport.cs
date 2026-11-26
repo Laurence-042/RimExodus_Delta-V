@@ -14,7 +14,7 @@ namespace DeltaV
     [DataContract]
     public sealed class AutoSpaceAdaptationReportDocument
     {
-        [DataMember(Order = 0)] public int schemaVersion = 3;
+        [DataMember(Order = 0)] public int schemaVersion = 4;
         [DataMember(Order = 1)] public string generatedAtUtc;
         [DataMember(Order = 2)] public string rimWorldVersion;
         [DataMember(Order = 3)] public string deltaVAssemblyVersion;

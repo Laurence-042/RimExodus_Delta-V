@@ -356,38 +356,34 @@ namespace DeltaV
                 warnings |= AutoSpaceWeaponWarning.CustomVerb;
             ThingDef projectile = verb.defaultProjectile;
             if (extension != null && !extension.sourceProjectile.NullOrEmpty())
+            {
+                // An explicit override that resolves to nothing is a Def error, not an unknown round.
                 projectile = DefDatabase<ThingDef>.GetNamedSilentFail(extension.sourceProjectile);
+                if (projectile == null)
+                    return Reject(AutoSpaceWeaponRejection.MissingProjectile, out rejection);
+            }
             ProjectileProperties props = projectile?.projectile;
             DamageDef damageDef = props?.damageDef ?? verb.beamDamageDef;
-            if (props == null && (!standardBeamVerb || damageDef == null))
-                return Reject(AutoSpaceWeaponRejection.MissingProjectile, out rejection);
-            bool nativeProjectile = projectile?.thingClass != null
-                && typeof(Verse.Projectile).IsAssignableFrom(projectile.thingClass);
-            // Entity identity wins over damage category: plasma and other Heat projectiles
-            // still have a real instance whose Impact must be replayed.
-            bool beam = !nativeProjectile && (standardBeamVerb
-                || projectile?.thingClass != null && typeof(Beam).IsAssignableFrom(projectile.thingClass)
-                || damageDef?.armorCategory?.defName == "Heat");
-            if (!beam && !nativeProjectile)
-                return Reject(AutoSpaceWeaponRejection.UnsupportedProjectile, out rejection);
-            bool customFlight = nativeProjectile && HasCustomFlight(projectile.thingClass);
+            AutoSpaceWeaponRejection modeRejection = AutoSpaceWeaponResolver.ResolveProjectileMode(
+                standardBeamVerb, damageDef, projectile?.thingClass, out bool nativeProjectile,
+                out bool beam);
+            if (modeRejection != AutoSpaceWeaponRejection.None)
+                return Reject(modeRejection, out rejection);
+            // CompChangeableProjectile shells and custom Verbs reveal their round only when firing.
+            bool projectileResolved = projectile?.thingClass != null && nativeProjectile;
+            if (nativeProjectile && !projectileResolved)
+                warnings |= AutoSpaceWeaponWarning.RuntimeProjectile;
+            bool customFlight = projectileResolved && HasCustomFlight(projectile.thingClass);
             if (customFlight) warnings |= AutoSpaceWeaponWarning.CustomFlight;
             bool kinetic = damageDef?.armorCategory?.defName is "Sharp" or "Blunt";
             if (props?.explosionRadius > 0f)
                 warnings |= AutoSpaceWeaponWarning.ExplosiveProjectile;
             if (props?.flyOverhead == true)
                 warnings |= AutoSpaceWeaponWarning.FlyOverhead;
-            if (!beam && !kinetic)
-            {
-                if (extension?.force == true && damageDef != null)
-                {
-                    kinetic = true;
-                    warnings |= AutoSpaceWeaponWarning.ThirdPartyMechanics;
-                }
-                else return Reject(damageDef == null
-                    ? AutoSpaceWeaponRejection.UnsupportedProjectile
-                    : AutoSpaceWeaponRejection.UnsupportedDamage, out rejection);
-            }
+            // Native replay keeps the launched instance's own Impact, so explosive, EMP and
+            // incendiary rounds are admitted; the category only remains a reported observation.
+            if (projectileResolved && !kinetic)
+                warnings |= AutoSpaceWeaponWarning.NonKineticDamage;
             if (UsesThirdPartyMechanics(turret, verb))
                 warnings |= AutoSpaceWeaponWarning.ThirdPartyMechanics;
             float cooldown = turret.building.turretBurstCooldownTime >= 0
@@ -436,7 +432,9 @@ namespace DeltaV
                 longRangeAccuracy = Math.Max(0f, gun.GetStatValueAbstract(StatDefOf.AccuracyLong)),
                 extension = extension
             };
-            if (!(source.damage > 0) || float.IsNaN(source.damage) || float.IsInfinity(source.damage))
+            // Only the converted laser scales from the Def damage; native rounds carry their own.
+            if (float.IsNaN(source.damage) || float.IsInfinity(source.damage)
+                || beam && !(source.damage > 0))
             {
                 source = null;
                 return Reject(AutoSpaceWeaponRejection.InvalidNumbers, out rejection);
@@ -454,7 +452,8 @@ namespace DeltaV
                     || comp.compClass != null && comp.compClass.Assembly != gameAssembly)) == true;
         }
 
-        private static bool HasCustomFlight(Type projectileType)
+        /// <summary>True when the projectile type overrides its own Tick or TickInterval.</summary>
+        internal static bool HasCustomFlight(Type projectileType)
         {
             if (projectileType == null || projectileType.Assembly == typeof(Verse.Projectile).Assembly)
                 return false;

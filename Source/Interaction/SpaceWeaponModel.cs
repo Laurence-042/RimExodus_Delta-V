@@ -264,9 +264,13 @@ namespace DeltaV
             return source?.Supply(GunSupplyKind.Heads) != null ? source.RequiredHeads(weapon) * source.UnitMass(weapon)
                 : weapon.WeaponProps.projectileDef?.GetCompProperties<CompProperties_SpaceProjectile>()?.mass ?? 1f;
         }
+        // An adapted source launches its own round: lead with that round's real speed, not the proxy's.
         internal static float BaseSpeed(CompSpaceWeapon weapon, CompSpaceWeaponMagazine magazine, float fallback) =>
-            weapon.Tuning?.Settings.chemical == true ? SpaceKinetics.LaunchSpeed(weapon.Tuning.charge, ProjectileMass(weapon, magazine))
-                : weapon.WeaponProps.launchKineticEnergy > 0f ? SpaceKinetics.Speed(ProjectileMass(weapon, magazine), weapon.WeaponProps.launchKineticEnergy) : fallback;
+            weapon.NativeProjectileSpeed ?? (weapon.Tuning?.Settings.chemical == true
+                ? SpaceKinetics.LaunchSpeed(weapon.Tuning.charge, ProjectileMass(weapon, magazine))
+                : weapon.WeaponProps.launchKineticEnergy > 0f
+                    ? SpaceKinetics.Speed(ProjectileMass(weapon, magazine), weapon.WeaponProps.launchKineticEnergy)
+                    : fallback);
         internal static float AcceleratedSpeed(float baseSpeed, float mass, float energy)
             => energy > 0f ? SpaceKinetics.Speed(mass, SpaceKinetics.Energy(mass, baseSpeed) + energy) : baseSpeed;
         internal static float ProjectedSpeed(CompSpaceWeapon weapon, float baseSpeed)

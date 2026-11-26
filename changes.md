@@ -81,6 +81,9 @@ This file records player-visible changes in released versions and the near-term 
 - 射失并远离所有潜在目标的太空弹体会按保守净空降低精确碰撞检测频率，以此优化大量长射程慢弹速弹丸射失后的性能。
   For space projectiles that miss and move away from all potential targets, the frequency of precise collision detection is reduced—while maintaining a conservative safety margin—to optimize performance following the miss of a large volume of long-range, low-velocity projectiles.
 
+- 自动适配炮塔不再要求 Def 声明弹体：原版迫击炮和按已装填弹药决定弹种的 Mod 炮塔现在可以在太空模式开火，爆炸、EMP 与燃烧弹也按各自的原版后效命中。瞄准提前量改用来源实际射出弹丸的速度；太空模式下曲射弹不再受「屋顶下不得开火」限制。来源开火却不产生可接管射弹的炮塔会提示一次并停止太空模式开火，地面模式不受影响。适配分析报告升为 schema 4。2026-11-27 用户实测无误并授权提交。
+  Auto-adapted turrets no longer need a projectile declared in their def: the vanilla mortar and mod turrets whose round depends on the loaded shell can now fire in space mode, and explosive, EMP and incendiary rounds hit with their own vanilla effects. Lead is now computed from the speed of the round actually launched, and in space mode overhead rounds are no longer blocked by the "no firing under a roof" rule. A turret whose shot launches nothing capturable is reported once and stops firing in space mode; ground mode is unaffected. The adaptation report is now schema 4. Confirmed in game by the user on 2026-11-27.
+
 
 #### 修复 / Fixes
 

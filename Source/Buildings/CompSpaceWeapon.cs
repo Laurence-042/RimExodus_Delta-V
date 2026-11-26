@@ -213,6 +213,16 @@ namespace DeltaV
         internal SpaceObjectTag pdTargets = SpaceObjectTag.Projectile | SpaceObjectTag.Shuttle;
         internal bool AcceptsPointDefenseTarget(SpaceObject target)
             => target?.InterceptionEligible == true && (target.InterceptionTargetTag & pdTargets) != 0;
+
+        // ---- 自动适配原生射弹（来源开火链的运行时事实）----
+
+        /// <summary>来源开火不产生可接管的射弹；存档事实，只拦太空模式开火。</summary>
+        public bool nativeLaunchUnsupported;
+        private bool nativeAdapted;
+        /// <summary>来源 Verb 实际将射出的弹体速度（格／秒）；非原生适配武器为 null。</summary>
+        internal float? NativeProjectileSpeed => nativeAdapted
+            ? AutoSpaceWeaponTurretBridge.NativeProjectileSpeed(parent as Building_Turret) : null;
+
         public bool keepGunnerWhenUnavailable = true;
         public Pawn reservedGunner;
         public float fireDeviationDeg;
@@ -458,6 +468,7 @@ namespace DeltaV
         {
             ClearRuntimeModel();
             base.PostSpawnSetup(respawningAfterLoad);
+            nativeAdapted = AutoSpaceWeaponTurretBridge.IsNativeAdapted(parent.def);
             if (!configurationInitialized)
             {
                 salvoSet = WeaponProps.defaultSalvoSet;
@@ -556,6 +567,7 @@ namespace DeltaV
             Scribe_Values.Look(ref lastMagazineThingId, "lastMagazineThingId", -1);
             Scribe_Values.Look(ref cooldownUntilTick, "cooldownUntilTick", 0);
             Scribe_Values.Look(ref committedCooldownTicks, "committedCooldownTicks", 0);
+            Scribe_Values.Look(ref nativeLaunchUnsupported, "nativeLaunchUnsupported", false);
         }
 
         internal int RequiredPropellant => Tuning?.Settings.chemical == true ? Tuning.charge : 0;
@@ -602,7 +614,10 @@ namespace DeltaV
 
         public override string CompInspectStringExtra()
         {
-            if (WeaponProps.armorPiercingHeadDef == null || !parent.Spawned) return null;
+            if (!parent.Spawned) return null;
+            if (nativeLaunchUnsupported && SpaceModeEnabled)
+                return "DeltaV_AutoWeaponLaunchUnsupported".Translate();
+            if (WeaponProps.armorPiercingHeadDef == null) return null;
             var head = SelectMagazine()?.Supply(GunSupplyKind.Heads)?.SelectedHead;
             return head == null ? "DeltaV_MagazineNoFullShot".Translate()
                 : "DeltaV_MagazineNextHead".Translate(head.LabelCap);

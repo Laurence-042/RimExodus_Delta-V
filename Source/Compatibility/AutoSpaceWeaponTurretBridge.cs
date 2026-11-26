@@ -29,7 +29,8 @@ namespace DeltaV
             if (!AutoSpaceWeaponTurretBridge.IsNativeAdapted(parent.def)) return true;
             Verb verb = Turret?.AttackVerb;
             return shot?.weapon?.parent == parent && verb != null && verb.state != VerbState.Bursting
-                && !Turret.CurrentTarget.IsValid && verb.Available();
+                && !Turret.CurrentTarget.IsValid && verb.Available()
+                && !shot.weapon.nativeLaunchUnsupported;
         }
 
         public bool TryLaunch(SpaceWeaponShot shot) =>
@@ -73,6 +74,50 @@ namespace DeltaV
 
         public static bool SpaceMode(Building_Turret turret) => IsAdapted(turret)
             && turret.TryGetComp<CompSpaceWeapon>()?.SpaceModeEnabled == true;
+
+        /// <summary>Speed of the round the source Verb will actually launch, in cells per second.</summary>
+        internal static float? NativeProjectileSpeed(Building_Turret turret)
+        {
+            // Building_TurretGun.AttackVerb dereferences its gun; an unmade gun has no round yet.
+            if (turret is Building_TurretGun { gun: null }) return null;
+            Verb verb = turret?.AttackVerb;
+            // The virtual Projectile property includes the shell loaded into CompChangeableProjectile.
+            return SpeedCellsPerSecond(verb is Verb_LaunchProjectile launch
+                ? launch.Projectile : verb?.verbProps?.defaultProjectile);
+        }
+
+        /// <summary>Cells per second of a projectile Def; null when the Def declares no finite speed.</summary>
+        public static float? SpeedCellsPerSecond(ThingDef projectile)
+        {
+            float tilesPerTick = projectile?.projectile?.SpeedTilesPerTick ?? 0f;
+            return tilesPerTick > 0f && !float.IsInfinity(tilesPerTick)
+                ? tilesPerTick * 60f : (float?)null;
+        }
+
+        /// <summary>
+        /// The source consumed a shot without launching anything capturable. Space fire stops
+        /// for this turret; its ground-mode chain is untouched.
+        /// </summary>
+        internal static void NotifyNativeLaunchUnsupported(Building_Turret turret)
+        {
+            if (!SpaceMode(turret) || !(turret.TryGetComp<CompSpaceWeapon>() is { } weapon)
+                || weapon.nativeLaunchUnsupported) return;
+            weapon.nativeLaunchUnsupported = true;
+            Log.Warning($"[DeltaV] Adapted turret '{turret.def.defName}' completed a space shot without "
+                + "launching a capturable projectile. Space fire is disabled for this turret; ground mode is unaffected.");
+            if (turret.Faction == Faction.OfPlayer)
+                Messages.Message("DeltaV_AutoWeaponNoCapturableProjectile".Translate(turret.LabelShortCap),
+                    turret, MessageTypeDefOf.CautionInput, false);
+        }
+
+        internal static void NotifyNativeCustomFlight(CompSpaceWeapon weapon, Verse.Projectile projectile)
+        {
+            if (weapon?.parent == null || projectile == null) return;
+            Log.WarningOnce($"[DeltaV] Adapted turret '{weapon.parent.def.defName}' launched "
+                + $"'{projectile.def.defName}' ({projectile.GetType().FullName}), which manages its own flight. "
+                + "In space it flies a plain ballistic and only its Impact is replayed.",
+                Gen.HashCombineInt(weapon.parent.thingIDNumber, projectile.def.shortHash));
+        }
 
         internal static bool TryLaunchNative(Building_Turret turret, SpaceWeaponShot shot)
         {

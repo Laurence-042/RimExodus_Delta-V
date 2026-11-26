@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Xml.Linq;
 using DeltaV;
 using RimWorld;
+using Verse;
 
 internal static partial class Program
 {
@@ -345,6 +346,87 @@ internal static partial class Program
         Check(AutoSpaceWeaponPolicy.WeaponKey("Example.Mod", "SyntheticTurret")
                 == AutoSpaceWeaponPolicy.WeaponKey("example.mod", "SyntheticTurret"),
             "automatic adaptation keys normalize package IDs while preserving turret identity");
+
+        // Vanilla facts: the mortar launcher declares no default projectile because its round comes
+        // from the loaded shell; every vanilla shell is a real entity round.
+        XElement mortarGun = core.Root.Elements("ThingDef")
+            .Single(x => (string)x.Element("defName") == "Artillery_Mortar");
+        Check(mortarGun.Element("verbs").Elements("li").Single().Element("defaultProjectile") == null
+                && (string)mortarGun.Element("comps").Elements("li").Single().Attribute("Class")
+                    == "CompProperties_ChangeableProjectile",
+            "the vanilla mortar launcher declares its round only through the loaded shell");
+        XDocument shells = XDocument.Load(Path.Combine(reference,
+            "Core/Defs/ThingDefs_Items/Items_Resource_Shell.xml"));
+        XElement highExplosive = shells.Root.Elements("ThingDef")
+            .Single(x => (string)x.Element("defName") == "Bullet_Shell_HighExplosive");
+        Check((string)highExplosive.Element("thingClass") == nameof(Projectile_Explosive)
+                && (string)highExplosive.Element("projectile").Element("damageDef") == "Bomb"
+                && (string)highExplosive.Element("projectile").Element("flyOverhead") == "true",
+            "the vanilla high-explosive shell is an entity round with non-kinetic overhead damage");
+        DamageDef Category(string name) =>
+            new DamageDef { armorCategory = new DamageArmorCategoryDef { defName = name } };
+        AutoSpaceWeaponRejection Mode(bool beamVerb, DamageDef damage, Type thingClass, out bool native) =>
+            AutoSpaceWeaponResolver.ResolveProjectileMode(beamVerb, damage, thingClass, out native, out bool _);
+        Check(Mode(false, null, null, out bool native) == AutoSpaceWeaponRejection.None && native
+                && Mode(false, Category("Bomb"), typeof(Projectile_Explosive), out native)
+                    == AutoSpaceWeaponRejection.None && native
+                && Mode(false, Category("Heat"), typeof(Verse.Projectile), out native)
+                    == AutoSpaceWeaponRejection.None && native
+                && Mode(false, null, typeof(Verse.Projectile), out native)
+                    == AutoSpaceWeaponRejection.None && native,
+            "an undeclared round and any entity round resolve as native projectiles whatever their damage category");
+        Check(Mode(true, Category("Heat"), typeof(Beam), out bool nativeBeam)
+                    == AutoSpaceWeaponRejection.None && !nativeBeam
+                && Mode(true, Category("Heat"), null, out bool beamDamage)
+                    == AutoSpaceWeaponRejection.None && !beamDamage
+                && Mode(false, Category("Heat"), null, out bool heatOnly)
+                    == AutoSpaceWeaponRejection.None && !heatOnly
+                && Mode(false, null, typeof(Verse.Building), out bool nonEntity)
+                    == AutoSpaceWeaponRejection.UnsupportedProjectile && !nonEntity
+                && Mode(true, null, null, out bool noBeamDamage) == AutoSpaceWeaponRejection.MissingProjectile,
+            "Beam things, beam verbs and heat without an entity still convert to lasers while a declared non-entity stays rejected");
+
+        var runtimeMortar = AutoSpaceWeaponResolver.Resolve(new AutoSpaceWeaponSource
+        {
+            defName = "Synthetic_RuntimeRound_Mortar",
+            nativeProjectile = true,
+            burstShotCount = 1,
+            warmupSeconds = 4f,
+            cooldownSeconds = 5f,
+            footprintArea = 1,
+            range = 500f
+        }, physics);
+        var runtimeBurst = AutoSpaceWeaponResolver.Resolve(new AutoSpaceWeaponSource
+        {
+            defName = "Synthetic_RuntimeRound_Burst",
+            nativeProjectile = true,
+            burstShotCount = 3,
+            ticksBetweenBurstShots = 17,
+            warmupSeconds = .5f,
+            cooldownSeconds = 3.5f,
+            footprintArea = 4,
+            range = 32.9f
+        }, physics);
+        Check(runtimeMortar.mode == AutoSpaceWeaponMode.NativeProjectile
+                && runtimeMortar.family == AutoSpaceWeaponFamily.Heavy
+                && Math.Abs(runtimeMortar.spaceRange - 1310f) < .001f
+                && runtimeBurst.mode == AutoSpaceWeaponMode.NativeProjectile
+                && runtimeBurst.family == AutoSpaceWeaponFamily.Rapid
+                && runtimeMortar.charge == 1 && runtimeMortar.heads == 1,
+            "a round resolved at fire time needs neither Def damage nor a kinetic category and is classified by rate alone");
+        bool rejectedBeam = false;
+        try
+        {
+            AutoSpaceWeaponResolver.Resolve(new AutoSpaceWeaponSource
+            {
+                defName = "Synthetic_Beam_WithoutDamage",
+                beam = true,
+                burstShotCount = 1,
+                footprintArea = 1
+            }, physics);
+        }
+        catch (ArgumentException) { rejectedBeam = true; }
+        Check(rejectedBeam, "a converted beam without a positive Def damage is still rejected");
         Check(typeof(AutoSpaceWeaponCandidate).GetField("profile") != null,
             "automatic adaptation candidates retain the exact resolved profile used for injection and reporting");
         Check(beam.laserBaseDamage > 0 && beam.laserShotEnergy > 0 && beam.laserMaxPower >= 4
@@ -527,7 +609,7 @@ internal static partial class Program
         {
             JsonElement root = reportJson.RootElement;
             JsonElement firstMod = root.GetProperty("mods")[0];
-            Check(root.GetProperty("schemaVersion").GetInt32() == 3
+            Check(root.GetProperty("schemaVersion").GetInt32() == 4
                 && root.GetProperty("settingsRequireRestart").GetBoolean()
                 && root.GetProperty("summary").GetProperty("activeMods").GetInt32() == 2,
                 "report JSON exposes a versioned restart-only schema and aggregate summary");
@@ -571,10 +653,12 @@ internal static partial class Program
         File.WriteAllText(output, JsonSerializer.Serialize(new
         {
             Status = "Production automatic-weapon resolver and policy audit; ThingDef injection and runtime behavior still require game validation.",
-            Assumptions = "60 ticks/s; source cycle is (N-1) internal shot intervals plus verb warmup, average turret aim and post-burst cooldown; target-search hash latency is excluded; the first source CompRefuelable follows vanilla comp order and both per-shot and per-burst costs determine supported shots without interpreting resource labels; sources without a measurable finite resource fall back to area or a complete target burst; unreachable damage and penetration requests cap at 95% of the production effect bounds before C/M inversion; original turret snapshots read from checked-in RimWorld reference XML; Odyssey Beam repeater is a handheld weapon used only through a synthetic laser fixture; synthetic extreme uses 100 damage, AP 1.5, speed 120, 20 shots at 5 ticks, 3 seconds rest, 1-cell footprint; synthetic impossible uses 1200 damage, 1000% AP and speed 300; synthetic spray/explosive uses 27 damage, AP .41, speed 110, 18 shots at 2 ticks, 2 seconds warmup, 3.2 seconds cooldown, 5-cell spray width and no inherited ground AOE; production Delta-V impact effects are used to invert C/M; magazine starts empty.",
+            Assumptions = "60 ticks/s; source cycle is (N-1) internal shot intervals plus verb warmup, average turret aim and post-burst cooldown; target-search hash latency is excluded; the first source CompRefuelable follows vanilla comp order and both per-shot and per-burst costs determine supported shots without interpreting resource labels; sources without a measurable finite resource fall back to area or a complete target burst; unreachable damage and penetration requests cap at 95% of the production effect bounds before C/M inversion; original turret snapshots read from checked-in RimWorld reference XML; Odyssey Beam repeater is a handheld weapon used only through a synthetic laser fixture; synthetic extreme uses 100 damage, AP 1.5, speed 120, 20 shots at 5 ticks, 3 seconds rest, 1-cell footprint; synthetic impossible uses 1200 damage, 1000% AP and speed 300; synthetic spray/explosive uses 27 damage, AP .41, speed 110, 18 shots at 2 ticks, 2 seconds warmup, 3.2 seconds cooldown, 5-cell spray width and no inherited ground AOE; production Delta-V impact effects are used to invert C/M; magazine starts empty; a source that declares no projectile is a native round resolved by rate alone with 1/1 diagnostic C/M; the vanilla mortar launcher and shells are read from the checked-in Core XML.",
             OriginalTurretSources = originalTurretSources,
             SyntheticFixtures = syntheticFixtures,
             Profiles = profiles,
+            RuntimeRoundMortar = runtimeMortar,
+            RuntimeRoundBurst = runtimeBurst,
             Monotonic = monotonic,
             Override = overriddenProfile,
             HeavyAnchors = new { FourCells = heavyFourCells, NineCells = heavyNineCells, FastSource = heavyFastSource },

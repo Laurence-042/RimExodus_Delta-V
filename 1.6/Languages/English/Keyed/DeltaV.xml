@@ -254,7 +254,7 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_SettingsTabAutoWeapons>Auto-adaptation</DeltaV_SettingsTabAutoWeapons>
   <DeltaV_SettingsTabLogging>Logging</DeltaV_SettingsTabLogging>
   <DeltaV_SettingsTabDevelopment>Development</DeltaV_SettingsTabDevelopment>
-  <DeltaV_AutoWeaponRestartNotice>Automatic adaptation reads final turret, verb, and projectile defs. Changes take effect after restarting the game. Recommended mode enables only weapons without structural risk warnings.</DeltaV_AutoWeaponRestartNotice>
+  <DeltaV_AutoWeaponRestartNotice>Automatic adaptation reads final turret and verb defs. A turret whose def declares no projectile resolves it on its first shot. Changes take effect after restarting the game. Recommended mode does not auto-enable weapons with known self-managed flight.</DeltaV_AutoWeaponRestartNotice>
   <DeltaV_AutoAdaptationExport>Export adaptation report</DeltaV_AutoAdaptationExport>
   <DeltaV_AutoAdaptationExportTip>The local report includes paths for every loaded mod, weapon support and conversion results, plus observed shield parameters. It is not uploaded.</DeltaV_AutoAdaptationExportTip>
   <DeltaV_AutoAdaptationExported>Exported automatic adaptation report: {0}</DeltaV_AutoAdaptationExported>
@@ -275,11 +275,16 @@ Separation retracts the related docking channels; pawns and items on them stay o
   <DeltaV_AutoWeaponFamilyLaser>Laser cannon</DeltaV_AutoWeaponFamilyLaser>
   <DeltaV_AutoWeaponWarnings>Warnings: {0}</DeltaV_AutoWeaponWarnings>
   <DeltaV_AutoWeaponWarningCustomVerb>non-standard verb</DeltaV_AutoWeaponWarningCustomVerb>
-  <DeltaV_AutoWeaponWarningExplosiveProjectile>explosion mapped from per-shot damage</DeltaV_AutoWeaponWarningExplosiveProjectile>
-  <DeltaV_AutoWeaponWarningFlyOverhead>overhead projectile mapped as direct fire</DeltaV_AutoWeaponWarningFlyOverhead>
+  <DeltaV_AutoWeaponWarningExplosiveProjectile>explosive projectile</DeltaV_AutoWeaponWarningExplosiveProjectile>
+  <DeltaV_AutoWeaponWarningFlyOverhead>overhead projectile; flies straight in space</DeltaV_AutoWeaponWarningFlyOverhead>
   <DeltaV_AutoWeaponWarningExternalResourceTransaction>source uses a special resource transaction</DeltaV_AutoWeaponWarningExternalResourceTransaction>
   <DeltaV_AutoWeaponWarningThirdPartyMechanics>third-party runtime mechanics present</DeltaV_AutoWeaponWarningThirdPartyMechanics>
   <DeltaV_AutoWeaponWarningMortarBarrel>barrel durability excluded from magazine</DeltaV_AutoWeaponWarningMortarBarrel>
+  <DeltaV_AutoWeaponWarningCustomFlight>self-managed flight; plain ballistic in space</DeltaV_AutoWeaponWarningCustomFlight>
+  <DeltaV_AutoWeaponWarningRuntimeProjectile>projectile resolved when fired</DeltaV_AutoWeaponWarningRuntimeProjectile>
+  <DeltaV_AutoWeaponWarningNonKineticDamage>non-kinetic damage (explosive, EMP, fire, etc.)</DeltaV_AutoWeaponWarningNonKineticDamage>
+  <DeltaV_AutoWeaponNoCapturableProjectile>{0} fired without launching a capturable projectile. Space fire is disabled for it; ground mode is unaffected.</DeltaV_AutoWeaponNoCapturableProjectile>
+  <DeltaV_AutoWeaponLaunchUnsupported>Space mode: firing launches no capturable projectile</DeltaV_AutoWeaponLaunchUnsupported>
   <DeltaV_AutoWeaponRejected>Unsupported: {0}</DeltaV_AutoWeaponRejected>
   <DeltaV_AutoWeaponRejectionDisabled>explicitly disabled by its def</DeltaV_AutoWeaponRejectionDisabled>
   <DeltaV_AutoWeaponRejectionNotTurret>not an automatic turret</DeltaV_AutoWeaponRejectionNotTurret>

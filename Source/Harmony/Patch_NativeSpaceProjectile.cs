@@ -28,6 +28,9 @@ namespace DeltaV
         internal static IEnumerable<MethodBase> VerbCastMethods()
             => DeclaredVirtualMethods(typeof(Verb), nameof(Verb.TryStartCastOn), CastSignature);
 
+        internal static IEnumerable<MethodBase> VerbShotMethods()
+            => DeclaredVirtualMethods(typeof(Verb), "TryCastShot", Type.EmptyTypes);
+
         private static IEnumerable<MethodBase> DeclaredVirtualMethods(Type root, string name,
             Type[] signature)
         {
@@ -124,6 +127,24 @@ namespace DeltaV
         private static void Postfix(Verb __instance)
         {
             Current.Game?.GetComponent<UniverseManager>()?.Projectiles.CompleteNativeBurst(__instance);
+        }
+    }
+
+    /// <summary>
+    /// Observes every concrete TryCastShot. Only its result separates a consumed shot that
+    /// launched nothing capturable from a shot the source Verb declined to fire.
+    /// </summary>
+    [HarmonyPatch]
+    internal static class Patch_NativeSpaceWeapon_ShotResult
+    {
+        private static IEnumerable<MethodBase> TargetMethods() =>
+            NativeSpaceProjectilePatchTargets.VerbShotMethods();
+
+        private static void Postfix(Verb __instance, bool __result)
+        {
+            // Harmony's verb shot hook reads only this process-wide quick gate while idle.
+            if (!__result || !SpaceProjectileService.HasNativeAuthorizations) return;
+            Current.Game?.GetComponent<UniverseManager>()?.Projectiles.NoteNativeShot(__instance);
         }
     }
 }

@@ -26,7 +26,9 @@ namespace DeltaV
         ExternalResourceTransaction = 1 << 3,
         ThirdPartyMechanics = 1 << 4,
         MortarBarrel = 1 << 5,
-        CustomFlight = 1 << 6
+        CustomFlight = 1 << 6,
+        RuntimeProjectile = 1 << 7,
+        NonKineticDamage = 1 << 8
     }
 
     /// <summary>Pure policy resolution shared by Def generation, settings UI and offline audit.</summary>

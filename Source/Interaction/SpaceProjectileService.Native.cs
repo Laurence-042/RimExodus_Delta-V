@@ -32,6 +32,9 @@ namespace DeltaV
             internal int warmupReadyTick = -1;
             internal bool warmupIndicatorActive;
             internal int expiresTick;
+            // A consumed source shot (TryCastShot returned true) versus any Launch it registered.
+            internal bool shotReported;
+            internal bool launched;
 
             internal bool Valid(int now) => sourceMap != null && !sourceMap.Disposed && now <= expiresTick
                 && (weapon == null || weapon.parent?.Spawned == true && weapon.SpaceModeEnabled);
@@ -67,9 +70,11 @@ namespace DeltaV
         // Harmony's projectile Tick hook reads only this process-wide quick gate while idle.
         // Authoritative records remain in this UniverseManager-owned service.
         private static int nativePendingCount;
+        private static int nativeAuthorizationCount;
         private static int nativeWarmupIndicatorCount;
         private static int nativeWarmupIndicatorDeadline = -1;
         internal static bool HasPendingNativeProjectiles => nativePendingCount > 0;
+        internal static bool HasNativeAuthorizations => nativeAuthorizationCount > 0;
         internal static bool HasNativeWarmupIndicators
         {
             get
@@ -106,6 +111,7 @@ namespace DeltaV
             if (nativeVerbAuthorizations.TryGetValue(verb, out NativeFireAuthorization previous))
                 RemoveNativeAuthorization(previous);
             nativeVerbAuthorizations[verb] = authorization;
+            nativeAuthorizationCount++;
             if (weapon != null) nativeWeaponAuthorizations[weapon] = authorization;
         }
 
@@ -196,9 +202,11 @@ namespace DeltaV
             if (verb == null || verb.state == VerbState.Bursting
                 || !nativeVerbAuthorizations.TryGetValue(verb, out NativeFireAuthorization authorization))
                 return;
+            bool unsupported = authorization.shotReported && !authorization.launched;
             RemoveNativeAuthorization(authorization);
             if (authorization.weapon == null) return;
             if (authorization.weapon.parent is not Building_Turret turret) return;
+            if (unsupported) AutoSpaceWeaponTurretBridge.NotifyNativeLaunchUnsupported(turret);
             MethodInfo orderAttack = turret.GetType().GetMethod(nameof(Building_TurretGun.OrderAttack),
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
                 null, new[] { typeof(LocalTargetInfo) }, null);
@@ -220,9 +228,21 @@ namespace DeltaV
         private void RemoveNativeAuthorization(NativeFireAuthorization authorization)
         {
             if (authorization == null) return;
-            if (authorization.verb != null) nativeVerbAuthorizations.Remove(authorization.verb);
+            if (authorization.verb != null && nativeVerbAuthorizations.Remove(authorization.verb))
+                nativeAuthorizationCount--;
             if (authorization.weapon != null) nativeWeaponAuthorizations.Remove(authorization.weapon);
             RetireNativeWarmupIndicator(authorization);
+        }
+
+        /// <summary>
+        /// The source Verb consumed a shot inside its authorization. A consumed shot without any
+        /// registered Launch means the source produces nothing the universe can capture.
+        /// </summary>
+        internal void NoteNativeShot(Verb verb)
+        {
+            if (verb != null && nativeVerbAuthorizations.TryGetValue(verb,
+                out NativeFireAuthorization authorization))
+                authorization.shotReported = true;
         }
 
         internal void RegisterNativeLaunch(Verse.Projectile projectile, Thing launcher, Thing equipment)
@@ -258,6 +278,7 @@ namespace DeltaV
             float syntheticSpreadAngle = 0f;
             if (authorization != null)
             {
+                authorization.launched = true;
                 Vector3 nativeOrigin = (Vector3)NativeOrigin.GetValue(projectile);
                 Vector2 origin = new Vector2(nativeOrigin.x, nativeOrigin.z);
                 if ((authorization.placeholderCenter - origin).sqrMagnitude < .01f)
@@ -346,7 +367,10 @@ namespace DeltaV
 
             ThingDef proxyDef = DefDatabase<ThingDef>.GetNamedSilentFail("DeltaV_PawnNativeProjectileProxy");
             CompProperties_SpaceProjectile props = proxyDef?.GetCompProperties<CompProperties_SpaceProjectile>();
-            float speed = (projectile.def.projectile?.SpeedTilesPerTick ?? 0f) * 60f;
+            float tilesPerTick = projectile.def.projectile?.SpeedTilesPerTick ?? 0f;
+            // A round whose Def declares no finite speed still flies and replays its own Impact.
+            float speed = AutoSpaceWeaponTurretBridge.SpeedCellsPerSecond(projectile.def)
+                ?? SpaceWeaponService.ProjectileSpeedOf(proxyDef);
             if (props == null || speed <= .0001f) return false;
 
             Vector3 origin = (Vector3)NativeOrigin.GetValue(projectile);
@@ -421,6 +445,8 @@ namespace DeltaV
             flight.energyFraction = flight.armorPenetrationScale = 1f;
             flight.mass = flight.beamEnergyScale = 1f;
             projectiles.Add(flight);
+            if (AutoSpaceWeaponDefGenerator.HasCustomFlight(projectile.GetType()))
+                AutoSpaceWeaponTurretBridge.NotifyNativeCustomFlight(record.weapon, projectile);
             return true;
         }
 
@@ -560,6 +586,7 @@ namespace DeltaV
             pendingNativeProjectiles.Clear();
             nativeVerbAuthorizations.Clear();
             nativeWeaponAuthorizations.Clear();
+            nativeAuthorizationCount = 0;
             nativeWarmupIndicatorCount = 0;
             nativeWarmupIndicatorDeadline = -1;
         }
