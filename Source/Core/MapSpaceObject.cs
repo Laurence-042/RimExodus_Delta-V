@@ -11,6 +11,7 @@ namespace DeltaV
     {
         private Map interior;
         private SpaceObjectTag memberTags;
+        private bool independentShuttle;
         private IReadOnlyList<ShipBase> members = System.Array.Empty<ShipBase>();
         private int membersVersion = -1;
         private int rolesVersion = -1;
@@ -66,12 +67,19 @@ namespace DeltaV
                 if (rolesVersion != revision)
                 {
                     memberTags = 0;
-                    foreach (ShipBase ship in Ships) memberTags |= ship.RolesIn(this);
+                    independentShuttle = false;
+                    foreach (ShipBase ship in Ships)
+                    {
+                        memberTags |= ship.RolesIn(this);
+                        if (ship is ShuttleShip shuttle && shuttle.CanDriveIn(this)) independentShuttle = true;
+                    }
                     rolesVersion = revision;
                 }
                 return memberTags;
             }
         }
+        // 点防读取与成员角色共用同一份缓存，不另行扫描船体。
+        protected override bool HasIndependentShuttle { get { _ = MemberTags; return independentShuttle; } }
         protected override IEnumerable<Faction> ShipFactions => Ships.Select(ship => ship.Faction);
         public override IEnumerable<ShipPhysics.Thruster> BuildThrusters() =>
             Ships.Where(ship => ship.CanDriveIn(this)).SelectMany(ship => ship.BuildThrusters());

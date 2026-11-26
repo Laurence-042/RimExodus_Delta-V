@@ -730,7 +730,10 @@ namespace DeltaV
                         else DestroyProjectile(p, "timeout");
                         continue;
                     }
-                    bool hasTarget = p.hardDockingActive && ResolveTarget(p);
+                    // 人员受击代理是被动的：不转向、不持有目标。其余飞行体都在这里解析目标，
+                    // 因为转向在下面的 AdvanceFlight；普通制导导弹不经过硬对接接管。
+                    bool passiveProxy = p.personnelProxy && !p.hardDockingActive;
+                    bool hasTarget = !passiveProxy && ResolveTarget(p);
                     if (p.hardDockingActive && (!p.hardDockingExecutor.ValidFor(p.container)
                         || !hasTarget || !universe.Autopilot.IsFollowing(p.boardingDriver, p.boardingReference)))
                     {
@@ -738,7 +741,7 @@ namespace DeltaV
                         continue;
                     }
                     p.prevPosition = p.container.pose.position;
-                    if (!p.laser && !IsHardDocker(p)) AdvanceFlight(p, hasTarget, now);
+                    if (!p.laser && !IsHardDocker(p) && !passiveProxy) AdvanceFlight(p, hasTarget, now);
                     if (p.props.exhaustTrail && now % 3 == 0
                         && (p.phase != FlightPhase.PoweredFlight || p.motorThrusting))
                         EmitTrail(p, now);

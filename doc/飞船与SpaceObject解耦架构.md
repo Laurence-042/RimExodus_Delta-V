@@ -56,7 +56,7 @@ ID 的**分配**仍复用唯一、单调、不回收的分配入口；ID 的**�
 
 地图对象从已登记的结构格和占地格取得碰撞候选，扩展船体可以继续提供其碰撞几何。无主残骸、岩石和环境建筑与船体共用 `SpaceStructureRules` 分类和统一碰撞链。实现追踪见[飞船结构增量索引迁移](飞船结构增量索引迁移.md)。
 
-**Shuttle tag 是有意保留的点防角色**：`RolesIn` 由船体子类提供，基架船只贡献 Ship，独立 shuttle 贡献 Ship + Shuttle。容器注册时首次解析，之后按统一结构版本缓存，无时间重扫；建筑生成／移除、地形变化和船体身份重评令缓存失效。点防先按对象缓存的 Projectile／Shuttle tag 筛选，再进入对应地图的碰撞面，不为每次索敌遍历地图查找 shuttle；基架船不能仅因具有 Ship tag 而成为点防目标。基础容器仍存 `Container`，成员角色从真实地图重建，侵入角色另外叠加，避免存两份船型事实。
+**Ship 是总体标识，子类角色由船体 `RolesIn` 提供**：基架船贡献 Ship + Foundation，一体式船贡献 Ship + Shuttle，舱外人员贡献 Ship + Personnel。容器注册时首次解析，之后按统一结构版本缓存，无时间重扫；建筑生成／移除、地形变化和船体身份重评令缓存失效。点防先按对象缓存的 Projectile／Shuttle tag 筛选，再进入对应地图的碰撞面，不为每次索敌遍历地图查找 shuttle；其中 Shuttle 类别只有在容器内的一体式船正独立飞行时才算可拦截，停靠在宿主图内的艇保留类别，但不把宿主图标成可拦截。基架船和人员不能仅因具有 Ship tag 而成为点防目标；自动选敌只认 Shuttle／Foundation 类别。基础容器仍存 `Container`，成员角色从真实地图重建，侵入角色另外叠加，避免存两份船型事实。
 
 艇体销毁后的空图处置复用 `QueueEmptyDepartedMapCleanup`；仍有物品、人员或其他结构的图交回共同生命周期。外部销图经 `SpaceLifecycleService.NotifyMapRemoved` 清理对应容器；若归档已替换表示，旧排队动作不会注销新表示。
 

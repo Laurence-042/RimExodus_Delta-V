@@ -355,12 +355,15 @@ internal static partial class Program
             Check(tractorTransferred == null, "frame action rejects a component destroyed after targeting");
             var shuttle = AddTestHull(targetMap, enemy, 51032);
             var hull = (Building)shuttle.parent;
+            // A footprint change must reach the incremental structure index, as a real spawn does.
+            CellRect previousHullFootprint = hull.OccupiedRect();
             targetMap.thingGrid.Deregister(hull);
             hull.def.size = new IntVec2(3, 3);
             hull.def.bringAlongOnGravship = true;
             Set(typeof(Thing), hull, "rotationInt", Rot4.North);
             Set(typeof(Thing), hull, "positionInt", new IntVec3(2, 0, 2));
             targetMap.thingGrid.Register(hull);
+            ShipStructureChanges.Notify(targetMap, hull, null, previousHullFootprint);
             var firstContact = new IntVec3(3, 0, 3);
             var secondContact = new IntVec3(3, 0, 2);
             void SetDeck(IntVec3 cell, TerrainDef value)

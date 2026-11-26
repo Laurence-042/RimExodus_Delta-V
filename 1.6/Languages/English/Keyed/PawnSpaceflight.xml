@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
-  <DeltaV_PointDefensePersonnel>Extravehicular personnel</DeltaV_PointDefensePersonnel>
   <DeltaV_Grapple>Grapple</DeltaV_Grapple>
   <DeltaV_GrappleRelease>Release grapple</DeltaV_GrappleRelease>
   <DeltaV_GrappleDesc>Aim the grapple. Movable targets pull both ways; cargo is stowed on contact, personnel are carried, and structures pull the user toward them.</DeltaV_GrappleDesc>

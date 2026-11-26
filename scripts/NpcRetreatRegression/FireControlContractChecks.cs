@@ -34,6 +34,19 @@ internal static partial class Program
         Current.Game?.GetComponent<UniverseManager>()?.Weapons.RegisterWeapon(fixture);
     }
 
+    // Personnel-class hull: exercises the ship-weapon role filters without building a real pawn.
+    sealed class PersonnelClassHull : ShuttleShip
+    {
+        public PersonnelClassHull(CompSpaceShuttle hull) : base(hull) { }
+        public override SpaceObjectTag RolesIn(SpaceObject container) =>
+            SpaceObjectTag.Ship | SpaceObjectTag.Personnel;
+    }
+    sealed class PersonnelClassHullComp : CompSpaceShuttle
+    {
+        PersonnelClassHull ship;
+        public override ShipBase Vessel => ship ??= new PersonnelClassHull(this);
+    }
+
     static void CheckPerShipFireControl(UniverseManager universe, Faction player, Faction enemy, bool coDriftOnly = false)
     {
         Map ownMap = TestMap(1960), enemyMap = TestMap(1970);
@@ -213,6 +226,7 @@ internal static partial class Program
             new SpacePose(OrbitSphere.Move(own.pose.position, new Vector2(0f, 60f)), 0f))
             { baseTag = SpaceObjectTag.Projectile, faction = enemy };
         universe.objects.Add(near); universe.objects.Add(far);
+        Set(universe, "objectById", null); // Point-defense search resolves every candidate by object id.
         weapon.aimMode = SpaceWeaponAimMode.PointDefense;
         weapon.cooldownUntilTick = Find.TickManager.TicksGame + 1000;
         universe.Weapons.NotifyWeaponModeChanged(weapon);
@@ -545,11 +559,15 @@ internal static partial class Program
         universe.Projectiles.Tick();
         Check((int)flight.GetType().GetField("targetContainerId").GetValue(flight) == separated.objectId,
             "in-flight missile follows the same ship into its new container");
+        // A boarding flight is armed by AdoptHardDocker: the attached-body marker only shapes the
+        // nose, while the sweep restriction follows the active hard-docking state.
         Set(flight, "adoptedShuttle", true);
+        Set(flight, "hardDockingActive", true);
         universe.Projectiles.ResolveCollisions();
         var sweep = (SpaceCollision.SweptBody)flight.GetType().GetField("body").GetValue(flight);
         Check(sweep.requiredDefender == separated,
             "boarding collision restriction follows the same resolved container used by guidance");
+        Set(flight, "hardDockingActive", false);
         Set(flight, "adoptedShuttle", false);
         var maneuver = new ShipAutoManeuverControl(universe, attacker.Identity);
         Set(maneuver, "anchorTarget", identity);
@@ -596,7 +614,9 @@ internal static partial class Program
         object unloading = flights[flights.Count - 1];
         SpaceObject unloadingMissile = universe.ObjectById((int)unloading.GetType().GetField("containerId").GetValue(unloading));
         Call(universe.Projectiles, "ResolveTarget", unloading);
+        // Boarding state is the active hard-docking flag; the attached-body marker only shapes the nose.
         Set(unloading, "adoptedShuttle", true);
+        Set(unloading, "hardDockingActive", true);
         unloadingMissile.projectileRoleOverride = true;
         var pendingSweep = (SpaceCollision.SweptBody)unloading.GetType().GetField("body").GetValue(unloading);
         pendingSweep.requiredDefender = separated;
@@ -810,5 +830,40 @@ internal static partial class Program
         Check(fire.FindPdTarget(weapon, muzzle) == null, "point defense never selects a friendly projectile");
         universe.objects.Remove(incoming);
         Set(universe, "objectById", null);
+
+        Map personnelMap = TestMap(1953);
+        var personnelComp = new PersonnelClassHullComp { props = new CompProperties_SpaceShuttle() };
+        AddTestHull(personnelMap, enemy, 1954, personnelComp);
+        var personnel = new MapSpaceObject(1953, personnelMap,
+            new SpacePose(OrbitSphere.Move(own.pose.position, new Vector2(0f, 20f)), 0f));
+        Map vesselMap = TestMap(1955);
+        CompSpaceShuttle vesselComp = AddTestHull(vesselMap, enemy, 1956);
+        var vessel = new MapSpaceObject(1955, vesselMap,
+            new SpacePose(OrbitSphere.Move(own.pose.position, new Vector2(0f, 40f)), 0f));
+        universe.objects.Add(personnel); universe.objects.Add(vessel);
+        try
+        {
+            Set(universe, "objectById", null);
+            Check(personnel.PersonnelOnly && !personnel.InterceptionEligible
+                && !vessel.PersonnelOnly && vessel.InterceptionEligible,
+                "a mapped personnel hull is personnel-only and never an interception target");
+            fire.CollectInterceptionCandidates(ship, own);
+            Check(!candidates.Contains(personnel) && candidates.Contains(vessel),
+                "point defense collects the independent integrated hull but never personnel");
+            Check(!ShipFireControl.CandidateValid(ship, own, personnel, personnelComp.Vessel)
+                && !ShipFireControl.Candidates(ship, own, personnel).Any()
+                && ShipFireControl.CandidateValid(ship, own, vessel, vesselComp.Vessel),
+                "ship fire control selects the integrated hull and never personnel");
+            CombatTarget ray = ShipFireControl.ManualTargetAlongRay(universe, own, own.pose.position,
+                new Vector2(0f, 1f), ship.Faction);
+            Check(!ray.TryResolve(universe, out var rayVictim) || rayVictim.Container != personnel,
+                "manual missiles never lock personnel along the ray");
+        }
+        finally
+        {
+            universe.objects.Remove(personnel); universe.objects.Remove(vessel);
+            Set(universe, "objectById", null);
+            Find.Maps.Remove(personnelMap); Find.Maps.Remove(vesselMap);
+        }
     }
 }

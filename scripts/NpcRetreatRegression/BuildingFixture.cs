@@ -62,10 +62,25 @@ internal static partial class Program
     static readonly Action<Thing, Faction> PublishFixtureFaction = AccessTools.MethodDelegate<Action<Thing, Faction>>(
         AccessTools.Method(typeof(Patch_ShipFaction), "Postfix"));
 
+    // The offline harness cannot run Unity's ModsConfig initialization; skip it on first use,
+    // whichever regression entry reaches this fixture first.
+    private static Harmony modsConfigGuard;
+    private static void GuardModsConfig()
+    {
+        if (modsConfigGuard != null) return;
+        modsConfigGuard = new Harmony("DeltaV.Regression.ModsConfigGuard");
+        modsConfigGuard.Patch(typeof(ModsConfig).TypeInitializer, prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
+    }
+
     sealed class FixtureOdyssey : IDisposable
     {
-        private readonly bool wasActive = ModsConfig.OdysseyActive;
-        public FixtureOdyssey() => AccessTools.Field(typeof(ModsConfig), "odysseyActive").SetValue(null, true);
+        private readonly bool wasActive;
+        public FixtureOdyssey()
+        {
+            GuardModsConfig();
+            wasActive = ModsConfig.OdysseyActive;
+            AccessTools.Field(typeof(ModsConfig), "odysseyActive").SetValue(null, true);
+        }
         public void Dispose() => AccessTools.Field(typeof(ModsConfig), "odysseyActive").SetValue(null, wasActive);
     }
 

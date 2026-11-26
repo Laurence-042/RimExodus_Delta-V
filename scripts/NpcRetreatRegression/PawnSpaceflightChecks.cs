@@ -15,6 +15,17 @@ internal static partial class Program
         return false;
     }
 
+    // The source Verb's range reaches the native launch authorization as a spread reference; it never gates the local cast.
+    static bool RangeFeedsOnlyNativeAuthorization(MethodInfo tryFire)
+    {
+        var instructions = PatchProcessor.GetOriginalInstructions(tryFire).ToList();
+        int authorize = instructions.FindIndex(i => i.operand is MethodInfo method && method.Name == "AuthorizeNativeFire");
+        int firstRange = instructions.FindIndex(i => i.operand is MethodInfo method && method.Name == "get_EffectiveRange");
+        return firstRange >= 0 && authorize > firstRange
+            && !instructions.Skip(firstRange).Take(authorize - firstRange)
+                .Any(i => i.opcode.FlowControl == System.Reflection.Emit.FlowControl.Cond_Branch);
+    }
+
     static void CheckPawnSpaceflight(UniverseManager universe)
     {
         var foundation = new DriveSubject(41, 77, DriveSubjectKind.Foundation);
@@ -32,8 +43,30 @@ internal static partial class Program
             { baseTag = SpaceObjectTag.Container | SpaceObjectTag.Personnel | SpaceObjectTag.Scattered };
         PropertyInfo targetTag = typeof(SpaceObject).GetProperty("InterceptionTargetTag",
             BindingFlags.Instance | BindingFlags.NonPublic);
-        Check((SpaceObjectTag)targetTag.GetValue(obj) == SpaceObjectTag.Personnel,
-            "personnel tag, not object id or container shape, classifies interception targets");
+        Check((SpaceObjectTag)targetTag.GetValue(obj) == 0,
+            "personnel never classify an interception target, regardless of object id or container shape");
+        Check(ShipBase.Invalid.RolesIn(null) == (SpaceObjectTag.Ship | SpaceObjectTag.Foundation)
+            && new ShuttleShip(null).RolesIn(null) == (SpaceObjectTag.Ship | SpaceObjectTag.Shuttle)
+            && new PawnSpaceflightShip(null, null).RolesIn(null) == (SpaceObjectTag.Ship | SpaceObjectTag.Personnel),
+            "every hull returns the overall Ship role plus its own class role");
+        Check(SpaceObject.IsVesselRole(ShipBase.Invalid.RolesIn(null))
+            && SpaceObject.IsVesselRole(SpaceObjectTag.Ship | SpaceObjectTag.Shuttle)
+            && !SpaceObject.IsVesselRole(SpaceObjectTag.Ship | SpaceObjectTag.Personnel)
+            && !SpaceObject.IsVesselRole(SpaceObjectTag.Container) && obj.PersonnelOnly,
+            "ship weapons only lock the integrated or foundation vessel roles");
+        var pdProperties = new CompProperties_SpaceWeapon();
+        var pdWeapon = new CompSpaceWeapon();
+        Check(pdProperties.defaultPdTargets == (SpaceObjectTag.Projectile | SpaceObjectTag.Shuttle)
+            && pdWeapon.pdTargets == (SpaceObjectTag.Projectile | SpaceObjectTag.Shuttle),
+            "point defense defaults to projectiles and shuttles and never admits personnel");
+        Check(typeof(SpaceObject).Assembly.GetType("DeltaV.Dialog_PointDefenseTargets")
+                ?.GetField("personnel", BindingFlags.Instance | BindingFlags.NonPublic) == null
+            && new[] { "ChineseSimplified", "English" }.SelectMany(language => new[]
+            {
+                $"1.6/Languages/{language}/Keyed/PawnSpaceflight.xml",
+                $"1.7/Languages/{language}/Keyed/PawnSpaceflight.xml"
+            }).All(path => !System.IO.File.ReadAllText(path).Contains("DeltaV_PointDefensePersonnel")),
+            "the point-defense target dialog and its translations no longer offer a personnel category");
 
         Check(universe.TractorLinks != null && universe.Personnel != null,
             "grapple and personnel transition services are universe-instance state");
@@ -172,7 +205,7 @@ internal static partial class Program
                 BindingFlags.Instance | BindingFlags.NonPublic) != null,
             "mapped personnel keep one runtime projectile proxy separate from hard-docking activation");
         Check(projectileRecord.GetField("nativeProjectile", BindingFlags.Instance | BindingFlags.Public) != null
-            && typeof(SpaceProjectileService).GetMethod("CapturePawnProjectile",
+            && typeof(SpaceProjectileService).GetMethod("TryCapturePendingNativeProjectile",
                 BindingFlags.Instance | BindingFlags.NonPublic) != null
             && typeof(SpaceCollision.SweptBody).GetField("onStructureImpact") != null
             && typeof(AbstractThing).GetMethod("HandoffTransient",
@@ -194,17 +227,11 @@ internal static partial class Program
             BindingFlags.Static | BindingFlags.NonPublic);
         MethodInfo supportsCapturedProjectile = weaponBridge.GetMethod("SupportsCapturedProjectile",
             BindingFlags.Static | BindingFlags.NonPublic);
-        MethodInfo abortPersonalShot = weaponBridge.GetMethod("AbortShot",
-            BindingFlags.Static | BindingFlags.NonPublic);
-        MethodInfo retireLocalProjectile = weaponBridge.GetMethod("RetireLocalProjectile",
-            BindingFlags.Static | BindingFlags.NonPublic);
-        MethodInfo completePersonalShot = weaponBridge.GetMethod("CompleteShot",
-            BindingFlags.Static | BindingFlags.NonPublic);
         Check(typeof(PawnSpaceflightShip).GetProperty("WeaponAimDirection",
                 BindingFlags.Instance | BindingFlags.NonPublic) != null
             && CollisionCalls(tryPersonalFire).Any(method => method.Name == "AimPersonalWeapon")
             && CollisionCalls(tryPersonalFire).Any(method => method.Name == "get_Position")
-            && !CollisionCalls(tryPersonalFire).Any(method => method.Name == "get_EffectiveRange"),
+            && RangeFeedsOnlyNativeAuthorization(tryPersonalFire),
             "personnel fire keeps universe aim separate from an in-bounds local Verb target");
         MethodInfo notifyAim = typeof(ShipBase).GetMethod("NotifyManualAim",
             BindingFlags.Instance | BindingFlags.NonPublic);
@@ -243,9 +270,9 @@ internal static partial class Program
         };
         Check(supportsCapturedProjectile != null
             && (bool)supportsCapturedProjectile.Invoke(null, new object[] { sprayVerb })
-            && CollisionCalls(typeof(SpaceProjectileService).GetMethod("CapturePawnProjectile",
-                BindingFlags.Instance | BindingFlags.NonPublic))
-                .Any(method => method.Name == "SupportsCapturedProjectile"),
+            && CollisionCalls(tryPersonalFire).Any(method => method.Name == "SupportsCapturedProjectile")
+            && CollisionCalls(typeof(SpaceProjectileService).GetMethod("RegisterNativeLaunch",
+                BindingFlags.Instance | BindingFlags.NonPublic)).Any(method => method.Name == "IsSpacePrimaryVerb"),
             "projectile-emitting spray Verbs use the same captured native-projectile bridge");
         MethodInfo tryVerbAimAngle = weaponBridge.GetMethod("TryAimAngle",
             BindingFlags.Static | BindingFlags.NonPublic, null,
@@ -292,20 +319,29 @@ internal static partial class Program
             && Mathf.Abs(correctedReach.y - 8.25f) < 0.0001f
             && Mathf.Abs(correctedReach.z + 0.2f) < 0.0001f,
             "degenerate north reach rotates toward universe aim while height and residual offsets stay unchanged");
-        Check(CollisionCalls(abortPersonalShot).Any(method => method.Name == "RetireLocalProjectile")
-            && CollisionCalls(abortPersonalShot).Any(method => method.Name == nameof(Verb.Reset))
-            && CollisionCalls(completePersonalShot).Any(method => method.Name == "RetireLocalProjectile")
-            && CollisionCalls(retireLocalProjectile).Any(method => method.Name == nameof(Thing.Destroy)),
-            "failed or exceptional personnel shots cannot leave a local projectile or bursting Verb behind");
-        Type burstPatch = typeof(UniverseManager).Assembly.GetType("DeltaV.Patch_PawnSpaceWeapon_BurstShot");
-        Type launchPatch = typeof(UniverseManager).Assembly.GetType("DeltaV.Patch_PawnSpaceWeapon_ProjectileLaunch");
-        Check(burstPatch?.GetMethod("TargetMethod", BindingFlags.Static | BindingFlags.NonPublic)
+        MethodInfo captureNativeProjectile = typeof(SpaceProjectileService).GetMethod("TryCapturePendingNativeProjectile",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        MethodInfo retireNativeProjectile = typeof(SpaceProjectileService).GetMethod("RetireNativeProjectile",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        Type burstCompletedPatch = typeof(UniverseManager).Assembly.GetType("DeltaV.Patch_NativeSpaceWeapon_BurstCompleted");
+        MethodInfo burstCompletedPostfix = burstCompletedPatch?.GetMethod("Postfix",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        Check(captureNativeProjectile != null && retireNativeProjectile != null && burstCompletedPostfix != null
+            && CollisionCalls(tryPersonalFire).Any(method => method.Name == "CancelNativeFire")
+            && CollisionCalls(captureNativeProjectile).Any(method => method.Name == "RetireNativeProjectile")
+            && CollisionCalls(retireNativeProjectile).Any(method => method.Name == nameof(Thing.Destroy))
+            && CollisionCalls(burstCompletedPostfix).Any(method => method.Name == "CompleteNativeBurst"),
+            "a personnel shot that fails to start, is unauthorized or ends its burst leaves no local projectile or firing authorization behind");
+        Type launchPatch = typeof(UniverseManager).Assembly.GetType("DeltaV.Patch_NativeSpaceProjectile_Launch");
+        var launchTargets = (launchPatch?.GetMethod("TargetMethods",
+            BindingFlags.Static | BindingFlags.NonPublic)?.Invoke(null, null)
+            as System.Collections.IEnumerable)?.Cast<MethodBase>().ToList();
+        Check(launchTargets?.Any(method => method.DeclaringType == typeof(Projectile)
+                && method.Name == nameof(Projectile.Launch)) == true
+            && burstCompletedPatch?.GetMethod("TargetMethod", BindingFlags.Static | BindingFlags.NonPublic)
                 ?.Invoke(null, null) is MethodBase burstMethod
-            && burstMethod.DeclaringType == typeof(Verb)
-            && launchPatch?.GetMethod("TargetMethod", BindingFlags.Static | BindingFlags.NonPublic)
-                ?.Invoke(null, null) is MethodBase launchMethod
-            && launchMethod.DeclaringType == typeof(Projectile),
-            "personnel fire Harmony targets resolve against the production game assemblies");
+            && burstMethod.DeclaringType == typeof(Verb),
+            "the unified native fire Harmony targets resolve against the production game assemblies");
         Type targetView = typeof(SpaceCollision).GetNestedType("TargetView",
             BindingFlags.NonPublic);
         Check(targetView?.GetField("requiresPersonnelProxy",

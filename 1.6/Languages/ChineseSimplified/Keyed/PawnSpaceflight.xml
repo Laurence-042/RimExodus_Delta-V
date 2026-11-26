@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
-  <DeltaV_PointDefensePersonnel>舱外人员</DeltaV_PointDefensePersonnel>
   <DeltaV_Grapple>抓钩</DeltaV_Grapple>
   <DeltaV_GrappleRelease>松开抓钩</DeltaV_GrappleRelease>
   <DeltaV_GrappleDesc>选择抓钩方向。抓钩会双向牵引可移动目标；接触货物后收入背包，接触人员后将其抱起，钩住结构时把自己拉向结构。</DeltaV_GrappleDesc>

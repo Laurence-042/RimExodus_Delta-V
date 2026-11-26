@@ -8,13 +8,14 @@ namespace DeltaV
 {
     /// <summary>
     /// 容器类别 tag（太空战架构 §2/§3.1）：**行为分派维度，不是类型分叉**——
-    /// 「弹体」「飞船」都是可叠加的抽象角色。Ship 从共同船体接口派生；
-    /// 独立 shuttle 由船体贡献 Shuttle 角色；侵入时在原有角色上追加 Projectile。
+    /// 「弹体」「飞船」都是可叠加的抽象角色。Ship 是承载任意 ShipBase 的总体标识，
+    /// 船体同时叠加子类角色：基架船 Foundation、一体式船 Shuttle、舱外人员 Personnel；
+    /// 侵入时在原有角色上追加 Projectile。
     /// tag 只驱动单点分派属性（见 SpaceObject 上的分派区），调用方禁止散写 tag 比较；
     /// POI 显示等既有逻辑仍按 PoiState 类型判断，不经 tag。
     /// </summary>
     [System.Flags]
-    public enum SpaceObjectTag : byte
+    public enum SpaceObjectTag : int
     {
         /// <summary>有图普通容器（船图/残骸/物化 POI/空画布锚）。</summary>
         Container = 1,
@@ -25,16 +26,19 @@ namespace DeltaV
         /// <summary>弹体（纯弹体是瞬态成员不落盘；侵入飞控的 shuttle 追加此角色）。</summary>
         Projectile = 4,
 
-        /// <summary>独立飞行的单建筑船角色，由船体提供；供点防在对象层快速过滤。</summary>
+        /// <summary>一体式飞船（单建筑船）类别，由船体提供；只有独立飞行时才被点防拦截。</summary>
         Shuttle = 8,
 
-        /// <summary>派生角色：承载任意 ShipBase 的容器。永不手写。</summary>
+        /// <summary>总体标识：承载任意 ShipBase 的容器。永不手写。</summary>
         Ship = 16,
         Scattered = 32,
         GravityRegion = 64,
 
-        /// <summary>真实 Pawn 的抽象漂浮或独立有图飞行表示。</summary>
-        Personnel = 128
+        /// <summary>真实 Pawn 的抽象漂浮或独立有图飞行表示；永不成为舰载武器的目标。</summary>
+        Personnel = 128,
+
+        /// <summary>基架飞船类别，由基架船体提供；自动选敌的目标类别之一，不作为点防目标。</summary>
+        Foundation = 256
     }
 
     /// <summary>
@@ -207,16 +211,25 @@ namespace DeltaV
         internal Thing InterceptionThing => Payload?.Entity ?? (this is MapSpaceObject mapped
             && HasTag(SpaceObjectTag.Personnel) ? mapped.PersonnelPawn : InterceptionBody);
 
+        /// <summary>容器内有一体式船正在独立飞行；停靠在宿主图内的艇保留类别，但不是来袭目标。</summary>
+        protected virtual bool HasIndependentShuttle => false;
+
         internal SpaceObjectTag InterceptionTargetTag
         {
             get
             {
                 SpaceObjectTag roles = Tag;
-                return (roles & SpaceObjectTag.Shuttle) != 0
-                    ? SpaceObjectTag.Shuttle : (roles & SpaceObjectTag.Personnel) != 0
-                        ? SpaceObjectTag.Personnel : roles & SpaceObjectTag.Projectile;
+                return HasIndependentShuttle && (roles & SpaceObjectTag.Shuttle) != 0
+                    ? SpaceObjectTag.Shuttle : roles & SpaceObjectTag.Projectile;
             }
         }
+
+        /// <summary>舰载武器可锁定的船体类别：一体式或基架飞船。</summary>
+        internal static bool IsVesselRole(SpaceObjectTag roles) =>
+            (roles & (SpaceObjectTag.Shuttle | SpaceObjectTag.Foundation)) != 0;
+
+        /// <summary>只承载舱外人员：点防、自动选敌和导弹制导都不选它，普通射击仍可命中。</summary>
+        internal bool PersonnelOnly => HasTag(SpaceObjectTag.Personnel) && !IsVesselRole(Tag);
 
         /// <summary>显示朝向策略：无姿态角的点状弹体按速度方向，其余按位姿角（§3.1）。</summary>
         public bool UsesVelocityHeading => IsPureProjectile && payload == null;

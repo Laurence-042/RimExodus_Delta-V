@@ -59,7 +59,7 @@ namespace DeltaV
         public bool casemate;
         public int projectilesPerShot = 1;
         public float projectileFanHalfAngle;
-        public SpaceObjectTag defaultPdTargets = SpaceObjectTag.Projectile | SpaceObjectTag.Shuttle | SpaceObjectTag.Personnel;
+        public SpaceObjectTag defaultPdTargets = SpaceObjectTag.Projectile | SpaceObjectTag.Shuttle;
 
         /// <summary>工程设备只消费玩家手动齐射，不参加自动攻击和点防。</summary>
         public bool manualOnly;
@@ -210,7 +210,7 @@ namespace DeltaV
         public SpaceWeaponAimMode aimMode = SpaceWeaponAimMode.Volley;
         public SpaceWeaponEngagementMode engagementMode;
         public bool safeFire = true;
-        internal SpaceObjectTag pdTargets = SpaceObjectTag.Projectile | SpaceObjectTag.Shuttle | SpaceObjectTag.Personnel;
+        internal SpaceObjectTag pdTargets = SpaceObjectTag.Projectile | SpaceObjectTag.Shuttle;
         internal bool AcceptsPointDefenseTarget(SpaceObject target)
             => target?.InterceptionEligible == true && (target.InterceptionTargetTag & pdTargets) != 0;
         public bool keepGunnerWhenUnavailable = true;

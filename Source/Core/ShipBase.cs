@@ -72,7 +72,7 @@ namespace DeltaV
         protected abstract IEnumerable<CompSpaceWeapon> CollectWeapons();
         /// <summary>包含 Empty 格，以明确船体负责的区域；求交仍由 SpaceCollision 执行。</summary>
         public abstract IEnumerable<SpaceCollisionCell> CollisionCells { get; }
-        /// <summary>船体在当前承载关系下贡献的对象角色；容器缓存结果供索敌快速过滤。</summary>
+        /// <summary>船体贡献的对象类别角色：Ship 总标识加子类（Foundation／Shuttle／Personnel）；容器缓存结果供索敌快速过滤。</summary>
         public abstract SpaceObjectTag RolesIn(SpaceObject container);
         public abstract ShipTransferSpec Transfer { get; }
         /// <summary>是否随船搬运脚印内的地面物品；内部货舱始终随所属建筑。</summary>
@@ -208,7 +208,7 @@ namespace DeltaV
             SpaceStructureRules.CollisionCells(Map, HullCells);
         public override ShipTransferSpec Transfer => new ShipTransferSpec(
             Anchor as Building, null, Structure.ownerId, true);
-        public override SpaceObjectTag RolesIn(SpaceObject container) => SpaceObjectTag.Ship;
+        public override SpaceObjectTag RolesIn(SpaceObject container) => SpaceObjectTag.Ship | SpaceObjectTag.Foundation;
     }
 
     /// <summary>单建筑船；原版 transporter 与 launchable 仍由 CompSpaceShuttle 适配。</summary>
@@ -283,8 +283,7 @@ namespace DeltaV
             ? CompSpaceWeapon.On(Hull.parent) : Enumerable.Empty<CompSpaceWeapon>();
         public override IEnumerable<SpaceCollisionCell> CollisionCells =>
             SpaceStructureRules.CollisionCells(Map, HullCells);
-        public override SpaceObjectTag RolesIn(SpaceObject container) => SpaceObjectTag.Ship
-            | (CanDriveIn(container) ? SpaceObjectTag.Shuttle : 0);
+        public override SpaceObjectTag RolesIn(SpaceObject container) => SpaceObjectTag.Ship | SpaceObjectTag.Shuttle;
         public override ShipTransferSpec Transfer => new ShipTransferSpec(null, Anchor as Building, 0, false);
         public override bool MoveColocatedItems => false;
         public override AcceptanceReport CheckDeparture()

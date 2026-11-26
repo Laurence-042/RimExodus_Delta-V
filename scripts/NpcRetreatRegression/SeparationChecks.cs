@@ -301,6 +301,11 @@ internal static partial class Program
         pawn.def.category = ThingCategory.Pawn;
         pawn.stackCount = 1;
         pawn.thingIDNumber = 49921;
+        // A real pawn always carries race and health data; the personnel service reads Dead on capture.
+        FleshTypeDefOf.Normal ??= new FleshTypeDef { defName = "scatterFlesh" };
+        pawn.def.race = new RaceProperties { intelligence = Intelligence.Humanlike };
+        Set(pawn.def.race, "fleshType", FleshTypeDefOf.Normal);
+        pawn.health = new Pawn_HealthTracker(pawn);
         var item = (ReceivingItem)Raw(typeof(ReceivingItem));
         item.def = TestBuildingDef("unsupportedItem");
         item.def.category = ThingCategory.Item;

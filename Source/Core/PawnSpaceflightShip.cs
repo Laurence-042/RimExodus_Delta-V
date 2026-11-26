@@ -247,7 +247,7 @@ namespace DeltaV
                     yield return new SpaceCollisionCell(pawn.Position, SpaceCellKind.Building, pawn);
             }
         }
-        public override SpaceObjectTag RolesIn(SpaceObject container) => SpaceObjectTag.Ship;
+        public override SpaceObjectTag RolesIn(SpaceObject container) => SpaceObjectTag.Ship | SpaceObjectTag.Personnel;
         public override ShipTransferSpec Transfer => new ShipTransferSpec(null, null, 0, false, pawn);
         public override bool MoveColocatedItems => false;
         public override bool IsPersonnel => true;

@@ -73,7 +73,8 @@ namespace DeltaV
             if (attacker?.IsValid != true || attacker.Faction == null || own == null || container == null
                 || container == own || container.map == null || container.map.Disposed
                 || container.baseTag == SpaceObjectTag.Projectile || !container.HasTag(SpaceObjectTag.Ship)
-                || member?.IsValid != true || member.Map != container.map || member.Faction == null
+                || member?.IsValid != true || !SpaceObject.IsVesselRole(member.RolesIn(container))
+                || member.Map != container.map || member.Faction == null
                 || !member.Faction.HostileTo(attacker.Faction)) return false;
             distance = OrbitSphere.ArcCells(ShipRegistry.ShipPose(attacker).position, ShipRegistry.ShipPose(member).position);
             if (distance > DeltaVMod.CurrentSettings.poiActiveRadius) return false;
@@ -698,6 +699,7 @@ namespace DeltaV
             {
                 if (obj == source || obj.map == null || obj.map.Disposed) continue;
                 if (!obj.HostileTo(faction)) continue;
+                if (obj.PersonnelOnly) continue;
                 Vector2 offset = OrbitSphere.Offset(origin, obj.pose.position);
                 float along = Vector2.Dot(offset, dirTangent);
                 if (along <= 0f) continue;

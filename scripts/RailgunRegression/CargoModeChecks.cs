@@ -50,7 +50,9 @@ internal static partial class Program
         if (def.defName != "DeltaV_CargoStorage" && def.defName != "DeltaV_CargoContainer") return true;
         ThingWithComps thing = def.defName == "DeltaV_CargoStorage" ? new ModeStorage() : new ModeCrate();
         thing.def = def; thing.thingIDNumber = nextId++; Set(thing, "mapIndexOrState", (sbyte)-1);
-        var comps = new List<ThingComp> { new CompSpaceCargo { parent = thing, props = new CompProperties_SpaceCargo() } };
+        // Both real cargo Defs carry the structure-mass comp; the mode switch preserves its publication.
+        var comps = new List<ThingComp> { new CompSpaceCargo { parent = thing, props = new CompProperties_SpaceCargo() },
+            new CompStructureMass { parent = thing } };
         if (thing is ModeCrate)
             comps.Add(new CompHackable { parent = thing, props = new CompProperties_Hackable() });
         if (thing is ModeStorage storage)
@@ -90,7 +92,16 @@ internal static partial class Program
         var oldFactions = Find.World.factionManager;
         Find.World.factionManager = (FactionManager)Raw(typeof(FactionManager));
         Set(Find.World.factionManager, "ofPlayer", new Faction { def = new FactionDef { isPlayer = true } });
-        var modeMap = (Map)Raw(typeof(Map)); modeMap.listerThings = new ListerThings(ListerThingsUse.Global);
+        // The mode switch preserves the cargo's published mass through the structure index, which
+        // reads the grids and components every real map carries.
+        var modeMap = (Map)Raw(typeof(Map));
+        modeMap.uniqueID = nextId++; modeMap.info = new MapInfo { Size = new IntVec3(24, 1, 24) };
+        modeMap.cellIndices = new CellIndices(modeMap);
+        var modeOwnership = new SubstructureOwnership(modeMap);
+        modeMap.components = new List<MapComponent> { modeOwnership };
+        Set(modeOwnership, "ownerGrid", new int[modeMap.cellIndices.NumGridCells]);
+        modeMap.thingGrid = new ThingGrid(modeMap); modeMap.terrainGrid = new TerrainGrid(modeMap);
+        modeMap.listerThings = new ListerThings(ListerThingsUse.Global);
         modeMap.designationManager = (DesignationManager)Raw(typeof(DesignationManager)); Find.Maps.Add(modeMap);
         var defs = new[] { MakeDef("DeltaV_CargoStorage"), MakeDef("DeltaV_CargoContainer") };
         foreach (var def in defs)
@@ -117,7 +128,11 @@ internal static partial class Program
             var defItem = MakeDef("ModeCargoItem"); defItem.category = ThingCategory.Item; defItem.stackLimit = 75; defItem.virtualDefs = new List<ThingDef>();
             var item = new ModeItem { def = defItem, stackCount = 37, HitPoints = 23 };
             Set(item, "mapIndexOrState", (sbyte)-1); crate.TryStore(item);
-            var terminal = new Building_SpaceTradeTerminal { def = MakeDef("ModeTerminal"), thingIDNumber = nextId++ }; modeMap.listerThings.AllThings.Add(terminal);
+            // Rebinding reads terminals from the structure index, which only knows spawned buildings.
+            var terminal = new Building_SpaceTradeTerminal { def = MakeDef("ModeTerminal"), thingIDNumber = nextId++ };
+            Set(terminal, "positionInt", new IntVec3(12, 0, 10));
+            Set(terminal, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(modeMap));
+            modeMap.listerThings.AllThings.Add(terminal);
             Set(terminal, "deliveryCargo", crate);
             var change = AccessTools.Method(typeof(CompSpaceCargo), "SetStorageMode");
             CompSpaceCargo switchTo(ThingWithComps thing, bool storage)

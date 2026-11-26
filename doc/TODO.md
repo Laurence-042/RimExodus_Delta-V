@@ -112,5 +112,4 @@
 - [ ] 1.7 新档及既有测试档：主动出舱升格后自动聚焦、征召、驾驶并在武装时进入手动火控；聚焦无自动任务的其他可控飞船同样自动手操。保存当前聚焦人员后读档，确认仍恢复手动驾驶、征召、手动火控和可用主武器，不再停留于 `Disabled`。准星同一帧更新人物相机投影朝向和独立武器射向。装备页可把背包货物抛成散落对象；尝试穿脱或丢弃装备立即显示拒绝消息。
 - [ ] 1.7 新档：人员与 EVA 钩索命中结构时拉动自身；命中可移动重物时双方按质量相向运动，松开保留速度。确认月池／舰载坐标收货与舰载手动结构牵引保持现有行为。
 - [ ] 1.6 新档：复核同上核心流程及 DLC 条件补丁。
-- [ ] 离线牵引回归：诊断 `-TractorOnly` 的既有结构域断言 `center outside the domain still moves the hull with its two foundation cells`；确认是夹具漂移还是结构外力／分离回归后另立修复计划。
-- [ ] 离线星图回归：更新 `-GlobeOnly` 的 POI 物化反射夹具；当前在寻找 `MaterializeMarker` 时抛出 `Sequence contains no matching element`，人员对象条目尚未完成全套星图回归背书。
+- [ ] `RailgunRegression -EquipmentOnly` 剩余失败：`CheckStationTrade` 的夹具地图是原始对象，没有格网、组件和基架，而终端绑定现经结构索引的物理连通域校验。需按真实地图重建夹具并让基架随 `stationCells` 增删通知拓扑。

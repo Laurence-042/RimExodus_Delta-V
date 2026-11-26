@@ -366,12 +366,13 @@ internal static partial class Program
                 int frameActionCount = Actions(universe)?.Count ?? 0;
                 try
                 {
-                    Call(universe.MapStates, "MaterializeMarker", marker, map);
+                    // A snapshot marker carries its own content; the prefab-source arguments stay empty.
+                    Call(universe.MapStates, "MaterializeMarker", marker, map, null, null);
                     nav.Refresh(universe);
                     SpaceObject current = universe.ObjectById(id);
-                    Check(!universe.objects.Contains(marker), "the old marker representation is retired");
                     if (succeeds)
                     {
+                        Check(!universe.objects.Contains(marker), "the old marker representation is retired");
                         Check(current is MapSpaceObject loaded && loaded.map == map && loaded.pose.Equals(marker.pose)
                             && loaded.RepresentationVersion == 5 && loaded.clusterChild,
                             "materialization preserves POI pose and facts and increments the representation version");
@@ -388,12 +389,14 @@ internal static partial class Program
                     }
                     else
                     {
-                        Check(current == null && universe.SpaceObjectOnMap(map) == null
-                            && !nav.Bookmarks.Any(b => b.objectId == id)
-                            && !goal.Valid(universe, subject),
-                            "failed placement unregisters the sole POI identity and releases navigation references");
+                        // A failed placement restores the A-state marker; identity-bound references are not released.
+                        Check(current == marker && current is PoiState && universe.SpaceObjectOnMap(map) == null
+                            && nav.Bookmarks.Any(b => b.objectId == id) && nav.SelectedEntry?.owner == marker
+                            && goal.Valid(universe, subject) && universe.Autopilot.IsFollowing(subject, reference),
+                            "failed placement restores the unmaterialized marker and keeps selection, bookmark and navigation");
                         Check(Actions(universe).Count == frameActionCount + 1,
                             "failed placement queues one partial-map cleanup at the frame boundary");
+                        universe.UnregisterObject(marker);
                         universe.Autopilot.Tick();
                         Check(failure == "DeltaV_NavigationTargetLost" && !universe.Autopilot.IsActive(subject),
                             "genuine POI removal still reports target loss");

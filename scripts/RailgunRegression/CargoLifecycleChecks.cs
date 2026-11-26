@@ -77,10 +77,13 @@ internal static partial class Program
 
     static readonly List<SpaceObject> fixtureScatterObjects = new();
 
-    static bool RegisterCargoFixture(SpaceObject obj)
+    // Stands in for the real registration of scattered payloads. It must report the same success:
+    // CapturePayload rolls a frame-published payload back onto the map when registration fails.
+    static bool RegisterCargoFixture(SpaceObject obj, ref bool __result)
     {
         if (!obj.IsScattered) return true;
         fixtureScatterObjects.Add(obj);
+        __result = true;
         return false;
     }
 

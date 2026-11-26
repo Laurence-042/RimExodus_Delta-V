@@ -77,6 +77,12 @@ This file records player-visible changes in released versions and the near-term 
 - 使用 REF 真实地图绘制时，可见邻船上的原版爆炸现在会正常显示爆闪、烟雾等地图内视效；Delta-V 的宇宙爆炸仍独立绘制。该修复由 REF 1.0.7 提供，不增加静息轮询或额外地图 tick。
   With REF native map rendering, vanilla explosions on visible neighboring ships now show their map-local flashes, smoke, and related effects. Delta-V's universe-space explosions remain separately rendered. This is provided by REF 1.0.7 without idle polling or extra map ticks.
 
+- 修复舰载点防把舱外人员当作拦截目标、敌舰主炮把附近舱外人员选作攻击目标的问题。人员体积太小，敌我识别也分不清被抛出的己方人员与准备登舰的敌人，现在点防、自动火控和导弹制导都不再锁定舱外人员，「配置近防目标」不再提供舱外人员选项；直射弹仍可能命中。
+  Fixed ship point defense treating EVA personnel as interception targets and enemy main guns choosing nearby EVA personnel as attack targets. Personnel are too small to matter and IFF cannot tell ejected friendly crew from boarders, so point defense, automatic fire control and missile guidance no longer lock onto EVA personnel, and the point-defense target dialog no longer offers a personnel option; direct-fire rounds can still hit them.
+
+- 修复制导导弹发射后不追踪目标、只沿发射方向直飞的问题。
+  Fixed guided missiles flying straight along their launch direction instead of tracking their target.
+
 ### 0.1.2 — 2026-11-26
 
 #### 核心开发路线进度 / Core development progress

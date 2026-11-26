@@ -176,8 +176,9 @@ internal static partial class Program
         other.SetFactionDirect(player);
         Set(typeof(Thing), other, "positionInt", new IntVec3(3, 0, 1));
         PlaceFixtureBuilding(other, map);
-        Check(!ship.CanDriveIn(obj) && !obj.InterceptionEligible && !obj.BuildThrusters().Any(),
-            "hull sharing a host cannot drive it or mark the host as a Shuttle PD target");
+        Check(!ship.CanDriveIn(obj) && !obj.InterceptionEligible && !obj.BuildThrusters().Any()
+            && obj.HasTag(SpaceObjectTag.Shuttle),
+            "hull sharing a host keeps its Shuttle class role but cannot drive the host or mark it as a PD target");
         var occupied = new List<IntVec3>();
         SpaceCollision.CollectDebugSurface(obj, occupied, out _, out _);
         Check(occupied.Contains(ship.Anchor.Position) && occupied.Contains(other.Position)
@@ -202,8 +203,9 @@ internal static partial class Program
         universe.objects.Add(foundationObject);
         Current.Game.GetComponent<UniverseManager>().ShipStructure.InvalidateAll();
         Check(!foundationObject.InterceptionEligible && foundationObject.HasTag(SpaceObjectTag.Ship)
+            && foundationObject.HasTag(SpaceObjectTag.Foundation)
             && !foundationObject.HasTag(SpaceObjectTag.Shuttle),
-            "foundation ships retain Ship role and are excluded from point-defense targets");
+            "foundation ships keep the Ship and Foundation roles and are excluded from point-defense targets");
         Check(foundation.Transfer.console == console.parent && foundation.Transfer.body == null
             && foundation.Transfer.ownerId == console.shipId && foundation.Transfer.includeTerrain,
             "foundation transfer provider supplies its console and ownership through the same contract");

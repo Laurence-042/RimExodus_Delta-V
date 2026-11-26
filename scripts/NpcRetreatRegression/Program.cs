@@ -407,7 +407,8 @@ internal static partial class Program
 
         ship.pose = new SpacePose(Vector3.forward, 0f);
         universe.Autopilot.ResetFlow();
-        SpaceObject yard = Make(11, 100, "Shipyard", faction);
+        // Retreat facilities are recognized only by their shipyard prefab path.
+        SpaceObject yard = Make(11, 100, "Tutorial/Shipyard.xml", faction);
         Advance(30);
         Check(OrbitSphere.ArcCells(ship.pose.position, yard.pose.position) > 60f,
             "travel does not retire ahead of arrival");

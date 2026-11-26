@@ -239,9 +239,16 @@ internal static partial class Program
         }
     }
 
+    // Shuttle is a class role; it is interceptable only while an integrated hull flies independently.
+    sealed class FlyingShuttleHull : MapSpaceObject
+    {
+        public FlyingShuttleHull(Map map) : base(nextId++, map, new SpacePose(Vector3.forward, 0)) { }
+        protected override bool HasIndependentShuttle => true;
+    }
+
     static void CheckCasemateFilters(CompSpaceWeapon weapon)
     {
-        var candidate = new Hull(map);
+        var candidate = new FlyingShuttleHull(map);
         candidate.baseTag = SpaceObjectTag.Projectile;
         Check(!weapon.AcceptsPointDefenseTarget(candidate), "casemate defaults to shuttle-only interception");
         candidate.baseTag |= SpaceObjectTag.Shuttle;
@@ -270,8 +277,12 @@ internal static partial class Program
         var solid = new CombatDamageForecast(hull);
         Check(Trace(solid).contacts == 1 && solid.RemainingHP(wall) > 0 && solid.RemainingHP(wall) < before,
             "full-cover building intercepts first, retaining the covered foundation");
+        // A standing covering building takes a foundation-cell hit first. Only a passable building that
+        // cannot hide the foundation (a conduit) lets the forecast reach the foundation beneath it.
         wall.def.building.isWall = false;
         wall.def.fillPercent = 0;
+        wall.def.passability = Traversability.Standable;
+        wall.def.building.isPowerConduit = true;
         var exposed = new CombatDamageForecast(hull);
         Check(Trace(exposed).contacts == 1 && exposed.RemainingHP(wall) == 0 && wall.HitPoints == before,
             "forecast of a covered foundation hit removes the supported building only in the private ledger");
