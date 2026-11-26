@@ -46,6 +46,14 @@ This file records player-visible changes in released versions and the near-term 
 
 ## 已完成 / Shipped
 
+### 未发布 / Unreleased
+
+#### 用户反馈解决 / User feedback resolved
+
+@Alexquiet：When playing with Ideologies, it appears that colonist roles get reset whenever the ship switches to a different mode.
+- 修复启用 Ideology 时，随船切换飞行、舱外作业或对接状态会清空道德导师等单人职位人选的问题；殖民者全部在船上时每次都会触发。搬运瞬间船上人员不属于任何地图，原版在第一名殖民者落图时重数信徒并把职位判为失活。现在搬运期间按原版逆重飞行的方式登记在途飞船，职位人选保持不变。
+  Fixed Ideology roles with a single holder, such as the moral guide, being cleared whenever the ship they were on switched between flight, worksite and docking states. This happened every time while the whole colony was aboard: pawns briefly belonged to no map during the transfer, so the base game's believer recount on the first colonist spawn deactivated the role. The ship in transit is now registered like a native gravship flight, and role holders are preserved.
+
 ### 0.1.2 — 2026-11-26
 
 #### 核心开发路线进度 / Core development progress

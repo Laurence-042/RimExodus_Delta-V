@@ -619,6 +619,8 @@ namespace DeltaV
         /// <summary>
         /// 镜像原版 GenerateGravship 的移除段：按**捕获时的绝对格集合** cells 移除清单
         /// 内容并剥除地形/屋顶/区域标志。不要求 engine。
+        /// 调用方须以 <see cref="TravelScope.Begin(Gravship)"/> 包住本方法与随后的
+        /// <see cref="PlaceIntoMap"/>：两者之间清单内的乘员不落在任何图上。
         ///
         /// cells 必须与 <see cref="CaptureDomain"/> 传入的集合同源（同调用栈现查或直接
         /// 传参）——**禁止**从 <c>gravship.Foundations.Keys</c> 反推源图格：原版
@@ -706,6 +708,7 @@ namespace DeltaV
             if (controller != null && ControllerTimeLeft != null) ControllerTimeLeft.SetValue(controller, 0f);
         }
 
+        /// <summary>与 <see cref="StripDomain"/> 同栈成对，二者须处于同一个 <see cref="TravelScope"/> 内。</summary>
         internal static void PlaceIntoMap(Gravship gravship, IntVec3 root, Map map, int ownerId,
             Dictionary<IntVec3, int> placedOwners = null)
         {
@@ -732,6 +735,38 @@ namespace DeltaV
                 if (thing != null && !thing.Destroyed) thing.PostSwapMap();
             foreach (Pawn pawn in gravship.Pawns)
                 if (pawn != null && !pawn.Destroyed) pawn.PostSwapMap();
+        }
+
+        /// <summary>
+        /// 搬运窗口内的原版飞行登记位。原版在 GenerateGravship 捕获时把船挂到
+        /// <see cref="Game.Gravship"/>、LandingEnded 才摘；PawnsFinder 只把已加载图、远行队、
+        /// 运输舱和该登记位上尚未落图的乘员计入殖民者人口。不挂时 PlaceIntoMap 逐个落图期间，
+        /// 每名玩家 Pawn 的 SpawnSetup 都经 Ideo.RecacheColonistBelieverCount 重数，第一个人落图
+        /// 时只见 1 人，按信徒数失活的单人职位（原版道德导师）被当场清空。调用方须以 using
+        /// 包住同一调用栈内的 StripDomain → PlaceIntoMap；Dispose 恢复原值，不跨帧、不入档。
+        /// </summary>
+        internal sealed class TravelScope : IDisposable
+        {
+            private readonly Game game;
+            private readonly Gravship previous;
+
+            private TravelScope(Game game, Gravship previous)
+            {
+                this.game = game;
+                this.previous = previous;
+            }
+
+            /// <summary>gravship 或当前 Game 为空时返回 null：using (null) 合法且不生效。</summary>
+            internal static TravelScope Begin(Gravship gravship)
+            {
+                Game game = Current.Game;
+                if (gravship == null || game == null) return null;
+                var scope = new TravelScope(game, game.Gravship);
+                game.Gravship = gravship;
+                return scope;
+            }
+
+            public void Dispose() => game.Gravship = previous;
         }
     }
 }

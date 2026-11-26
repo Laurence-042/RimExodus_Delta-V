@@ -204,9 +204,12 @@ namespace DeltaV
                     move.captured = GravshipInterop.CaptureDomain(move.source.map, move.cells, null, null);
                     if (move.captured == null) throw new InvalidOperationException("Whole-map capture returned null.");
                     move.captured.Rotation = move.rotation;
-                    GravshipInterop.StripDomain(move.captured, move.source.map, move.cells);
-                    GravshipInterop.PlaceIntoMap(move.captured, move.root + shift, workmap, 0,
-                        move.owners.ToDictionary(p => p.Key + shift, p => p.Value));
+                    using (GravshipInterop.TravelScope.Begin(move.captured))
+                    {
+                        GravshipInterop.StripDomain(move.captured, move.source.map, move.cells);
+                        GravshipInterop.PlaceIntoMap(move.captured, move.root + shift, workmap, 0,
+                            move.owners.ToDictionary(p => p.Key + shift, p => p.Value));
+                    }
                     foreach (ShipBase ship in move.ships) ShipRegistry.ShipByIdentity(ship.Identity).NotifyLanded();
                 }
             }
@@ -220,9 +223,12 @@ namespace DeltaV
                     {
                         if (move.captured == null) continue;
                         var placedCells = new HashSet<IntVec3>(move.owners.Keys.Select(c => c + shift));
-                        GravshipInterop.StripDomain(move.captured, workmap, placedCells);
-                        move.captured.Rotation = Rot4.North;
-                        GravshipInterop.PlaceIntoMap(move.captured, move.origin, move.source.map, 0, move.sourceOwners);
+                        using (GravshipInterop.TravelScope.Begin(move.captured))
+                        {
+                            GravshipInterop.StripDomain(move.captured, workmap, placedCells);
+                            move.captured.Rotation = Rot4.North;
+                            GravshipInterop.PlaceIntoMap(move.captured, move.origin, move.source.map, 0, move.sourceOwners);
+                        }
                     }
                     failedTransfers = null;
                     foreach (ContentMove move in moves) universe.ShipTransitions.FinishDockingCleanup(move.source.map);

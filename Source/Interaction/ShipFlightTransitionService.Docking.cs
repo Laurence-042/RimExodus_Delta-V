@@ -430,11 +430,14 @@ namespace DeltaV
             gravship.Rotation = rotation;
             SpacePose launchPose = SpaceTransform.PoseAfterPlacement(sourceFrame.pose, sourceMap, gravship.originalPosition,
                 pocketMap, pocketRoot, rotation);
-            GravshipInterop.StripDomain(gravship, sourceMap, cells, includeTerrain);
-            // Tractor component extraction preserves each live ship identity; rotation is unchanged.
-            Dictionary<IntVec3, int> placedOwners = sourceOwners?.ToDictionary(
-                pair => pair.Key - gravship.originalPosition + pocketRoot, pair => pair.Value);
-            GravshipInterop.PlaceIntoMap(gravship, pocketRoot, pocketMap, retainedOwnerId, placedOwners);
+            using (GravshipInterop.TravelScope.Begin(gravship))
+            {
+                GravshipInterop.StripDomain(gravship, sourceMap, cells, includeTerrain);
+                // Tractor component extraction preserves each live ship identity; rotation is unchanged.
+                Dictionary<IntVec3, int> placedOwners = sourceOwners?.ToDictionary(
+                    pair => pair.Key - gravship.originalPosition + pocketRoot, pair => pair.Value);
+                GravshipInterop.PlaceIntoMap(gravship, pocketRoot, pocketMap, retainedOwnerId, placedOwners);
+            }
             var container = new MapSpaceObject(universe.AllocateOwnerId(), pocketMap, launchPose)
             {
                 faction = sourceOwners == null ? faction : faction ?? sourceFrame.faction,
@@ -588,8 +591,11 @@ namespace DeltaV
                 $"docking transfer: {target.Label} {UniverseManager.MapTag(pocketMap)} -> host "
                 + $"{UniverseManager.MapTag(targetMap)} (root {landingRoot}, rot {landingRot})");
             using var structureChanges = universe.ShipStructure.BeginChanges();
-            GravshipInterop.StripDomain(gravship, pocketMap, domain, includeTerrain);
-            GravshipInterop.PlaceIntoMap(gravship, landingRoot, targetMap, structureId);
+            using (GravshipInterop.TravelScope.Begin(gravship))
+            {
+                GravshipInterop.StripDomain(gravship, pocketMap, domain, includeTerrain);
+                GravshipInterop.PlaceIntoMap(gravship, landingRoot, targetMap, structureId);
+            }
             sourceMap = pocketMap;
             RegisterDockingCleanup(pocketMap);
             if (target.Vessel?.PlayerMayOperate == true)
@@ -612,10 +618,13 @@ namespace DeltaV
                 pawn.Faction, includeTerrain: false, includeItems: true);
             if (transfer == null) return false;
             transfer.Rotation = Rot4.North;
-            GravshipInterop.StripDomain(transfer, sourceMap, cells, includeTerrain: false);
-            int ownerId = SubstructureOwnership.TryGet(targetMap)?.OwnerAt(landingCell)
-                ?? SubstructureOwnership.Unassigned;
-            GravshipInterop.PlaceIntoMap(transfer, landingCell, targetMap, ownerId);
+            using (GravshipInterop.TravelScope.Begin(transfer))
+            {
+                GravshipInterop.StripDomain(transfer, sourceMap, cells, includeTerrain: false);
+                int ownerId = SubstructureOwnership.TryGet(targetMap)?.OwnerAt(landingCell)
+                    ?? SubstructureOwnership.Unassigned;
+                GravshipInterop.PlaceIntoMap(transfer, landingCell, targetMap, ownerId);
+            }
             universe.UnregisterObject(source);
             QueueEmptyDepartedMapCleanup(universe, sourceMap);
             if (pawn.Faction == Faction.OfPlayerSilentFail)
