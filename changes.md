@@ -5,23 +5,13 @@ This file records player-visible changes in released versions and the near-term 
 
 ## 下一版本计划 / Next version plan
 
-- 修复聚焦空闲基架船时自动进入手动驾驶的问题；只有非基架且没有正在执行的自动任务、接近或硬对接流程的可控船会自动进入手动驾驶。读档恢复聚焦图沿用同一规则。
-  Focusing an idle foundation ship no longer automatically enters manual piloting. Automatic takeover applies only to controllable non-foundation craft without an active automatic task, approach, or hard docking operation, including when restoring focus after loading.
-- “现场保留”管理入口仅在 God Mode 开启时显示，关闭 God Mode 后管理窗口自动关闭；后台自动归档机制保持不变。
-  Site retention controls are visible only in God Mode, and the management window closes when God Mode is disabled. Automatic background archiving is unchanged.
-- 射失并远离所有潜在目标的太空弹体会按保守净空降低精确碰撞检测频率；移动目标的实际位移、目标增大和新增目标会在可能接触的同一 tick 恢复完整扫掠，点防仍可命中处于降频状态的导弹。
-  Space projectiles that miss and move clear of every potential target now reduce the frequency of exact collision sweeps using conservative clearance. Actual target movement, expanding targets and newly added targets restore full sweeps in the same tick that contact becomes possible, while point defense can still hit missiles whose active sweeps are being skipped.
 
-@jeff_steveng：归档空间站无法还原的问题已在未发布版本修复。遗留计划：空间站自维持尚未实现，在那之前玩家离开后 NPC 船员仍可能饿死。
-  Resolved in the unreleased build. Still planned: station self-sufficiency; until then, NPC crew can still starve while the player is away.
+@jeff_steveng之前报告的归档空间站无法还原的问题已在未发布版本修复。但还有个遗留计划：空间站自维持尚未实现，在那之前玩家离开后 NPC 船员仍可能饿死。
 
 默认使用类似pawn武器的机制适配，而不是以映射成速射炮之类的东西的适配？
 
 - 为跳帮艇被击毁时的乘员死亡补充明确通知。
   Add clear crew-death notifications when a boarding shuttle is destroyed.
-- EVA 工程套装与舱外人员的钩索射程统一为 32 格。选择“登舰”后会用真实钩索追上仍在运动的合法目标，接近时自动松绳并用推进器反推减速；两者都保持碰撞规避，不破墙，也不会触发跳帮艇的撞击后效。
-  修复进入落脚位置时实时束线释放会撤销截获资格、导致人员在预定位置反复穿越的问题；同一次登舰只要曾真实挂上目标，近距松绳后即可按位置和速度条件完成。
-  EVA engineering suits and EVA personnel now share a 32-cell grapple range. Boarding fires the real grapple to catch a valid moving target, then releases tension and uses reverse thrust to brake on approach. A real capture remains valid for that boarding attempt after the live line releases near the landing cell, preventing repeated overshoot. Both retain collision avoidance, never breach walls, and do not gain boarding-shuttle impact effects.
 
 ## 基于收集的用户反馈的正在排期的需求（排名不分先后）
 
@@ -83,6 +73,14 @@ This file records player-visible changes in released versions and the near-term 
 @jeff_steveng：目前我的存档在靠近最开始的船厂后log会疯狂刷无法restore地图，删掉这个船厂后会报告95号prefabr无法estore。
 - 第 4 条：修复带尸体的地图在存成快照后、存读档一次就无法还原的问题。空间站或舰船离远后被存成快照时，只要图上留着尸体（比如空间站船员饿死），读档后它就再也还原不出来：靠近时游戏严重卡顿、日志刷屏。现在快照存续期间会一并保住尸体对应的人物，还原或退役后照常处理。已经出问题的存档按新规则也应当能还原：人物已丢失的尸体会被移除，污渍缺失不再阻止还原，其余内容照常还原。确实无法还原的对象不再反复重试拖慢游戏，改为逐步拉长重试间隔（约 42 秒起、最长一天），并只提示一次。游戏内效果待验证。
   Item 4: Fixed maps that contain corpses becoming impossible to restore after being archived and reloading the save. When a station or ship far away was archived with corpses left on its map (for example, station crew that starved), it could never be restored again after a reload: approaching it caused heavy lag and log spam. The pawns behind those corpses are now kept while the archive exists and handled as usual once it is restored or retired. Saves already affected should restore under the new rules: corpses whose pawn is gone are removed, missing filth no longer blocks the restore, and everything else comes back as usual. An object that really cannot be restored no longer retries constantly and slows the game; retries start about 42 seconds apart and stretch up to a day, with a single notice. In-game results are still to be confirmed.
+
+#### 自发常规机制打磨
+
+- 聚焦非substructure架构（比如穿梭机、eva人员等等）、没有正在执行的自动任务的可控船会自动进入手动驾驶并使用手动火控。
+  Controllable ships that do not utilize a "substructure" architecture (such as shuttles, EVA craft, etc.) and have no automated tasks currently in progress will automatically switch to manual control, with manual fire control enabled.
+- 射失并远离所有潜在目标的太空弹体会按保守净空降低精确碰撞检测频率，以此优化大量长射程慢弹速弹丸射失后的性能。
+  For space projectiles that miss and move away from all potential targets, the frequency of precise collision detection is reduced—while maintaining a conservative safety margin—to optimize performance following the miss of a large volume of long-range, low-velocity projectiles.
+
 
 #### 修复 / Fixes
 
@@ -155,7 +153,6 @@ This file records player-visible changes in released versions and the near-term 
     Some turrets from other mods, such as Monolyn, may behave unexpectedly when an additional magazine is attached. For example, a turret may try to draw a “no ammunition” texture when the new magazine is empty even though the original turret had neither a magazine nor that texture, resulting in an error.
 
 #### 自发常规机制打磨
-
 
 - 右下角新增真实地图船体渲染开关。开启后，RimExodus Framework 通过源地图的原版绘制流程渲染非聚焦船体，显示完整建筑与地图内容；默认关闭，可随时切回 Delta-V 自定义船壳。（是的，甚至IsoRim都可以！只是注意把IsoRim放在mod list里本mod下面，否则其似乎会覆盖本mod的一些绘制逻辑导致出现奇怪的阴影……虽然放下面也会出现奇怪的影子，但是总归比放上面影子少。目前暂时没有进一步兼容的计划，但如果有人真的很在意这个，可以在评论区呼唤这个影子的兼容）
   Added a bottom-right native map shell rendering toggle. When enabled, RimExodus Framework renders non-focused ships through each source map's vanilla draw path, showing complete buildings and map contents; it is off by default and can be switched back to the Delta-V custom shell at any time.
