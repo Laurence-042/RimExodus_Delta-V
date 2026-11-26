@@ -24,6 +24,8 @@ internal static partial class Program
             "Source/Interaction/PawnSpaceWeaponBridge.cs"));
         string turretBridge = File.ReadAllText(Path.Combine(repo,
             "Source/Compatibility/AutoSpaceWeaponTurretBridge.cs"));
+        string turretPatch = File.ReadAllText(Path.Combine(repo,
+            "Source/Harmony/Patch_SpaceWeaponVanillaTurret.cs"));
 
         Check(nativeService.Contains("RegisterNativeLaunch")
             && nativeService.Contains("TryCapturePendingNativeProjectile")
@@ -72,6 +74,20 @@ internal static partial class Program
             && !nativePatch.Contains("Dead Man") && !nativePatch.Contains("Monolyn")
             && !nativePatch.Contains("联合重工") && !nativePatch.Contains("packageId"),
             "launch and tick interception is structural and contains no representative-mod identity checks");
+        int forceTargetPatchStart = turretPatch.IndexOf(
+            "class Patch_BuildingTurretGun_AutoSpaceCanForceTarget", StringComparison.Ordinal);
+        int hideTargetPatchStart = turretPatch.IndexOf(
+            "class Patch_BuildingTurretGun_AutoSpaceHideForceTarget", StringComparison.Ordinal);
+        string forceTargetPatch = forceTargetPatchStart >= 0 && hideTargetPatchStart > forceTargetPatchStart
+            ? turretPatch.Substring(forceTargetPatchStart, hideTargetPatchStart - forceTargetPatchStart) : "";
+        Check(forceTargetPatch.Contains("NativeCastAuthorized(__instance.AttackVerb) == true")
+            && forceTargetPatch.Contains("__result ="),
+            "authorized native turret targets survive source warmup while unauthorized forced targets remain disabled");
+        Check(turretBridge.Contains("TryTargetCell(turret, verb")
+            && turretBridge.Contains("EffectiveMinRange(localTarget, turret)")
+            && turretBridge.Contains("cellDistance > verb.EffectiveRange")
+            && turretBridge.Contains("CancelNativeFire(verb, weapon)"),
+            "native turret placeholders satisfy the source OrderAttack minimum and maximum range contract");
         Check(nativeService.Contains("TransientHandoffResult.Returned")
             && nativeService.Contains("TransientHandoffDisposition.Placed")
             && nativeService.Contains("TransientHandoffDisposition.Return"),

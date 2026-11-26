@@ -125,7 +125,9 @@ namespace DeltaV
 
         public static void Postfix(Building_TurretGun __instance, ref bool __result)
         {
-            if (AutoSpaceWeaponTurretBridge.SpaceMode(__instance)) __result = false;
+            if (!AutoSpaceWeaponTurretBridge.SpaceMode(__instance)) return;
+            __result = Current.Game?.GetComponent<UniverseManager>()?.Projectiles
+                .NativeCastAuthorized(__instance.AttackVerb) == true;
         }
     }
 

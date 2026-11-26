@@ -79,7 +79,11 @@ namespace DeltaV
                 return false;
 
             Vector2 direction = SpaceTransform.Rotate(Vector2.right, shot.launchMapAngle);
-            IntVec3 target = TargetCell(turret, direction, verb.EffectiveRange);
+            if (!TryTargetCell(turret, verb, direction, out IntVec3 target))
+            {
+                universe.Projectiles.CancelNativeFire(verb, weapon);
+                return false;
+            }
             int warmup = Mathf.CeilToInt(Mathf.Max(0f,
                 turret.def.building?.turretBurstWarmupTime.Average ?? 0f) * 60f);
             int duration = Mathf.Max(120, warmup + verb.verbProps.burstShotCount
@@ -112,11 +116,13 @@ namespace DeltaV
             return started;
         }
 
-        private static IntVec3 TargetCell(Building_Turret turret, Vector2 direction, float range)
+        private static bool TryTargetCell(Building_Turret turret, Verb verb, Vector2 direction,
+            out IntVec3 target)
         {
             Map map = turret.Map;
-            IntVec3 last = turret.Position;
-            int limit = Mathf.Max(2, Mathf.Min(Mathf.CeilToInt(Mathf.Max(2f, range)),
+            target = turret.Position;
+            bool found = false;
+            int limit = Mathf.Max(2, Mathf.Min(Mathf.CeilToInt(Mathf.Max(2f, verb.EffectiveRange)),
                 Mathf.Max(map.Size.x, map.Size.z) * 2));
             Vector2 origin = new Vector2(turret.Position.x + .5f, turret.Position.z + .5f);
             for (int distance = 1; distance <= limit; distance++)
@@ -124,9 +130,14 @@ namespace DeltaV
                 Vector2 point = origin + direction * distance;
                 IntVec3 cell = new IntVec3(Mathf.FloorToInt(point.x), 0, Mathf.FloorToInt(point.y));
                 if (!cell.InBounds(map)) break;
-                last = cell;
+                float cellDistance = (cell - turret.Position).LengthHorizontal;
+                var localTarget = new LocalTargetInfo(cell);
+                if (cellDistance < verb.verbProps.EffectiveMinRange(localTarget, turret)
+                    || cellDistance > verb.EffectiveRange) continue;
+                target = cell;
+                found = true;
             }
-            return last;
+            return found;
         }
 
         public static void NotifyEngagementModeChanged(CompSpaceWeapon weapon)
