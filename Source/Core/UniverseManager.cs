@@ -90,6 +90,13 @@ namespace DeltaV
             if (index < 0 || previous.objectId != current.objectId || !previous.pose.Equals(current.pose))
                 throw new InvalidOperationException("Invalid space object representation replacement");
             current.RepresentationVersion = previous.RepresentationVersion + 1;
+            if (previous is ArchivedSpaceObject archived)
+            {
+                // 归档表示到此结束：换成活图或冷标记就松开死者，同类接替则转交，不丢也不重复持有。
+                if (current is ArchivedSpaceObject successor && !ReferenceEquals(successor, archived))
+                    successor.pinnedDeadPawns = archived.pinnedDeadPawns;
+                else archived.ReleaseDeadPawnPins();
+            }
             globeDisplay?.Forget(previous.map);
             stationTrade?.Forget(previous.map);
             PlanetGlobeRenderer.InvalidateSilhouette(previous.map);
@@ -555,6 +562,8 @@ namespace DeltaV
         public void UnregisterObject(SpaceObject obj)
         {
             if (obj == null || !objects.Contains(obj)) return;
+            // 被注销的归档不会再恢复：它按下的死者钉在这里松开。
+            if (obj is ArchivedSpaceObject archived) archived.ReleaseDeadPawnPins();
             if (!obj.IsTransient
                 && DeltaVLog.Enabled(DeltaVLogModule.Lifecycle))
             {

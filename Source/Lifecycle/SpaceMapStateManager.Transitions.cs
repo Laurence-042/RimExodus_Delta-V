@@ -110,6 +110,7 @@ namespace DeltaV
             if (!playerRequested && !ExactRetentionExpired(obj)) return false;
             if (universe.Missions.Protects(obj)) return false;
             if (!playerRequested && MinPlayerDistance(obj) <= DeleteRadius) return false;
+            if (RestoreBackedOff(obj.objectId)) return false;
             int version = obj.RepresentationVersion;
             if (!TryBeginTransition(obj, MapTransitionKind.ColdRetire, obj.map)) return false;
             universe.QueueFrameAction(() => ExecuteColdRetirement(obj.objectId, version, playerRequested));
@@ -142,14 +143,18 @@ namespace DeltaV
                 }
 
                 Map retiringMap = current.map;
+                // REF 忙时没有真正尝试恢复：不计失败，下次扫描再来。
+                if (archive != null && !RimExodus.Maps.MapArchive.CanStartOperation) return;
                 if (archive != null && !universe.MapPool.TryMakeRoom(score:
                     CapacityScore(archive.mapArea, MinPlayerDistance(archive)))) return;
                 if (archive != null && !ArchivedMapStore.TryRestore(archive.mapData, archive.mapId,
                     archive.parent, out restored))
                 {
                     Log.Warning($"[DeltaV] Cold retirement kept exact archive #{objectId}: restore failed.");
+                    NoteRestoreFailed(archive);
                     return;
                 }
+                restoreBackoff.Remove(objectId);
                 if (restored != null) retiringMap = restored;
                 string block = SpaceMapGovernance.ColdRetirementBlockReason(retiringMap, universe);
                 if (block != null)
@@ -256,6 +261,7 @@ namespace DeltaV
         {
             if (obj == null || universe.ObjectById(obj.objectId) != obj || obj.IsTransient) return false;
             if (universe.Missions.Protects(obj)) return false;
+            if (RestoreBackedOff(obj.objectId)) return false;
             int version = obj.RepresentationVersion;
             if (!TryBeginTransition(obj, MapTransitionKind.PermanentRetire, obj.map)) return false;
             universe.QueueFrameAction(() => ExecutePermanentRetirement(
@@ -277,11 +283,16 @@ namespace DeltaV
                 PocketMapParent parent = null;
                 if (obj is ArchivedSpaceObject archive)
                 {
-                    if (archive.mapData.NullOrEmpty()
+                    if (archive.mapData.NullOrEmpty() || !RimExodus.Maps.MapArchive.CanStartOperation
                         || !universe.MapPool.TryMakeRoom(score:
-                            CapacityScore(archive.mapArea, MinPlayerDistance(archive)))
-                        || !ArchivedMapStore.TryRestore(archive.mapData, archive.mapId,
-                            archive.parent, out restored)) return;
+                        CapacityScore(archive.mapArea, MinPlayerDistance(archive)))) return;
+                    if (!ArchivedMapStore.TryRestore(archive.mapData, archive.mapId,
+                        archive.parent, out restored))
+                    {
+                        NoteRestoreFailed(archive);
+                        return;
+                    }
+                    restoreBackoff.Remove(objectId);
                     map = restored;
                     parent = archive.parent;
                 }

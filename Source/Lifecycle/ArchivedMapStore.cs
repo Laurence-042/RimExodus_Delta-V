@@ -17,7 +17,8 @@ namespace DeltaV
         public static bool TryRestore(string data, int expectedMapId, PocketMapParent expectedParent, out Map map)
         {
             using var timing = Current.Game?.GetComponent<UniverseManager>()?.Performance.Measure(PerformanceStage.ArchiveRestore) ?? default;
-            return RimExodus.Maps.MapPrefabs.RestoreWholeMap(data, expectedMapId, expectedParent, out map);
+            return RimExodus.Maps.MapPrefabs.RestoreWholeMap(data, expectedMapId, expectedParent, out map,
+                ArchivedSpaceObject.TolerateUnspawned);
         }
     }
 }

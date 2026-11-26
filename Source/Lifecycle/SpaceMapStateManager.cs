@@ -32,6 +32,12 @@ namespace DeltaV
         /// 无限重生成 + pocketMaps 死 parent 积累。</summary>
         private const int GenerationFailureBackoffTicks = 2500;
 
+        /// <summary>归档恢复失败后的退避：首次 tick 数、上限（一游戏日）。失败一次翻倍，成功或换场清零。</summary>
+        private const int RestoreFailureBackoffTicks = 2500, RestoreFailureBackoffCapTicks = 60000;
+
+        /// <summary>恢复失败退避（objectId → 已延迟长与可重试 tick）；运行时不存档，读档后首个失败重新建立。</summary>
+        private readonly Dictionary<int, (int delay, int retryAfter)> restoreBackoff = new Dictionary<int, (int delay, int retryAfter)>();
+
         private readonly UniverseManager universe;
         /// <summary>物化失败退避（marker.objectId → 可重试 tick；运行时不存档）。</summary>
         private readonly Dictionary<int, int> generationRetryAfterTick = new Dictionary<int, int>();
@@ -641,9 +647,14 @@ namespace DeltaV
             string carriedLabel = container.label;
             string mapTag = UniverseManager.MapTag(map);
             var archive = container.CaptureArchive(data);
+            // 快照里只有尸体对死者的引用，死者本体留在原版 WorldPawns；归档期间钉住，读档后 GC 才不会丢弃。
+            var archivedThings = new List<Thing>();
+            ThingOwnerUtility.GetAllThingsRecursively(map, archivedThings);
+            archive.pinnedDeadPawns = ArchivedSpaceObject.PinCorpsePawns(archivedThings);
             universe.NpcShips.PrepareForArchive(container, archive);
             if (!ArchivedMapStore.TryUnload(map))
             {
+                archive.ReleaseDeadPawnPins();
                 Log.Warning($"[DeltaV] Archive unload deferred: object=#{objectId} {UniverseManager.MapTag(map)}; original map retained.");
                 return;
             }
@@ -685,6 +696,8 @@ namespace DeltaV
         private bool TryRestoreContainer(ArchivedSpaceObject archive, out MapSpaceObject current)
         {
             current = null;
+            // REF 忙时并没有真正尝试恢复：不计失败，下一 tick 再来。
+            if (!RimExodus.Maps.MapArchive.CanStartOperation) return false;
             if (!universe.MapPool.TryMakeRoom(score: CapacityScore(archive.mapArea, MinPlayerDistance(archive)))) return false;
             Log.Message($"[DeltaV] Archive restore begin: object=#{archive.objectId} label='{archive.label}' "
                 + $"archivedMap=#{archive.mapId} {UniverseManager.MapTag(archive.parent?.Map)} parent={archive.parent?.GetUniqueLoadID() ?? "null"}");
@@ -692,8 +705,10 @@ namespace DeltaV
             {
                 Log.Warning($"[DeltaV] Archive restore failed: object=#{archive.objectId} label='{archive.label}' "
                     + $"archivedMap=#{archive.mapId} {UniverseManager.MapTag(restored)} parent={archive.parent?.GetUniqueLoadID() ?? "null"}");
+                NoteRestoreFailed(archive);
                 return false;
             }
+            restoreBackoff.Remove(archive.objectId);
             current = archive.RestoreRepresentation(restored);
             universe.ReplaceRepresentation(archive, current);
             // 成功后原快照永远不能再恢复。即使后续清理失败，也只保留恢复图。
@@ -709,9 +724,26 @@ namespace DeltaV
             universe.Weapons.RegisterMapWeapons(container.map);
             universe.Controls.RegisterMap(container.map);
         }
+        private bool RestoreBackedOff(int objectId) => restoreBackoff.TryGetValue(objectId, out var backoff)
+            && Find.TickManager.TicksGame < backoff.retryAfter;
+
+        /// <summary>一次真正尝试后的恢复失败：延长该对象的退避；首次失败提示玩家一次。</summary>
+        private void NoteRestoreFailed(ArchivedSpaceObject archive)
+        {
+            bool first = !restoreBackoff.TryGetValue(archive.objectId, out var previous);
+            int delay = first ? RestoreFailureBackoffTicks : NextRestoreFailureDelay(previous.delay);
+            restoreBackoff[archive.objectId] = (delay, Find.TickManager.TicksGame + delay);
+            if (!first) return;
+            Messages.Message("DeltaV_ArchiveRestoreFailed".Translate(archive.label, delay.ToStringTicksToPeriod()),
+                MessageTypeDefOf.NegativeEvent, false);
+        }
+        internal static int NextRestoreFailureDelay(int previousDelay)
+            => Mathf.Min(previousDelay * 2, RestoreFailureBackoffCapTicks);
+
         private void QueueRestore(ArchivedSpaceObject container)
         {
             int id = container.objectId, version = container.RepresentationVersion;
+            if (RestoreBackedOff(id)) return;
             if (!TryBeginTransition(container, MapTransitionKind.Restore)) return;
             universe.QueueFrameAction(() =>
             {
@@ -893,6 +925,7 @@ namespace DeltaV
         {
             RimExodus.Maps.MapRuntime.Current.TickRates.ReleaseOwner(SharedMapBackend.Owner);
             generationRetryAfterTick.Clear();
+            restoreBackoff.Clear();
             PendingTransitions.Clear();
         }
     }

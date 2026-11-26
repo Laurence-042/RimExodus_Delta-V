@@ -8,6 +8,9 @@ This file records player-visible changes in released versions and the near-term 
 - 射失并远离所有潜在目标的太空弹体会按保守净空降低精确碰撞检测频率；移动目标的实际位移、目标增大和新增目标会在可能接触的同一 tick 恢复完整扫掠，点防仍可命中处于降频状态的导弹。
   Space projectiles that miss and move clear of every potential target now reduce the frequency of exact collision sweeps using conservative clearance. Actual target movement, expanding targets and newly added targets restore full sweeps in the same tick that contact becomes possible, while point defense can still hit missiles whose active sweeps are being skipped.
 
+@jeff_steveng：归档空间站无法还原的问题已在未发布版本修复。遗留计划：空间站自维持尚未实现，在那之前玩家离开后 NPC 船员仍可能饿死。
+  Resolved in the unreleased build. Still planned: station self-sufficiency; until then, NPC crew can still starve while the player is away.
+
 默认使用类似pawn武器的机制适配，而不是以映射成速射炮之类的东西的适配？
 
 - 为跳帮艇被击毁时的乘员死亡补充明确通知。
@@ -71,6 +74,10 @@ This file records player-visible changes in released versions and the near-term 
 @未知者-RX（bilibili）：最重要的，开局我没武器我拿头打第一波袭击😡至少起个斯捷奇金（自动手枪）让我e一局啊，富有冒险家开都有一把电步，空投袭击又必然是高科技派系，发一个战锤一把自动手枪一把重冲完全没问题吧
 - 教程开局在队长休眠舱旁新增一把电荷步枪。
   The tutorial start now includes a charge rifle beside the captain's cryptosleep casket.
+
+@jeff_steveng：目前我的存档在靠近最开始的船厂后log会疯狂刷无法restore地图，删掉这个船厂后会报告95号prefabr无法estore。
+- 第 4 条：修复带尸体的地图在存成快照后、存读档一次就无法还原的问题。空间站或舰船离远后被存成快照时，只要图上留着尸体（比如空间站船员饿死），读档后它就再也还原不出来：靠近时游戏严重卡顿、日志刷屏。现在快照存续期间会一并保住尸体对应的人物，还原或退役后照常处理。已经出问题的存档按新规则也应当能还原：人物已丢失的尸体会被移除，污渍缺失不再阻止还原，其余内容照常还原。确实无法还原的对象不再反复重试拖慢游戏，改为逐步拉长重试间隔（约 42 秒起、最长一天），并只提示一次。游戏内效果待验证。
+  Item 4: Fixed maps that contain corpses becoming impossible to restore after being archived and reloading the save. When a station or ship far away was archived with corpses left on its map (for example, station crew that starved), it could never be restored again after a reload: approaching it caused heavy lag and log spam. The pawns behind those corpses are now kept while the archive exists and handled as usual once it is restored or retired. Saves already affected should restore under the new rules: corpses whose pawn is gone are removed, missing filth no longer blocks the restore, and everything else comes back as usual. An object that really cannot be restored no longer retries constantly and slows the game; retries start about 42 seconds apart and stretch up to a day, with a single notice. In-game results are still to be confirmed.
 
 #### 修复 / Fixes
 

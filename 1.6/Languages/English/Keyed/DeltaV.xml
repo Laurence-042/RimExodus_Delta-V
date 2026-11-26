@@ -135,6 +135,7 @@
   <DeltaV_PoiDormant>POI {0}: dormant (map kept, ticking frozen).</DeltaV_PoiDormant>
   <DeltaV_PoiPacked>POI {0}: map removed (snapshot saved).</DeltaV_PoiPacked>
   <DeltaV_PoiRestored>POI {0}: map restored from snapshot.</DeltaV_PoiRestored>
+  <DeltaV_ArchiveRestoreFailed>{0}: its archived map could not be restored. Retrying in about {1} instead of on every attempt. See the log.</DeltaV_ArchiveRestoreFailed>
   <DeltaV_PanelSectorTitle>Space: {0}</DeltaV_PanelSectorTitle>
   <DeltaV_PanelNeedsPrimaryConsole>This structure has no primary pilot console. Build a console or set an existing console as primary to control the ship.</DeltaV_PanelNeedsPrimaryConsole>
   <DeltaV_MissingPrimaryConsole>Substructure lacks primary console</DeltaV_MissingPrimaryConsole>

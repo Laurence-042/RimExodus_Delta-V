@@ -24,6 +24,112 @@ internal static partial class Program
         CheckDamagedFlight(universe, true, false);
         CheckDamagedFlight(universe, false, true);
         CheckRecoveryLifecycle(universe);
+        CheckArchiveDeadPawnPins(universe);
+        CheckArchiveRestoreBackoff(universe);
+    }
+
+    static Pawn ArchiveDeadPawn(int id)
+    {
+        var pawn = (Pawn)Raw(typeof(Pawn));
+        pawn.def = (ThingDef)Raw(typeof(ThingDef)); pawn.def.defName = "Human"; pawn.def.category = ThingCategory.Pawn;
+        pawn.thingIDNumber = id; pawn.kindDef = (PawnKindDef)Raw(typeof(PawnKindDef));
+        // A real corpse pawn carries race and health data; WorldPawns reads Dead when it takes a pawn.
+        FleshTypeDefOf.Normal ??= new FleshTypeDef { defName = "archiveFlesh" };
+        pawn.def.race = new RaceProperties { intelligence = Intelligence.Humanlike };
+        Set(pawn.def.race, "fleshType", FleshTypeDefOf.Normal);
+        HarmonyLib.AccessTools.Field(typeof(Thing), "mapIndexOrState").SetValue(pawn, (sbyte)-1);
+        pawn.health = new Pawn_HealthTracker(pawn);
+        Set(pawn.health, "healthState", PawnHealthState.Dead);
+        return pawn;
+    }
+    static Corpse ArchiveCorpse(int id, Pawn inner)
+    {
+        var corpse = (Corpse)Raw(typeof(Corpse));
+        corpse.def = (ThingDef)Raw(typeof(ThingDef)); corpse.def.defName = "Corpse_Human"; corpse.thingIDNumber = id;
+        var container = new ThingOwner<Pawn>(corpse, true, LookMode.Reference, false);
+        if (inner != null)
+            ((IList)typeof(ThingOwner<Pawn>).GetField("innerList", Private).GetValue(container)).Add(inner);
+        Set(corpse, "innerContainer", container);
+        return corpse;
+    }
+
+    static void CheckArchiveDeadPawnPins(UniverseManager universe)
+    {
+        var world = new RimWorld.Planet.WorldPawns();
+        Current.Game.World.worldPawns = world;
+        var dead = (HashSet<Pawn>)HarmonyLib.AccessTools.Field(typeof(RimWorld.Planet.WorldPawns), "pawnsDead").GetValue(world);
+        Pawn ours = ArchiveDeadPawn(7931), foreign = ArchiveDeadPawn(7932), loose = ArchiveDeadPawn(7933);
+        dead.Add(ours); dead.Add(foreign);
+        var kept = world.ForcefullyKeptPawns;
+        kept.Add(foreign);
+        Corpse oursBody = ArchiveCorpse(7941, ours), oursCopy = ArchiveCorpse(7942, ours), empty = ArchiveCorpse(7943, null),
+            foreignBody = ArchiveCorpse(7944, foreign), looseBody = ArchiveCorpse(7945, loose);
+        var archive = new ArchivedSpaceObject { objectId = 79301, pose = new SpacePose(Vector3.forward, 0f) };
+        archive.pinnedDeadPawns = ArchivedSpaceObject.PinCorpsePawns(new Thing[] { oursBody, oursCopy, empty, foreignBody, looseBody });
+        Check(kept.Contains(ours) && kept.Contains(loose) && kept.Contains(foreign) && dead.Contains(loose),
+            "archiving force-keeps every corpse pawn, including one missing from WorldPawns");
+        Check(archive.pinnedDeadPawns.Count == 2 && archive.pinnedDeadPawns.Contains(ours)
+            && archive.pinnedDeadPawns.Contains(loose) && !archive.pinnedDeadPawns.Contains(foreign),
+            "the archive records only pins it added: duplicate corpses collapse and a foreign pin stays unowned");
+        var filth = (Filth)Raw(typeof(Filth));
+        filth.def = (ThingDef)Raw(typeof(ThingDef)); filth.def.defName = "Filth_Trash"; filth.def.category = ThingCategory.Filth;
+        Check(ArchivedSpaceObject.TolerateUnspawned(empty) && ArchivedSpaceObject.TolerateUnspawned(filth)
+            && !ArchivedSpaceObject.TolerateUnspawned(oursBody) && !ArchivedSpaceObject.TolerateUnspawned(new Thing())
+            && !ArchivedSpaceObject.TolerateUnspawned(null),
+            "restore tolerance covers only filth and corpses whose pawn is gone");
+        archive.ReleaseDeadPawnPins();
+        Check(!kept.Contains(ours) && !kept.Contains(loose) && kept.Contains(foreign) && archive.pinnedDeadPawns.Count == 0
+            && dead.Contains(ours) && dead.Contains(loose),
+            "releasing archive pins returns the dead to vanilla GC without touching a foreign pin or world membership");
+
+        var replaced = new ArchivedSpaceObject { objectId = 79302, pose = new SpacePose(Vector3.forward, 0f) };
+        universe.objects.Add(replaced); Set(universe, "objectById", null);
+        replaced.pinnedDeadPawns = ArchivedSpaceObject.PinCorpsePawns(new Thing[] { oursBody });
+        var marker = new PoiState(79302, "cold marker", Vector3.forward, 0f, 0) { pose = replaced.pose };
+        universe.ReplaceRepresentation(replaced, marker);
+        Check(!kept.Contains(ours) && replaced.pinnedDeadPawns.Count == 0,
+            "retiring an archive to a cold marker releases its pins");
+        universe.objects.Remove(marker); Set(universe, "objectById", null);
+        var removed = new ArchivedSpaceObject { objectId = 79303, pose = new SpacePose(Vector3.forward, 0f) };
+        universe.objects.Add(removed); Set(universe, "objectById", null);
+        removed.pinnedDeadPawns = ArchivedSpaceObject.PinCorpsePawns(new Thing[] { oursBody });
+        universe.UnregisterObject(removed);
+        Check(!kept.Contains(ours) && removed.pinnedDeadPawns.Count == 0 && !universe.objects.Contains(removed),
+            "unregistering an archive releases its pins");
+        var first = new ArchivedSpaceObject { objectId = 79304, pose = new SpacePose(Vector3.forward, 0f) };
+        universe.objects.Add(first); Set(universe, "objectById", null);
+        first.pinnedDeadPawns = ArchivedSpaceObject.PinCorpsePawns(new Thing[] { oursBody });
+        var second = new ArchivedSpaceObject { objectId = 79304, pose = first.pose };
+        universe.ReplaceRepresentation(first, second);
+        Check(kept.Contains(ours) && second.pinnedDeadPawns.Count == 1,
+            "an archive replaced by another archive instance hands its pins over instead of releasing them");
+        second.ReleaseDeadPawnPins();
+        universe.objects.Remove(second); Set(universe, "objectById", null);
+        Check(!kept.Contains(ours) && kept.Contains(foreign), "the handed-over pin is released once and the foreign pin remains");
+    }
+
+    static void CheckArchiveRestoreBackoff(UniverseManager universe)
+    {
+        int Next(int previous) => SpaceMapStateManager.NextRestoreFailureDelay(previous);
+        Check(Next(2500) == 5000 && Next(30000) == 60000 && Next(60000) == 60000,
+            "restore backoff doubles per failure and stops at one in-game day");
+        var mapStates = universe.MapStates;
+        var archive = new ArchivedSpaceObject { objectId = 79305, pose = new SpacePose(Vector3.forward, 0f) };
+        universe.objects.Add(archive); Set(universe, "objectById", null);
+        var backoffs = (Dictionary<int, (int delay, int retryAfter)>)HarmonyLib.AccessTools
+            .Field(typeof(SpaceMapStateManager), "restoreBackoff").GetValue(mapStates);
+        int now = Find.TickManager.TicksGame;
+        backoffs[archive.objectId] = (2500, now + 2500);
+        Check((bool)Call(mapStates, "RestoreBackedOff", archive.objectId)
+            && !mapStates.RequestPermanentRetirement(archive, "regression fixture")
+            && mapStates.PendingTransitionName(archive.objectId) == null,
+            "a failed archive is not re-requested for retirement while its backoff runs");
+        Call(mapStates, "QueueRestore", archive);
+        Check(mapStates.PendingTransitionName(archive.objectId) == null, "proximity restore respects the backoff");
+        Set(Find.TickManager, "ticksGameInt", now + 2500);
+        Check(!(bool)Call(mapStates, "RestoreBackedOff", archive.objectId), "the backoff expires on the game tick");
+        backoffs.Remove(archive.objectId);
+        universe.objects.Remove(archive); Set(universe, "objectById", null);
     }
 
     sealed class ReferenceHolder : IThingHolder

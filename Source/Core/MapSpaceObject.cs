@@ -218,6 +218,8 @@ namespace DeltaV
         public float observedThrust, observedFirepower;
         public int observedMainConsoleId;
         public List<NpcShipCombatSummary> npcShips = new List<NpcShipCombatSummary>();
+        /// <summary>本归档按下「强制保留」的死者；释放时只松开这些，不替其他持有者做主。</summary>
+        internal List<Pawn> pinnedDeadPawns = new List<Pawn>();
         protected override ShipPhysics.MassReport MotionReport => dynamics?.Report ?? ShipPhysics.PointMassReport;
         public override DriveSubject PrimaryDriver => dynamics?.Identity.InContainer(objectId) ?? default;
         public override bool TryGetDrive(DriveSubject subject, out DriveInfo info)
@@ -232,6 +234,44 @@ namespace DeltaV
             if (dynamics == null || dynamics.ownerId <= 0 || !subject.Equals(PrimaryDriver))
                 return DriveResult.InvalidSubject;
             return ExecuteDrive(MotionReport, dynamics.frameAngle, subject, control, dt, out allocatedTorque);
+        }
+        /// <summary>
+        /// 原版 WorldPawn GC 只在尸体仍连着死者时保留它（CorpseExists）。尸体只存在于归档后，
+        /// 读档会断开这条连接，下一轮 GC 就丢弃死者。归档期间用原版「强制保留」集合钉住；
+        /// 已在集合里的不重复记录，释放时也就不会移除。
+        /// </summary>
+        internal static List<Pawn> PinCorpsePawns(IEnumerable<Thing> things)
+        {
+            var pins = new List<Pawn>();
+            WorldPawns world = Find.WorldPawns;
+            if (world == null) return pins;
+            HashSet<Pawn> kept = world.ForcefullyKeptPawns, seen = new HashSet<Pawn>();
+            foreach (Thing thing in things)
+            {
+                if (!(thing is Corpse corpse) || corpse.Bugged || !(corpse.InnerPawn is Pawn pawn)
+                    || pawn.Discarded || !seen.Add(pawn) || kept.Contains(pawn))
+                    continue;
+                if (!world.Contains(pawn)) world.PassToWorld(pawn, PawnDiscardDecideMode.KeepForever);
+                else kept.Add(pawn);
+                pins.Add(pawn);
+            }
+            return pins;
+        }
+        /// <summary>归档离开对象表（恢复、退役或注销）时调用：之后这些死者重新交由原版 GC 处置。</summary>
+        internal void ReleaseDeadPawnPins()
+        {
+            if (pinnedDeadPawns == null || pinnedDeadPawns.Count == 0) return;
+            HashSet<Pawn> kept = Find.WorldPawns?.ForcefullyKeptPawns;
+            if (kept != null)
+                foreach (Pawn pawn in pinnedDeadPawns) kept.Remove(pawn);
+            pinnedDeadPawns.Clear();
+        }
+        /// <summary>恢复时接受的缺席：原版装载本身会丢弃的污渍，以及内部 pawn 已不在游戏里的尸体。</summary>
+        internal static bool TolerateUnspawned(Thing thing)
+        {
+            if (thing?.def == null) return false;
+            if (thing.def.category == ThingCategory.Filth) return true;
+            return thing is Corpse corpse && corpse.Bugged;
         }
         internal MapSpaceObject RestoreRepresentation(Map restored)
         {
@@ -253,6 +293,10 @@ namespace DeltaV
             Scribe_Values.Look(ref observedMainConsoleId, "observedMainConsoleId");
             Scribe_Collections.Look(ref npcShips, "npcShipCombatSummaries", LookMode.Deep);
             npcShips ??= new List<NpcShipCombatSummary>();
+            Scribe_Collections.Look(ref pinnedDeadPawns, "pinnedDeadPawns", saveDestroyedThings: true,
+                LookMode.Reference);
+            pinnedDeadPawns ??= new List<Pawn>();
+            if (Scribe.mode == LoadSaveMode.PostLoadInit) pinnedDeadPawns.RemoveAll(pawn => pawn == null);
         }
     }
 

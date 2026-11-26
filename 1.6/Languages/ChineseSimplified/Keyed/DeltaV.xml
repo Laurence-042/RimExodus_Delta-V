@@ -135,6 +135,7 @@
   <DeltaV_PoiDormant>POI {0}：已休眠（保留地图，冻结 tick）。</DeltaV_PoiDormant>
   <DeltaV_PoiPacked>POI {0}：已删除地图（快照保存）。</DeltaV_PoiPacked>
   <DeltaV_PoiRestored>POI {0}：已从快照恢复地图。</DeltaV_PoiRestored>
+  <DeltaV_ArchiveRestoreFailed>{0}：整图归档无法恢复，约 {1} 后重试，期间不再反复尝试。详见日志。</DeltaV_ArchiveRestoreFailed>
   <DeltaV_PanelSectorTitle>太空：{0}</DeltaV_PanelSectorTitle>
   <DeltaV_PanelNeedsPrimaryConsole>该结构没有主驾驶台。请建造驾驶台或将现有驾驶台设为主台，才能控制飞船。</DeltaV_PanelNeedsPrimaryConsole>
   <DeltaV_MissingPrimaryConsole>基架结构缺少主驾驶台</DeltaV_MissingPrimaryConsole>
