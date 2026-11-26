@@ -22,6 +22,9 @@ namespace DeltaV
         {
             if (kind == SpaceCellKind.Substructure)
                 return Mathf.Clamp01(effect?.substructureHitChance ?? SpaceImpactEffectDef.DefaultSubstructureHitChance);
+            // Free-space personnel use the vanilla incidental-intercept body-size factor.
+            // Ground posture and building cover overrides do not describe this target.
+            if (building is Pawn pawn) return 0.4f * Mathf.Clamp(pawn.BodySize, 0.1f, 2f);
             if (building == null || SpaceStructureRules.IsImpassableBuilding(building)) return 1;
             if (effect?.buildingHitChance >= 0) return Mathf.Clamp01(effect.buildingHitChance);
             return GuaranteedMissileHit(projectile, building.def) ? 1 : SpaceStructureRules.BuildingHitChance(building);

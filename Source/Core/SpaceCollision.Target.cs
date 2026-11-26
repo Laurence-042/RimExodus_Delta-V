@@ -85,8 +85,7 @@ namespace DeltaV
                     : !skipHull && coverBuildings?.Contains(entity) != true && passed?.Contains(entity) != true
                         && TryEntityFootprint(entity, from, direction.normalized, length, radius, out contact);
                 if (!found) return false;
-                contact = new RayContact(ToLocal(contact.point), contact.normal, contact.cell,
-                    contact.kind, contact.building, contact.line, contact.guard);
+                contact = LocalContact(contact);
                 return true;
             }
 
@@ -101,10 +100,21 @@ namespace DeltaV
                 // Geometry backends retain their native input; all shared contacts use rigid local coordinates.
                 RayContact ray = hit.ray;
                 if (hit.target.owner == null) hit.target = this;
-                hit.ray = new RayContact(ToLocal(ray.point), ray.normal, ray.cell, ray.kind,
-                    ray.building, ray.line, ray.guard);
-                hit.lineStart = ToLocal(hit.lineStart); hit.lineEnd = ToLocal(hit.lineEnd);
+                hit.ray = LocalContact(ray);
+                if (!entityBacked)
+                {
+                    hit.lineStart = ToLocal(hit.lineStart); hit.lineEnd = ToLocal(hit.lineEnd);
+                }
                 return true;
+            }
+
+            private RayContact LocalContact(RayContact contact)
+            {
+                // Entity geometry already uses rigid-local coordinates; only map geometry
+                // needs conversion. Mapped personnel also need their real cell for Impact/explosions.
+                return new RayContact(entityBacked ? contact.point : ToLocal(contact.point), contact.normal,
+                    entityBacked && map != null ? entity.Position : contact.cell,
+                    contact.kind, contact.building, contact.line, contact.guard);
             }
 
             internal bool TryStructure(IntVec3 cell, out SpaceCellKind kind, out Thing thing)

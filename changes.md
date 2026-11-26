@@ -57,6 +57,10 @@ This file records player-visible changes in released versions and the near-term 
 
 #### 用户反馈解决 / User feedback resolved
 
+@Soulless Jelu：Enemy EVA Pwans cannot be damaged, They just flying around until the die from hunger =(
+- 修复敌方 EVA 人员无法受伤、一直漂浮直到饿死的问题。舱外人员现在按体型判定命中，原生弹丸与高爆舰炮命中后可以正常造成伤害
+  Fixed enemy EVA pawns being unable to take damage and drifting until they starved. Spacewalking pawns now use body-size hit checks, and native projectiles and high-explosive ship shells can damage them after a hit. Automatic ship targeting
+
 @jeff_steveng：几个小问题：
 1.飞船行驶时会受太阳耀斑影响，考虑到维生系统基本上得靠电力驱动，而且奥德赛本来轨道上太阳耀斑是不造成影响的，可能改一改比较好
 2.飞船在飞行而未开启EVA时，小人不会感觉自己在太空，导致星舟永嗣模因的小人会扣心情——虽然本质上是pocketmap的锅，但是还是很难绷

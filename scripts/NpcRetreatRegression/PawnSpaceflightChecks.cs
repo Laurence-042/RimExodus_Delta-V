@@ -9,6 +9,177 @@ using Verse;
 
 internal static partial class Program
 {
+    sealed class PersonnelHitFrame : MapSpaceObject
+    {
+        public override System.Collections.Generic.IEnumerable<ShipBase> Ships => Array.Empty<ShipBase>();
+        protected override SpaceObjectTag MemberTags => SpaceObjectTag.Personnel;
+    }
+    sealed class PersonnelImpactProbe : Projectile
+    {
+        internal Thing hit;
+        protected override void Impact(Thing hitThing, bool blockedByShield = false)
+        { hit = hitThing; Destroy(); }
+        public override void Destroy(DestroyMode mode = DestroyMode.Vanish) =>
+            Set(typeof(Thing), this, "mapIndexOrState", (sbyte)-2);
+    }
+    static bool SpawnPersonnelImpactProbe(Thing newThing, IntVec3 loc, Map map, ref Thing __result)
+    {
+        if (newThing is not PersonnelImpactProbe) return true;
+        Set(typeof(Thing), newThing, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
+        Set(typeof(Thing), newThing, "positionInt", loc);
+        __result = newThing;
+        return false;
+    }
+    static System.Collections.Generic.List<IntVec3> PersonnelExplosionCells(IntVec3 center) =>
+        new System.Collections.Generic.List<IntVec3> { center };
+    static bool PersonnelExplosionCellBoundary(IntVec3 center, ref System.Collections.Generic.List<IntVec3> __result)
+    { __result = PersonnelExplosionCells(center); return false; }
+
+    static void CheckPersonnelImpactCell(UniverseManager universe)
+    {
+        Map map = TestMap(65120);
+        var pawn = (Pawn)Raw(typeof(Pawn));
+        pawn.def = (ThingDef)Raw(typeof(ThingDef));
+        pawn.def.defName = "personnelImpactReceiver";
+        pawn.def.size = IntVec2.One;
+        pawn.thingIDNumber = 65121;
+        IntVec3 cell = new IntVec3(2, 0, 3);
+        Set(typeof(Thing), pawn, "mapIndexOrState", (sbyte)Find.Maps.IndexOf(map));
+        Set(typeof(Thing), pawn, "positionInt", cell);
+        var frame = new PersonnelHitFrame { objectId = 65122, pose = new SpacePose(Vector3.forward, .3f) };
+        AccessTools.Property(typeof(MapSpaceObject), "map").SetValue(frame, map);
+        AccessTools.Field(typeof(MapSpaceObject), "personnelPawn").SetValue(frame, pawn);
+        var def = TestBuildingDef("personnelImpactRound");
+        def.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, timeoutTicks = 60 });
+        var records = ProjectileRecords(universe.Projectiles);
+        object proxy = CollisionFlight(universe, frame, def, frame.pose.position, pawn);
+        proxy.GetType().GetField("personnelProxy").SetValue(proxy, true);
+        var patch = new Harmony("DeltaV.Regression.PersonnelImpactCell");
+        SpaceObject nativeOwner = null;
+        object nativeFlight = null;
+        int explosionsBefore = collisionExplosions.Count;
+        try
+        {
+            patch.Patch(typeof(Projectile).TypeInitializer,
+                prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
+            universe.objects.Add(frame);
+            Set(universe, "objectById", null);
+            var view = CollisionView(frame);
+            Check(CollisionValid(view), "mapped personnel fixture has a live Pawn and persistent collision proxy");
+            object[] ray = { null, new Vector2(-2, 0), Vector2.right, 4f, null, 0f,
+                null, null, null, null, null, false, null, null, false };
+            Check((bool)Call(view, "TryRay", ray), "mapped personnel ray enters the production target adapter");
+            object contact = ray[10];
+            Check((IntVec3)contact.GetType().GetField("cell", Private | BindingFlags.Public).GetValue(contact) == cell,
+                "mapped personnel ray supplies the real Pawn cell rather than Invalid");
+            Vector2 point = (Vector2)contact.GetType().GetField("point", Private | BindingFlags.Public).GetValue(contact);
+            Check((point - new Vector2(-.5f, 0)).magnitude < .0001f,
+                "mapped entity contact preserves the exact rigid-local surface point");
+            var body = new SpaceCollision.SweptBody {
+                from = SpaceTransform.ShipLocalToUniverse(frame.pose, new Vector2(-2, 0)),
+                to = SpaceTransform.ShipLocalToUniverse(frame.pose, new Vector2(2, 0)), projectileDef = def };
+            object[] sweep = { body, false, null, null };
+            Check((bool)Call(view, "TrySweep", sweep), "mapped personnel sweep enters the production target adapter");
+            object sweepRay = sweep[3].GetType().GetField("ray", Private | BindingFlags.Public).GetValue(sweep[3]);
+            IntVec3 damageCell = (IntVec3)sweepRay.GetType().GetField("cell", Private | BindingFlags.Public).GetValue(sweepRay);
+            Check(damageCell == cell,
+                "mapped personnel sweep supplies the same valid damage cell as the ray");
+            var projectile = (PersonnelImpactProbe)Raw(typeof(PersonnelImpactProbe));
+            projectile.def = def; projectile.stackCount = 1; projectile.thingIDNumber = 65123;
+            Set(typeof(Thing), projectile, "mapIndexOrState", (sbyte)-1);
+            nativeOwner = universe.CapturePayload(projectile, new SpacePose(Vector3.forward, 0), null);
+            Check(nativeOwner?.Payload?.Entity == projectile, "native impact fixture owns its real projectile payload");
+            nativeFlight = CollisionFlight(universe, nativeOwner, def, Vector3.forward);
+            nativeFlight.GetType().GetField("nativeProjectile").SetValue(nativeFlight, projectile);
+            patch.Patch(AccessTools.Method(typeof(GenSpawn), nameof(GenSpawn.Spawn),
+                new[] { typeof(Thing), typeof(IntVec3), typeof(Map), typeof(WipeMode) }),
+                prefix: new HarmonyMethod(typeof(Program), nameof(SpawnPersonnelImpactProbe)));
+            Call(universe.Projectiles, "QueueNativeImpact", nativeFlight, frame, pawn, damageCell, frame.pose.position, Vector2.right);
+            foreach (Action action in Actions(universe).ToArray()) { Actions(universe).Remove(action); action(); }
+            Check(projectile.hit == pawn && projectile.Destroyed,
+                "confirmed personnel contact survives deferred validation and reaches the original virtual Impact with the real Pawn");
+            patch.Patch(AccessTools.Method(typeof(GenExplosion), nameof(GenExplosion.DoExplosion)),
+                prefix: new HarmonyMethod(typeof(Program), nameof(CollisionExplosion)));
+            patch.Patch(AccessTools.Method(typeof(SpaceImpactEffects), "HighExplosiveCells"),
+                prefix: new HarmonyMethod(typeof(Program), nameof(PersonnelExplosionCellBoundary)));
+            var part = new ImpactOutcomePart { damageDef = DamageDefOf.Bomb, highExplosive = new HighExplosiveProfile {
+                damageByMass = new SimpleCurve { new CurvePoint(1, 32) },
+                radiusByMass = new SimpleCurve { new CurvePoint(1, .75f) } } };
+            var evt = new SpaceCollision.ImpactEvent { defender = frame, defenderBuilding = pawn,
+                hitCell = damageCell, mass = 1, projectileDef = def };
+            part.kind = ImpactEffectKind.DamageMap;
+            SpaceImpactEffects.ApplyToDefender(evt, part);
+            Check(collisionExplosions.Count == explosionsBefore + 1
+                && collisionExplosions.Last().cell == pawn.Position && collisionExplosions.Last().amount == 32,
+                "personnel damage cell reaches the real high-explosive map endpoint with positive damage");
+            ray[1] = new Vector2(-2, 2);
+            Check(!(bool)Call(view, "TryRay", ray) && collisionExplosions.Count == explosionsBefore + 1,
+                "a ray missing personnel produces no contact or extra explosion");
+        }
+        finally
+        {
+            patch.UnpatchAll(patch.Id);
+            records.Remove(proxy);
+            if (nativeFlight != null) records.Remove(nativeFlight);
+            universe.objects.Remove(frame);
+            if (nativeOwner != null) universe.objects.Remove(nativeOwner);
+            Set(universe, "objectById", null);
+            collisionExplosions.RemoveRange(explosionsBefore, collisionExplosions.Count - explosionsBefore);
+            Find.Maps.Remove(map);
+        }
+    }
+
+    static void CheckPersonnelHitChance()
+    {
+        var pawn = (Pawn)Raw(typeof(Pawn));
+        pawn.def = (ThingDef)Raw(typeof(ThingDef));
+        pawn.def.defName = "personnelHitChance";
+        pawn.def.category = ThingCategory.Pawn;
+        pawn.def.size = IntVec2.One;
+        pawn.def.race = new RaceProperties { baseBodySize = 1f,
+                lifeStageAges = new System.Collections.Generic.List<LifeStageAge> {
+                    new LifeStageAge { def = new LifeStageDef { bodySizeFactor = 1f } } } };
+        pawn.ageTracker = new Pawn_AgeTracker(pawn);
+        Set(pawn.ageTracker, "cachedLifeStageIndex", 0);
+        var hitChance = AccessTools.Method(typeof(SpaceImpactEffects), "HitChance");
+        float Chance(SpaceImpactEffectDef effect = null) => (float)hitChance.Invoke(null,
+            new object[] { null, SpaceCellKind.Building, pawn, effect });
+        foreach (var sample in new[] { (.01f, .04f), (.5f, .2f), (1f, .4f), (2f, .8f), (4f, .8f) })
+        {
+            pawn.def.race.baseBodySize = sample.Item1;
+            Check(Math.Abs(Chance() - sample.Item2) < .00001f,
+                $"personnel body size {sample.Item1} yields interception chance {sample.Item2} with zero fill");
+        }
+        pawn.def.race.baseBodySize = 1f;
+        pawn.def.race.lifeStageAges[0].def.bodySizeFactor = .5f;
+        Check(Math.Abs(Chance() - .2f) < .00001f, "personnel interception reads the real life-stage body size");
+        pawn.def.race.lifeStageAges[0].def.bodySizeFactor = 1f;
+        Check(Math.Abs(Chance(new SpaceImpactEffectDef { buildingHitChance = 0f }) - .4f) < .00001f
+            && Math.Abs(Chance(new SpaceImpactEffectDef { buildingHitChance = 1f }) - .4f) < .00001f,
+            "building chance overrides cannot suppress or guarantee a personnel hit");
+        pawn.def.fillPercent = 1f;
+        Check(Math.Abs(Chance() - .4f) < .00001f, "personnel fill percent does not affect interception");
+        object[] ray = { pawn, new Vector2(-2f, 0f), Vector2.right, 4f, 0f, null };
+        var footprint = AccessTools.Method(typeof(SpaceCollision), "TryEntityFootprint");
+        Check((bool)footprint.Invoke(null, ray), "a crossing ray contacts the personnel footprint");
+        ray[1] = new Vector2(-2f, 2f);
+        Check(!(bool)footprint.Invoke(null, ray), "a ray outside the personnel footprint never reaches hit testing");
+        Rand.PushState(67291);
+        try
+        {
+            int hits = 0;
+            for (int i = 0; i < 1000; i++)
+                if (SpaceImpactEffects.HitTest(null, SpaceCellKind.Building, pawn, null)) hits++;
+            Check(hits > 330 && hits < 470, "actual personnel HitTest produces both hits and pass-throughs near forty percent");
+        }
+        finally { Rand.PopState(); }
+        Check(CollisionCalls(AccessTools.Method(typeof(SpaceCollision), "TryFindFirstContact"))
+                .Any(method => method.DeclaringType == typeof(SpaceImpactEffects) && method.Name == "HitTest")
+            && CollisionCalls(AccessTools.Method(typeof(SpaceCollision).GetNestedType("TargetView", BindingFlags.NonPublic), "ApplyResolvedDamage"))
+                .Any(method => method.Name == nameof(Thing.TakeDamage)),
+            "real collision confirmation uses shared HitTest and resolved entity damage reaches TakeDamage");
+    }
+
     static bool PawnSpaceflightWalkable(ref bool __result)
     {
         __result = true;
@@ -28,6 +199,8 @@ internal static partial class Program
 
     static void CheckPawnSpaceflight(UniverseManager universe)
     {
+        CheckPersonnelHitChance();
+        CheckPersonnelImpactCell(universe);
         var foundation = new DriveSubject(41, 77, DriveSubjectKind.Foundation);
         var shuttle = new DriveSubject(42, 77, DriveSubjectKind.Shuttle);
         var personnel = new DriveSubject(43, 77, DriveSubjectKind.Personnel);
