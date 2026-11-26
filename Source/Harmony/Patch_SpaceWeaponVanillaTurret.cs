@@ -117,21 +117,6 @@ namespace DeltaV
                 .NativeCastAuthorized(__instance.AttackVerb) == true;
     }
 
-    [HarmonyPatch(typeof(VerbProperties), nameof(VerbProperties.EffectiveMinRange),
-        new[] { typeof(LocalTargetInfo), typeof(Thing) })]
-    public static class Patch_VerbProperties_AutoSpaceMinimumRange
-    {
-        public static void Postfix(VerbProperties __instance, Thing caster, ref float __result)
-        {
-            if (caster is not Building_Turret turret || !AutoSpaceWeaponTurretBridge.SpaceMode(turret))
-                return;
-            Verb verb = turret.AttackVerb;
-            if (verb?.verbProps != __instance) return;
-            if (Current.Game?.GetComponent<UniverseManager>()?.Projectiles
-                .NativeCastAuthorized(verb) == true) __result = 0f;
-        }
-    }
-
     [HarmonyPatch]
     public static class Patch_BuildingTurretGun_AutoSpaceCanForceTarget
     {
