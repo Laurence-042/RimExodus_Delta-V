@@ -85,6 +85,9 @@ This file records player-visible changes in released versions and the near-term 
 
 #### 修复 / Fixes
 
+- 修复自动适配 Mod 炮塔与舱外人员武器的实体弹丸被守卫圆盾截停时不消耗盾容的问题；现在每发按该弹丸实例的实际伤害扣除盾容。
+  Fixed native projectiles from adapted mod turrets and EVA personnel weapons being stopped by guard shields without draining capacity. Each intercepted round now drains its actual instance damage.
+
 - 修复原版与 Mod 实体射弹在太空中必定被第一格裸露基架截停、又无法破坏基架的问题。未拦截的射弹现在可继续命中内舱；普通直击弹按实际伤害破坏基架，标准即时与延迟爆炸按真实爆炸格结算，不创建额外受击代理。
   Fixed vanilla and mod projectiles always stopping on the first exposed substructure cell without being able to damage it. Rounds that are not intercepted can now reach internal structures; ordinary direct hits and standard immediate or delayed explosions can damage substructure without persistent hit proxies.
 

@@ -26,6 +26,8 @@ internal static partial class Program
             "Source/Core/SubstructureDamageUtility.cs"));
         string foundationPatch = File.ReadAllText(Path.Combine(repo,
             "Source/Harmony/Patch_SubstructureDamage.cs"));
+        string nativeProjectileDefs = File.ReadAllText(Path.Combine(repo,
+            "1.6/Defs/SpaceCombat/DeltaV_PawnSpaceflight.xml"));
         string pawnBridge = File.ReadAllText(Path.Combine(repo,
             "Source/Interaction/PawnSpaceWeaponBridge.cs"));
         string turretBridge = File.ReadAllText(Path.Combine(repo,
@@ -113,6 +115,11 @@ internal static partial class Program
             && foundationPatch.Contains("explosion.GetDamageAmountAt(c)")
             && !foundationPatch.Contains("Dictionary<") && !foundationPatch.Contains("Scribe_"),
             "standard immediate and delayed explosions damage exposed decks without persistent hit proxies or duplicate Delta-V HE rolls");
+        Check(nativeService.Contains("flight.damageScale = Mathf.Max(0f, projectile.DamageAmount)")
+            && nativeProjectileDefs.Contains("<kind>ShieldDrain</kind><damage>1</damage><incidenceMinFactor>1</incidenceMinFactor>")
+            && !nativeService.Contains("record.weapon != null ? projectile.DamageAmount")
+            && !nativeService.Contains("record.launcher is Pawn"),
+            "all captured native rounds spend their actual instance damage on guard shields without launcher identity branches");
 
         var sourceOwned = new SourceOwnedLaunch();
         var weapon = new CompSpaceWeapon

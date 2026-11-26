@@ -49,8 +49,9 @@
       <li>GravshipShieldGenerator</li>
       <li>DeltaV_ShieldGenerator</li><li>DeltaV_ShieldGeneratorSmall</li>
     </targetThingDefs>
-    <!-- Ship shields stop personnel rounds but do not spend meaningful capital-ship capacity. -->
-    <defenderEffect><kind>ShieldDrain</kind><damage>0</damage></defenderEffect>
+    <!-- Runtime damageScale is the captured projectile instance's DamageAmount, so both
+         personnel weapons and adapted turrets match native map shield interception. -->
+    <defenderEffect><kind>ShieldDrain</kind><damage>1</damage><incidenceMinFactor>1</incidenceMinFactor></defenderEffect>
     <attackerEffect><kind>DestroySelf</kind></attackerEffect>
   </DeltaV.SpaceImpactEffectDef>
 

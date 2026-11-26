@@ -313,7 +313,10 @@ namespace DeltaV
             flight.motorDeltaVelocityPerTick = 0f;
             flight.motorThrusting = false;
             flight.rcsTurnSign = 0f;
-            flight.damageScale = flight.energyFraction = flight.armorPenetrationScale = 1f;
+            // Native guard interception mirrors the map interceptor: one hit spends the
+            // source projectile instance's actual damage, including launcher/stat modifiers.
+            flight.damageScale = Mathf.Max(0f, projectile.DamageAmount);
+            flight.energyFraction = flight.armorPenetrationScale = 1f;
             flight.mass = flight.beamEnergyScale = 1f;
             projectiles.Add(flight);
             return true;

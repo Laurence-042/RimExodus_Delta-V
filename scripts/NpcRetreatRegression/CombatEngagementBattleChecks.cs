@@ -45,6 +45,8 @@ internal static partial class Program
             prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
         patch.Patch(typeof(CompRefuelable).TypeInitializer,
             prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
+        patch.Patch(typeof(CompProjectileInterceptor).TypeInitializer,
+            prefix: new HarmonyMethod(typeof(Program), nameof(BattleSceneOnly)));
         patch.Patch(AccessTools.PropertyGetter(typeof(MapInfo), nameof(MapInfo.Tile)),
             prefix: new HarmonyMethod(typeof(Program), nameof(HullContactPocketTile)));
         foreach (var method in new[] {
@@ -85,6 +87,7 @@ internal static partial class Program
             CheckOrderedStructureContacts(universe, player);
             CheckChemicalAmmoSelection(universe, player);
             CheckSteelShellImpacts(universe, player, patch);
+            CheckNativeGuardDamage(universe, player);
             var results = new List<object>();
             var outcomes = new List<(int seed, bool mirrored, bool automatic, int disabled, float loss, bool alive)>();
             foreach (int seed in new[] { 17, 29 })
@@ -672,6 +675,40 @@ internal static partial class Program
         {
             Rand.PopState(); RemoveEngagementMap(universe, frame);
         }
+    }
+
+    static void CheckNativeGuardDamage(UniverseManager universe, Faction faction)
+    {
+        var map = TestMap(159100, 21);
+        var frame = new MapSpaceObject(159101, map, new SpacePose(Vector3.forward, 0));
+        universe.RegisterObject(frame);
+        AddStaticFleetShield(map, faction, 159102, 21);
+        var building = map.listerThings.AllThings.OfType<ThingWithComps>()
+            .Single(thing => thing.GetComp<CompSpaceShield>() != null);
+        var shield = building.GetComp<CompSpaceShield>();
+        var interceptor = building.GetComp<CompProjectileInterceptor>();
+        float before = CompSpaceShield.AvailableGuardCapacity(interceptor);
+        var evt = new SpaceCollision.ImpactEvent
+        {
+            defender = frame,
+            defenderBuilding = building,
+            relativeSpeed = 60f,
+            incidenceAngleRad = Mathf.PI * .45f,
+            damageScale = 17f,
+            energyFraction = 1f,
+            mass = 1f
+        };
+        var part = new ImpactOutcomePart
+        {
+            kind = ImpactEffectKind.ShieldDrain,
+            damage = 1f,
+            incidenceMinFactor = 1f
+        };
+        SpaceImpactEffects.ApplyToDefender(evt, part);
+        float after = CompSpaceShield.AvailableGuardCapacity(interceptor);
+        Check(Math.Abs(before - after - 17f) < .001f && shield != null,
+            "native projectile guard drain equals the captured instance DamageAmount even at oblique incidence");
+        RemoveEngagementMap(universe, frame);
     }
 
     static (object report, int disabled, float loss, bool alive) RunEngagementBattle(UniverseManager universe, Faction player, Faction enemy,
