@@ -144,6 +144,7 @@ namespace DeltaV
         float IHardDockingExecutor.ArrivalVelocityTolerance =>
             ShipAutopilot.DefaultArrivalVelocityTolerance;
         float IHardDockingExecutor.ArrivalApproachSpeed => 0f;
+        CompSpaceWeapon IHardDockingExecutor.CaptureTether => null;
         float IHardDockingExecutor.NoseHalfWidth => parent.def.Size.x * 0.5f;
         float IHardDockingExecutor.NoseForwardOffset => (parent.def.Size.z - 1) * 0.5f;
         string IHardDockingExecutor.StartLabelKey => "DeltaV_ShuttleBoardGizmo";
@@ -156,14 +157,16 @@ namespace DeltaV
         bool IHardDockingExecutor.ValidFor(SpaceObject source) => parent?.Spawned == true
             && !parent.Destroyed && source?.map == parent.Map && Vessel.CanDriveIn(source) && CanBoard;
         bool IHardDockingExecutor.TryResolveTarget(SpaceObject target, Vector2 targetMapPoint,
-            out IntVec3 targetCell)
+            out HardDockingDestination destination)
         {
-            targetCell = new IntVec3(Mathf.FloorToInt(targetMapPoint.x), 0,
+            IntVec3 targetCell = new IntVec3(Mathf.FloorToInt(targetMapPoint.x), 0,
                 Mathf.FloorToInt(targetMapPoint.y));
+            destination = new HardDockingDestination(targetCell);
             return target?.map != null && targetCell.InBounds(target.map);
         }
-        bool IHardDockingExecutor.TargetStillValid(SpaceObject target, IntVec3 targetCell)
-            => target?.map != null && targetCell.InBounds(target.map);
+        bool IHardDockingExecutor.TargetStillValid(SpaceObject target,
+            HardDockingDestination destination)
+            => target?.map != null && destination.cell.InBounds(target.map);
         void IHardDockingExecutor.NotifyHardDockingActive(bool active) => intrusionDriveActive = active;
         void IHardDockingExecutor.CompleteHardDocking(UniverseManager universe, HardDockingContact contact)
         {

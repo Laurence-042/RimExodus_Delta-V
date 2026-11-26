@@ -60,7 +60,7 @@
       <li Class="DeltaV.CompProperties_SpaceWeapon">
         <projectileDef>DeltaV_Beam_PawnGrapple</projectileDef><manualOnly>true</manualOnly><tractor>true</tractor>
         <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>1</defaultGroupNumber>
-        <range>35</range><cooldownTicks>1</cooldownTicks><baseSpreadDeg>0</baseSpreadDeg>
+        <range>32</range><cooldownTicks>1</cooldownTicks><baseSpreadDeg>0</baseSpreadDeg>
         <intrinsicAimSkill>20</intrinsicAimSkill>
       </li>
       <li Class="DeltaV.CompProperties_PawnGrapple" />
@@ -69,7 +69,7 @@
   <ThingDef ParentName="DeltaV_EngineeringBeam">
     <defName>DeltaV_Beam_PawnGrapple</defName><label>grapple line</label>
     <comps><li Class="DeltaV.CompProperties_SpaceProjectile">
-      <hasMap>false</hasMap><speed>2000</speed><laserRange>35</laserRange>
+      <hasMap>false</hasMap><speed>2000</speed><laserRange>32</laserRange>
       <laserBeamWidth>0.12</laserBeamWidth><visualStyle>Tractor</visualStyle><continuousBeam>true</continuousBeam>
     </li></comps>
   </ThingDef>

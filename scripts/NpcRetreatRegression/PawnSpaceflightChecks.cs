@@ -41,6 +41,13 @@ internal static partial class Program
                 .Any(method => method.DeclaringType == typeof(TractorLinkService)
                     && method.Name == "HasOperatorForce"),
             "autopilot yields its drive output while a maintained grapple supplies operator force");
+        Check(typeof(TractorLinkService).GetMethod("MaintainDockingLink",
+                BindingFlags.Instance | BindingFlags.NonPublic) != null
+            && typeof(TractorLinkService).GetMethod("DockingAttached",
+                BindingFlags.Instance | BindingFlags.NonPublic) != null
+            && CollisionCalls(AccessTools.Method(typeof(HardDockingService), "Tick"))
+                .Any(method => method.Name == "MaintainDockingLink"),
+            "hard docking owns a persistent light-link capture instead of synthesizing held fire");
         Check(universe.HardDocking != null
             && typeof(ShipBase).GetProperty("HardDockingExecutor",
                 BindingFlags.Instance | BindingFlags.NonPublic) != null,
@@ -97,6 +104,7 @@ internal static partial class Program
         Type autopilotFlight = typeof(ShipAutopilot).GetNestedType("Flight", BindingFlags.NonPublic);
         Check(executor?.GetProperty("Completion") != null
             && executor.GetProperty("RequiresAvoidanceDisabled") != null
+            && executor.GetProperty("CaptureTether") != null
             && executor.GetProperty("ArrivalVelocityTolerance") != null
             && executor.GetProperty("ArrivalApproachSpeed") != null
             && executor.GetMethod("TryResolveTarget") != null
@@ -108,6 +116,20 @@ internal static partial class Program
             && autopilotFlight.GetField("arrivalApproachSpeed",
                 BindingFlags.Instance | BindingFlags.Public) != null,
             "hard docking shares targeting and cancellation while executors select collision or arrival completion");
+        MethodInfo autopilotStep = AccessTools.Method(typeof(ShipAutopilot), "Step");
+        Check(CollisionCalls(autopilotStep).Any(method => method.DeclaringType
+                == typeof(LandingApproachController) && method.Name == "ApplyMotionContract")
+            && autopilotFlight.GetField("arrivalGate",
+                BindingFlags.Instance | BindingFlags.Public) != null,
+            "reference navigation consumes the common EVA/personnel motion contract and a capture-ready arrival gate");
+        Type hardDockOperation = typeof(HardDockingService).GetNestedType("Operation",
+            BindingFlags.NonPublic);
+        Check(hardDockOperation?.GetField("captureEstablished",
+                BindingFlags.Instance | BindingFlags.NonPublic) != null
+            && !HardDockingService.CaptureGate(true, false)
+            && HardDockingService.CaptureGate(true, true)
+            && HardDockingService.CaptureGate(false, false),
+            "hard docking requires one real capture but does not revoke it when the live line releases near entry");
         FieldInfo defaultArrivalTolerance = typeof(ShipAutopilot).GetField(
             "DefaultArrivalVelocityTolerance", BindingFlags.Static | BindingFlags.NonPublic);
         FieldInfo personnelArrivalTolerance = typeof(PawnSpaceflightShip).GetField(
@@ -127,6 +149,17 @@ internal static partial class Program
             && CollisionCalls(engageArrival).Any(method => method.Name == "get_ArrivalApproachSpeed")
             && typeof(GuidanceRequest).GetField("arrivalVelocity") != null,
             "personnel hard docking supplies a real pass-through velocity target to shared guidance");
+        var pawnFlightXml = System.Xml.Linq.XDocument.Load(
+            "1.6/Defs/SpaceCombat/DeltaV_PawnSpaceflight.xml");
+        Check(Math.Abs(CompPawnGrapple.Range - 32f) < 0.001f
+            && (float)pawnFlightXml.Descendants("range").Single() == 32f
+            && (float)pawnFlightXml.Descendants("laserRange").Single() == 32f,
+            "personnel grapple logic, weapon range, and beam reach share the 32-cell contract");
+        Check(TractorLinkService.DockingPulling(true, 20f, 2f, 4f)
+            && !TractorLinkService.DockingPulling(true, .7f, 1.5f, 4f)
+            && !TractorLinkService.DockingPulling(false, 1.2f, 1.5f, 4f)
+            && TractorLinkService.DockingPulling(false, 1.6f, 1.5f, 4f),
+            "docking tether pulls at range, slackens for braking, and retensions with hysteresis");
         Type projectileRecord = typeof(SpaceProjectileService).GetNestedType("Projectile",
             BindingFlags.NonPublic);
         Check(projectileRecord?.GetField("personnelProxy",

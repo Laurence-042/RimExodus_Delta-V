@@ -190,6 +190,26 @@ internal static partial class Program
             && !LandingApproachController.MatchesMotion(own, host), "EVA docking accepts unmatched heading/spin at the correct rigid-point velocity");
         own.velocity += Vector2.one;
         Check(!LandingApproachController.MatchesMotion(own, host, ship), "EVA docking still rejects unmatched linear velocity");
+        SpacePose selectedPoint = SpaceTransform.RigidPointPose(host, new Vector2(-3, 7), 0f);
+        SpacePose contracted = LandingApproachController.ApplyMotionContract(own, selectedPoint, ship);
+        Check(contracted.position == selectedPoint.position
+            && contracted.velocity == selectedPoint.velocity
+            && contracted.angle == own.angle && contracted.angularVelocity == own.angularVelocity,
+            "EVA capture preserves a selected rigid point while ignoring target hull heading and spin");
+        Check(ship.HardDockingExecutor != null && ship.HardDockingExecutor.CaptureTether != null
+            && !ship.CanBoard && !ship.CanDisableCollisionAvoidance,
+            "EVA exposes non-breaching tethered arrival without becoming a collision boarding shuttle");
+        Check(!HardDockingService.CaptureGate(true, false)
+            && HardDockingService.CaptureGate(true, true),
+            "EVA boarding keeps the shared capture qualification after its live line slackens or releases");
+        var evaXml = System.Xml.Linq.XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_Eva.xml");
+        var tractor = evaXml.Descendants("DeltaV.VirtualWeaponDef")
+            .Single(node => (string)node.Element("defName") == "DeltaV_EvaTractor");
+        var tractorBeam = evaXml.Descendants("ThingDef")
+            .Single(node => (string)node.Element("defName") == "DeltaV_Beam_EvaTractor");
+        Check((float)tractor.Descendants("range").Single() == 32f
+            && (float)tractorBeam.Descendants("laserRange").Single() == 32f,
+            "EVA tractor weapon and beam reach share the 32-cell capture range");
         var report = new ShipPhysics.MassReport { mass = 100, inertia = 30, allowsAngularMotion = false };
         bool drag = DeltaVMod.CurrentSettings.passiveDrag;
         DeltaVMod.CurrentSettings.passiveDrag = false;

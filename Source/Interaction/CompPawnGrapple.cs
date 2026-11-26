@@ -13,7 +13,7 @@ namespace DeltaV
     public sealed class CompPawnGrapple : ThingComp, ISpaceWeaponFireGate, ISpaceWeaponLaunch,
         ILightTractorEmitter
     {
-        internal const float Range = 35f;
+        internal const float Range = 32f;
         internal const float ImpulsePerTick = 0.8f;
         internal const float ContactRadius = 0.65f;
 

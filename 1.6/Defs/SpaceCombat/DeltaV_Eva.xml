@@ -3,7 +3,7 @@
   <!-- Construction economy remains provisional. -->
   <ThingDef ParentName="BuildingBase">
     <defName>DeltaV_EvaSuit</defName><label>EVA engineering suit</label>
-    <description>A single-person craft for work outside a ship. Load one pilot and up to 60 kg of cargo, then launch from an open deck or moon pool. Movement follows the camera. Its manual tools cut structures and mine rock, weld damage and clean exposed decks, or grapple loose cargo. The grapple exchanges momentum with movable targets and pulls the EVA toward fixed structures; cargo enters the pack on contact. Mining yields the full amount for the current difficulty, and cutting yields the full normal dismantling return. Both drift into space from the point of impact for tractor recovery. It cannot launch to a world-map destination.</description>
+    <description>A single-person craft for work outside a ship. Load one pilot and up to 60 kg of cargo, then launch from an open deck or moon pool. Movement follows the camera. Its manual tools cut structures and mine rock, weld damage and clean exposed decks, or grapple loose cargo. The grapple exchanges momentum with movable targets, pulls the EVA toward fixed structures, and assists boarding a valid exposed landing cell on a moving ship; cargo enters the pack on contact. Mining yields the full amount for the current difficulty, and cutting yields the full normal dismantling return. Both drift into space from the point of impact for tractor recovery. It cannot launch to a world-map destination.</description>
     <thingClass>Building</thingClass><size>(1,1)</size><rotatable>true</rotatable>
     <!-- Native south-only Graphic_Multi supplies the 180-degree artwork correction. -->
     <graphicData>
@@ -67,7 +67,7 @@
     <comps><li Class="DeltaV.CompProperties_SpaceWeapon">
       <projectileDef>DeltaV_Beam_EvaTractor</projectileDef><manualOnly>true</manualOnly><tractor>true</tractor>
       <defaultSalvoSet>Secondary</defaultSalvoSet><defaultGroupNumber>2</defaultGroupNumber>
-      <range>8</range><cooldownTicks>1</cooldownTicks><baseSpreadDeg>0</baseSpreadDeg>
+      <range>32</range><cooldownTicks>1</cooldownTicks><baseSpreadDeg>0</baseSpreadDeg>
     </li><li Class="DeltaV.CompProperties_CargoTractor"><collectionRadius>0.5</collectionRadius></li></comps>
   </DeltaV.VirtualWeaponDef>
   <ThingDef ParentName="DeltaV_EngineeringBeam">
@@ -80,7 +80,7 @@
   </ThingDef>
   <ThingDef ParentName="DeltaV_EngineeringBeam">
     <defName>DeltaV_Beam_EvaTractor</defName><label>cargo tractor beam</label>
-    <comps><li Class="DeltaV.CompProperties_SpaceProjectile"><hasMap>false</hasMap><speed>2000</speed><laserRange>8</laserRange><laserBeamWidth>0.12</laserBeamWidth><visualStyle>Tractor</visualStyle><continuousBeam>true</continuousBeam></li></comps>
+    <comps><li Class="DeltaV.CompProperties_SpaceProjectile"><hasMap>false</hasMap><speed>2000</speed><laserRange>32</laserRange><laserBeamWidth>0.12</laserBeamWidth><visualStyle>Tractor</visualStyle><continuousBeam>true</continuousBeam></li></comps>
   </ThingDef>
   <DeltaV.SpaceImpactEffectDef Name="DeltaV_EvaCutImpact" Abstract="True">
     <projectileDefs><li>DeltaV_Beam_EvaCutter</li></projectileDefs>

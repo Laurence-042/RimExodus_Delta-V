@@ -192,8 +192,9 @@ namespace DeltaV
     /// <summary>仅在独立人员飞行图中存在的临时 ShipBase 视图。</summary>
     public sealed class PawnSpaceflightShip : ShipBase, IHardDockingExecutor
     {
-        internal const float BoardingArrivalVelocityTolerance = 2f;
-        internal const float BoardingApproachSpeed = 1.5f;
+        internal const float BoardingArrivalVelocityTolerance =
+            HardDockingService.LightArrivalVelocityTolerance;
+        internal const float BoardingApproachSpeed = HardDockingService.LightApproachSpeed;
 
         internal readonly Pawn pawn;
         internal readonly PawnSpaceflightSnapshot snapshot;
@@ -295,6 +296,7 @@ namespace DeltaV
         bool IHardDockingExecutor.UsesProjectileRole => false;
         float IHardDockingExecutor.ArrivalVelocityTolerance => BoardingArrivalVelocityTolerance;
         float IHardDockingExecutor.ArrivalApproachSpeed => BoardingApproachSpeed;
+        CompSpaceWeapon IHardDockingExecutor.CaptureTether => snapshot?.GrappleFor(pawn);
         float IHardDockingExecutor.NoseHalfWidth => 0f;
         float IHardDockingExecutor.NoseForwardOffset => 0f;
         string IHardDockingExecutor.StartLabelKey => "DeltaV_PersonnelLanding";
@@ -303,18 +305,20 @@ namespace DeltaV
         string IHardDockingExecutor.CancelTipKey => "DeltaV_PersonnelLandingCancelDesc";
         string IHardDockingExecutor.BlockReasonKey(UniverseManager universe, SpaceObject source,
             bool playerInitiated) => snapshot?.CanMove(pawn) == true
-                ? null : "DeltaV_PersonnelLandingFailed";
+                && snapshot.GrappleFor(pawn) != null ? null : "DeltaV_PersonnelLandingFailed";
         bool IHardDockingExecutor.ValidFor(SpaceObject source) => IsValid && CanDriveIn(source)
-            && snapshot?.CanMove(pawn) == true;
+            && snapshot?.CanMove(pawn) == true && snapshot.GrappleFor(pawn) != null;
         bool IHardDockingExecutor.TryResolveTarget(SpaceObject target, Vector2 targetMapPoint,
-            out IntVec3 targetCell)
+            out HardDockingDestination destination)
         {
-            targetCell = new IntVec3(Mathf.FloorToInt(targetMapPoint.x), 0,
+            IntVec3 targetCell = new IntVec3(Mathf.FloorToInt(targetMapPoint.x), 0,
                 Mathf.FloorToInt(targetMapPoint.y));
+            destination = new HardDockingDestination(targetCell);
             return PersonnelAccess.TryResolveLanding(target?.map, targetCell, out _);
         }
-        bool IHardDockingExecutor.TargetStillValid(SpaceObject target, IntVec3 targetCell)
-            => PersonnelAccess.TryResolveLanding(target?.map, targetCell, out _);
+        bool IHardDockingExecutor.TargetStillValid(SpaceObject target,
+            HardDockingDestination destination)
+            => PersonnelAccess.TryResolveLanding(target?.map, destination.cell, out _);
         void IHardDockingExecutor.NotifyHardDockingActive(bool active) { }
         void IHardDockingExecutor.CompleteHardDocking(UniverseManager universe,
             HardDockingContact contact) => universe.Personnel.CompleteHardDocking(contact);

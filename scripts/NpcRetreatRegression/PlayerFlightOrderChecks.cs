@@ -16,6 +16,13 @@ internal static partial class Program
                 .Any(method => method.DeclaringType == typeof(TractorLinkService)
                     && method.Name == "TryGetOperatorForce"),
             "flight assist preserves grapple-driven translation and torque as operator input");
+        Type grappleLink = typeof(TractorLinkService).GetNestedType("GrappleLink",
+            BindingFlags.NonPublic);
+        Check(grappleLink?.GetField("docking",
+                BindingFlags.Instance | BindingFlags.NonPublic) != null
+            && typeof(TractorLinkService).GetMethod("CancelDocking",
+                BindingFlags.Instance | BindingFlags.NonPublic) != null,
+            "manual operator force and docking-owned capture links keep separate lifecycles");
         CheckPlayerControlAuthority(universe);
         Type goalType = typeof(ShipAutopilot).Assembly.GetType("DeltaV.PlayerNavigationTarget", true);
         ConstructorInfo constructor = goalType.GetConstructor(Private, null,

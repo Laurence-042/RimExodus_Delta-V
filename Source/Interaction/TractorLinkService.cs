@@ -33,7 +33,10 @@ namespace DeltaV
         {
             internal int sourceId, sourceVersion, targetId, targetVersion;
             internal Vector2 sourceLocal, targetLocal;
+            internal Vector2 arrivalLocal;
             internal bool collecting;
+            internal bool docking, pulling = true;
+            internal int dockingToken;
             internal int lastTriggerTick;
             internal CompSpaceWeapon weapon;
             internal ILightTractorEmitter emitter;
@@ -49,10 +52,11 @@ namespace DeltaV
 
         internal void ForgetObject(int objectId)
         {
-            if (grapples.Remove(objectId, out GrappleLink own)) claimedTargets.Remove(own.targetId);
+            if (grapples.Remove(objectId, out GrappleLink own) && !own.docking)
+                claimedTargets.Remove(own.targetId);
             foreach (var pair in grapples.Where(pair => pair.Value.targetId == objectId).ToArray())
             {
-                claimedTargets.Remove(pair.Value.targetId);
+                if (!pair.Value.docking) claimedTargets.Remove(pair.Value.targetId);
                 grapples.Remove(pair.Key);
             }
         }
@@ -88,6 +92,55 @@ namespace DeltaV
                 }
             }
             return Start(source, target, sourceLocal, targetLocal, shot.weapon, emitter);
+        }
+
+        /// <summary>
+        /// Maintain a hard-docking-owned light link. Firing range and the first real hull
+        /// contact are checked only against the actual weapon; no synthetic reach or target
+        /// point is introduced. The frozen landing point remains separate from the hook.
+        /// A successful attachment is remembered by HardDockingService for that operation;
+        /// losing this runtime line near an exposed landing cell only removes its impulse.
+        /// </summary>
+        internal bool MaintainDockingLink(int token, SpaceObject source, SpaceObject target,
+            Vector2 arrivalLocal, CompSpaceWeapon weapon)
+        {
+            ILightTractorEmitter emitter = weapon?.Component<CompPawnGrapple>();
+            emitter ??= weapon?.Component<CompCargoTractor>();
+            if (token <= 0 || source == null || target == null || emitter == null
+                || !emitter.ValidSource(universe, source, weapon)
+                || !emitter.AllowsTarget(target)) return false;
+            Vector2 sourceLocal = SpaceTransform.MapToShipLocal(source.map,
+                SpaceWeaponGeometry.MuzzleMapPoint(weapon));
+            if (grapples.TryGetValue(source.objectId, out GrappleLink existing))
+            {
+                if (existing.docking && existing.dockingToken == token
+                    && existing.targetId == target.objectId)
+                {
+                    existing.sourceLocal = sourceLocal;
+                    existing.arrivalLocal = arrivalLocal;
+                    existing.weapon = weapon;
+                    existing.emitter = emitter;
+                    return true;
+                }
+                Cancel(source.objectId);
+            }
+            Vector3 arrivalPoint = SpaceTransform.RigidPointPose(target.pose, arrivalLocal, 0f).position;
+            Vector2 ray = SpaceTransform.UniverseToShipLocal(source.pose, arrivalPoint) - sourceLocal;
+            SpaceObject hit = FirstTarget(source, sourceLocal, ray, weapon.EffectiveRange,
+                emitter, out Vector2 targetLocal);
+            if (hit != target) return false;
+            return Start(source, target, sourceLocal, targetLocal, weapon, emitter,
+                docking: true, dockingToken: token, arrivalLocal: arrivalLocal);
+        }
+
+        internal bool DockingAttached(int sourceId, int token, int targetId) =>
+            grapples.TryGetValue(sourceId, out GrappleLink link)
+            && link.docking && link.dockingToken == token && link.targetId == targetId;
+
+        internal void CancelDocking(int sourceId, int token)
+        {
+            if (grapples.TryGetValue(sourceId, out GrappleLink link)
+                && link.docking && link.dockingToken == token) Cancel(sourceId);
         }
 
         private SpaceObject FirstTarget(SpaceObject source, Vector2 sourceLocal, Vector2 ray,
@@ -131,11 +184,12 @@ namespace DeltaV
         }
 
         private bool Start(SpaceObject source, SpaceObject target, Vector2 sourceLocal,
-            Vector2 targetLocal, CompSpaceWeapon weapon, ILightTractorEmitter emitter)
+            Vector2 targetLocal, CompSpaceWeapon weapon, ILightTractorEmitter emitter,
+            bool docking = false, int dockingToken = 0, Vector2 arrivalLocal = default)
         {
             if (!emitter.ValidSource(universe, source, weapon) || target == null || target == source
                 || !emitter.AllowsTarget(target)
-                || weapon == null || claimedTargets.Contains(target.objectId)) return false;
+                || weapon == null || !docking && claimedTargets.Contains(target.objectId)) return false;
             Vector3 sourcePoint = SpaceTransform.RigidPointPose(source.pose, sourceLocal, 0f).position;
             Vector3 targetPoint = SpaceTransform.RigidPointPose(target.pose, targetLocal, 0f).position;
             float distance = OrbitSphere.ArcCells(sourcePoint, targetPoint);
@@ -148,27 +202,32 @@ namespace DeltaV
                 targetVersion = target.RepresentationVersion,
                 sourceLocal = sourceLocal,
                 targetLocal = targetLocal,
+                arrivalLocal = docking ? arrivalLocal : targetLocal,
+                docking = docking,
+                dockingToken = dockingToken,
                 lastTriggerTick = Find.TickManager.TicksGame,
                 weapon = weapon,
                 emitter = emitter
             };
             grapples[source.objectId] = link;
-            claimedTargets.Add(target.objectId);
-            Messages.Message("DeltaV_GrappleAttached".Translate(target.label), MessageTypeDefOf.NeutralEvent, false);
+            if (!docking) claimedTargets.Add(target.objectId);
+            if (!docking)
+                Messages.Message("DeltaV_GrappleAttached".Translate(target.label),
+                    MessageTypeDefOf.NeutralEvent, false);
             return true;
         }
 
         private void Cancel(int sourceId)
         {
             if (!grapples.Remove(sourceId, out GrappleLink link)) return;
-            claimedTargets.Remove(link.targetId);
+            if (!link.docking) claimedTargets.Remove(link.targetId);
         }
 
         internal void Tick()
         {
             foreach (GrappleLink link in grapples.Values.ToArray())
             {
-                if (link.lastTriggerTick < Find.TickManager.TicksGame - 1)
+                if (!link.docking && link.lastTriggerTick < Find.TickManager.TicksGame - 1)
                 {
                     Cancel(link.sourceId);
                     continue;
@@ -189,13 +248,63 @@ namespace DeltaV
                     continue;
                 }
                 bool movableTarget = link.emitter.MoveTarget(target);
-                if (distance > link.emitter.ContactRadius)
+                if (link.docking) UpdateDockingPull(link, source, target);
+                if (distance > link.emitter.ContactRadius && (!link.docking || link.pulling))
                     ShipPhysics.ApplyTractorImpulse(source, link.sourceLocal, target, link.targetLocal,
                         link.emitter.ImpulsePerTick, movableTarget);
                 universe.Projectiles.RecordTractorBeam(link.weapon, source, target, targetPoint);
                 if (movableTarget && distance <= link.emitter.ContactRadius)
                     QueueReceive(link, source, target);
             }
+        }
+
+        private static void UpdateDockingPull(GrappleLink link, SpaceObject source,
+            SpaceObject target)
+        {
+            SpacePose destination = SpaceTransform.RigidPointPose(target.pose,
+                link.arrivalLocal, 0f);
+            Vector2 positionError = -OrbitSphere.Offset(destination.position, source.pose.position);
+            if (positionError.sqrMagnitude < 0.0001f)
+            {
+                link.pulling = false;
+                return;
+            }
+            Vector2 relativeVelocity = SpaceTransform.TransportVelocity(source.pose,
+                destination.position) - destination.velocity;
+            float closing = Mathf.Max(0f,
+                Vector2.Dot(relativeVelocity, positionError.normalized));
+            float braking = 0f;
+            ShipBase ship = link.weapon?.OwnerShip;
+            if (ship?.IsValid == true
+                && source.TryGetDrive(DriveSubject.Of(ship), out DriveInfo report))
+            {
+                Vector2 towardLocal = SpaceTransform.RotateInverse(
+                    SpaceTransform.TransportTangent(positionError.normalized,
+                        destination.position, source.pose.position), source.pose.angle);
+                braking = report.PreviewBraking(towardLocal);
+            }
+            if (braking <= 0.000001f)
+            {
+                link.pulling = true;
+                return;
+            }
+            link.pulling = DockingPulling(link.pulling, positionError.magnitude,
+                closing, braking);
+        }
+
+        internal static bool DockingPulling(bool wasPulling, float distance,
+            float closing, float braking)
+        {
+            if (braking <= 0.000001f) return true;
+            float excess = Mathf.Max(0f, closing - HardDockingService.LightApproachSpeed);
+            double stopping = BrakingGuidanceFallback.StoppingDistance(excess,
+                braking * BrakingGuidanceFallback.SafetyFactor);
+            float threshold = double.IsInfinity(stopping) ? float.PositiveInfinity
+                : (float)stopping + 0.75f;
+            // Hysteresis keeps a moving target from making the line chatter at the
+            // braking boundary. A slack line retensions only after the target opens a
+            // meaningful gap again.
+            return wasPulling ? distance > threshold : distance >= threshold + 0.75f;
         }
 
         /// <summary>
@@ -208,6 +317,7 @@ namespace DeltaV
             localDirection = Vector2.zero;
             torqueSign = 0f;
             if (source == null || !grapples.TryGetValue(source.objectId, out GrappleLink link)
+                || link.docking
                 || link.lastTriggerTick < Find.TickManager.TicksGame - 1) return false;
             SpaceObject target = universe.ObjectById(link.targetId);
             if (!Valid(link, source, target)) return false;

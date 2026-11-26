@@ -54,6 +54,7 @@ namespace DeltaV
             public float elapsed;
             public bool allowVoidThrust;
             public Action onArrived;
+            public Func<bool> arrivalGate;
             public Action onFailed;
             public Action<string> onFailedWithReason;
             public int maxFlightTicks = MaxFlightTicks;
@@ -160,10 +161,12 @@ namespace DeltaV
 
         internal void NavigateToReference(DriveSubject subject, Func<SpacePose, SpacePose> reference,
             Func<bool> valid, Action onArrived, Action<string> onFailed, bool longRange = false,
+            Func<bool> arrivalGate = null,
             float arrivalVelocityTolerance = DefaultArrivalVelocityTolerance,
             float arrivalApproachSpeed = 0f)
             => Register(new Flight { subject = subject, tracked = true, reference = reference,
                 referenceValid = valid, finishWhenMatched = true, onArrived = onArrived,
+                arrivalGate = arrivalGate,
                 onFailedWithReason = onFailed, allowVoidThrust = false, playerInitiated = true,
                 arrivalVelocityTolerance = Mathf.Max(0f, arrivalVelocityTolerance),
                 arrivalApproachSpeed = Mathf.Max(0f, arrivalApproachSpeed),
@@ -309,8 +312,9 @@ namespace DeltaV
             SpacePose combatTarget = default;
             if (flight.combatOrbit && (flight.combatTarget == null || !flight.combatTarget(out combatTarget)))
             { Fail(container, flight, "combat reference unavailable"); return; }
-            // A player-maintained EVA/personnel grapple is an operator force. Keep the
-            // selected task, but do not spend this tick's autopilot output opposing it.
+            // A player-maintained EVA/personnel grapple is an operator force. Docking-owned
+            // capture links are deliberately excluded: their thrust and this controller
+            // cooperate during approach and braking.
             if (universe.TractorLinks.HasOperatorForce(container))
             {
                 container.ClearDrive();
@@ -382,6 +386,18 @@ namespace DeltaV
                 arrivalReference = new SpacePose(targetDirection, targetAngle);
             }
             SpacePose pose = container.pose;
+            ShipBase vessel = ShipRegistry.ShipByIdentity(flight.subject);
+            SpacePose desired = new SpacePose(targetDirection, targetAngle)
+            {
+                velocity = hostVelocity,
+                angularVelocity = hostOmega
+            };
+            desired = LandingApproachController.ApplyMotionContract(pose, desired, vessel);
+            targetDirection = desired.position;
+            targetAngle = desired.angle;
+            hostVelocity = desired.velocity;
+            hostOmega = desired.angularVelocity;
+            if (!flight.tracked || flight.reference != null) arrivalReference = desired;
             Vector2 posErr = -OrbitSphere.Offset(targetDirection, pose.position);
             Vector2 vel = SpaceTransform.TransportVelocity(pose, targetDirection) - hostVelocity;
             float angleErr = SpaceTransform.WrapAngle(targetAngle - pose.angle);
@@ -400,8 +416,11 @@ namespace DeltaV
                 && posErr.sqrMagnitude < ArrivePositionEpsilon * ArrivePositionEpsilon
                 && vel.sqrMagnitude < flight.arrivalVelocityTolerance
                     * flight.arrivalVelocityTolerance
-                && Mathf.Abs(angleErr) < ArriveAngleEpsilon
-                && Mathf.Abs(omega) < ArriveOmegaEpsilon)
+                && (vessel?.RequiresHeadingAlignment == false
+                    || Mathf.Abs(angleErr) < ArriveAngleEpsilon)
+                && (vessel?.RequiresAngularVelocityMatch == false
+                    || Mathf.Abs(omega) < ArriveOmegaEpsilon)
+                && flight.arrivalGate?.Invoke() != false)
             {
                 Arrive(container, flight, arrivalReference);
                 return;

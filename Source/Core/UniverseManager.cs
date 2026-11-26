@@ -1070,6 +1070,7 @@ namespace DeltaV
             NpcShips.Tick();
             Performance.Record(PerformanceStage.Npc, stageStart);
             Personnel.Tick();
+            HardDocking.Tick();
             TractorLinks.Tick();
             stageStart = Performance.Start();
             softDock?.Tick();

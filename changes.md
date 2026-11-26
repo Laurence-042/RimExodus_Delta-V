@@ -5,8 +5,16 @@ This file records player-visible changes in released versions and the near-term 
 
 ## 下一版本计划 / Next version plan
 
+@未知者-RX（bilibili）：想给炮台加插件小人一定会把炮台先拆掉，再修插件，我只能重新拍炮塔
+- 这个确实是bug，之前测试时都是直接god mode立刻建造所以没测出来。1.1.3会进行修复
+
+默认使用类似pawn武器的机制适配，而不是以映射成速射炮之类的东西的适配？
+
 - 为跳帮艇被击毁时的乘员死亡补充明确通知。
   Add clear crew-death notifications when a boarding shuttle is destroyed.
+- EVA 工程套装与舱外人员的钩索射程统一为 32 格。选择“登舰”后会用真实钩索追上仍在运动的合法目标，接近时自动松绳并用推进器反推减速；两者都保持碰撞规避，不破墙，也不会触发跳帮艇的撞击后效。
+  修复进入落脚位置时实时束线释放会撤销截获资格、导致人员在预定位置反复穿越的问题；同一次登舰只要曾真实挂上目标，近距松绳后即可按位置和速度条件完成。
+  EVA engineering suits and EVA personnel now share a 32-cell grapple range. Boarding fires the real grapple to catch a valid moving target, then releases tension and uses reverse thrust to brake on approach. A real capture remains valid for that boarding attempt after the live line releases near the landing cell, preventing repeated overshoot. Both retain collision avoidance, never breach walls, and do not gain boarding-shuttle impact effects.
 
 ## 基于收集的用户反馈的正在排期的需求（排名不分先后）
 
@@ -22,6 +30,11 @@ This file records player-visible changes in released versions and the near-term 
 - 我搞完手头这些会考虑给个可以调的设置阈值，默认0
 - 不对，我得考虑点防……只让墙有这种特性？
 
+@Alexquiet：When playing with Ideologies, it appears that colonist roles get reset whenever the ship switches to a different mode.
+- 这个之前没有发现，我先记下，如果确实是问题应该会在0.1.3里解决
+
+@Alexquiet：could you please increase the quantity of goods available at stations?
+- 这个功能现在其实有点占位的感觉……目前其核心机制其实是直接调用原版商人库存生成器，所以原版商人卖多少它就在补货时使用多少货物替换供货的锁定货柜的内容（会强制预留1/3的空间用来放玩家卖出的货物，所以总是不会满）。实际数量我还没有做好平衡
 
 ## 一些俺寻思
 

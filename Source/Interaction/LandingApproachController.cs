@@ -96,6 +96,20 @@ namespace DeltaV
             return new DockingPlan(target, host, preview.originalPosition, root, rotation);
         }
 
+        /// <summary>Freeze one exact placement root for a click-selected landing cell.</summary>
+        internal static DockingPlan PlacementAt(UniverseManager universe, PilotTarget target,
+            SpaceObject host, IntVec3 landingRoot)
+        {
+            SpaceObject own = universe.FrameOf(target.Map);
+            Gravship preview = GravshipInterop.BuildPreview(target);
+            if (own == null || host?.map == null || preview == null || !landingRoot.InBounds(host.map))
+                return null;
+            float relative = ShipOrientation.SnapAngle(own.pose.angle - host.pose.angle);
+            Rot4 rotation = ShipOrientation.PlacementRotation(Rot4.East,
+                ShipOrientation.Rot4FromAngle(relative));
+            return new DockingPlan(target, host, preview.originalPosition, landingRoot, rotation);
+        }
+
         internal void BeginSync(UniverseManager universe, PilotTarget target, SpaceObject host)
         {
             SpaceObject own = universe.FrameOf(target.Map);
@@ -133,8 +147,19 @@ namespace DeltaV
             SpacePose desired = ship?.MatchDockingPointVelocity == true
                 ? SpaceTransform.RigidPointPose(host, SpaceTransform.UniverseToShipLocal(host, own.position), relativeAngle)
                 : SpaceTransform.MatchingDriftPose(own.position, host, relativeAngle);
+            return ApplyMotionContract(own, desired, ship);
+        }
+
+        /// <summary>
+        /// Apply the vessel's shared docking-motion contract without changing the desired
+        /// position or rigid-point linear velocity. EVA and personnel do not inherit a
+        /// target hull's heading or spin merely because they are matching one of its points.
+        /// </summary>
+        internal static SpacePose ApplyMotionContract(SpacePose own, SpacePose desired, ShipBase ship)
+        {
             if (ship?.RequiresHeadingAlignment == false) desired.angle = own.angle;
-            if (ship?.RequiresAngularVelocityMatch == false) desired.angularVelocity = 0f;
+            if (ship?.RequiresAngularVelocityMatch == false)
+                desired.angularVelocity = own.angularVelocity;
             return desired;
         }
 
