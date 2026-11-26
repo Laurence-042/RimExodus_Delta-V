@@ -81,17 +81,17 @@ This file records player-visible changes in released versions and the near-term 
 
 - 聚焦非substructure架构（比如穿梭机、eva人员等等）、没有正在执行的自动任务的可控船会自动进入手动驾驶并使用手动火控。
   Controllable ships that do not utilize a "substructure" architecture (such as shuttles, EVA craft, etc.) and have no automated tasks currently in progress will automatically switch to manual control, with manual fire control enabled.
+
 - 射失并远离所有潜在目标的太空弹体会按保守净空降低精确碰撞检测频率，以此优化大量长射程慢弹速弹丸射失后的性能。
   For space projectiles that miss and move away from all potential targets, the frequency of precise collision detection is reduced—while maintaining a conservative safety margin—to optimize performance following the miss of a large volume of long-range, low-velocity projectiles.
 
 - 自动适配炮塔不再要求 Def 声明弹体：原版迫击炮和按已装填弹药决定弹种的 Mod 炮塔现在可以在太空模式开火，爆炸、EMP 与燃烧弹也按各自的原版后效命中。瞄准提前量改用来源实际射出弹丸的速度；太空模式下曲射弹不再受「屋顶下不得开火」限制。来源开火却不产生可接管射弹的炮塔会提示一次并停止太空模式开火，地面模式不受影响。适配分析报告升为 schema 4。2026-11-27 用户实测无误并授权提交。
   Auto-adapted turrets no longer need a projectile declared in their def: the vanilla mortar and mod turrets whose round depends on the loaded shell can now fire in space mode, and explosive, EMP and incendiary rounds hit with their own vanilla effects. Lead is now computed from the speed of the round actually launched, and in space mode overhead rounds are no longer blocked by the "no firing under a roof" rule. A turret whose shot launches nothing capturable is reported once and stops firing in space mode; ground mode is unaffected. The adaptation report is now schema 4. Confirmed in game by the user on 2026-11-27.
 
-
-#### 修复 / Fixes
-
 - 使用 REF 真实地图绘制时，可见邻船上的原版爆炸现在会正常显示爆闪、烟雾等地图内视效；Delta-V 的宇宙爆炸仍独立绘制。该修复由 REF 1.0.7 提供、。
   With REF native map rendering, vanilla explosions on visible neighboring ships now show their map-local flashes, smoke, and related effects. Delta-V's universe-space explosions remain separately rendered. This is provided by REF 1.0.7.
+
+#### 修复 / Fixes
 
 - 修复舰载点防把舱外人员当作拦截目标、敌舰主炮把附近舱外人员选作攻击目标的问题，手动瞄准直射或者人员飞到火线上仍可能命中。
   Fixed an issue where ship-mounted point-defense systems would target personnel outside the ship as if they were incoming projectiles, and another issue where enemy capital ship main guns would select nearby personnel outside the ship as targets. Note that personnel may still be hit if they drift into the line of fire or if a weapon is aimed manually.
