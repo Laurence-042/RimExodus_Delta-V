@@ -6,7 +6,7 @@
   <description>为《边缘世界：奥德赛》加入连续太空航行与舰船战斗。建造自己的飞船，使用推进器手动驾驶或自动导航在宇宙中连续航行，与其他舰船和空间站对接、转运人员与货物。使用舰炮、激光、导弹和护盾交战，派出跳帮艇登舰，或通过 EVA、采矿与牵引设备拆解和回收残骸。包含教程开局、空间站贸易与委托，以及可自定义的星区生成。
 
 Adds continuous spaceflight and ship combat to RimWorld - Odyssey. Build your own ships and use thrusters to fly continuously through space with manual piloting or autopilot. Dock with other ships and stations to transfer people and cargo. Fight with cannons, lasers, missiles and shields, launch boarding shuttles, or use EVA, mining and tractor equipment to dismantle and salvage wrecks. Includes a tutorial start, station trade and contracts, and customizable sector generation.</description>
-  <modVersion>0.1.2</modVersion>
+  <modVersion>0.1.3</modVersion>
   <supportedVersions>
     <li>1.6</li>
     <li>1.7</li>

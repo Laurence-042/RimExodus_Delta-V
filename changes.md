@@ -8,10 +8,7 @@ This file records player-visible changes in released versions and the near-term 
 
 @jeff_steveng之前报告的归档空间站无法还原的问题已在未发布版本修复。但还有个遗留计划：空间站自维持尚未实现，在那之前玩家离开后 NPC 船员仍可能饿死。
 
-默认使用类似pawn武器的机制适配，而不是以映射成速射炮之类的东西的适配？
-
-- 为跳帮艇被击毁时的乘员死亡补充明确通知。
-  Add clear crew-death notifications when a boarding shuttle is destroyed.
+- 为跳帮艇被击毁时的乘员死亡补充明确通知？单纯爆开把乘员无伤扔出来？
 
 ## 基于收集的用户反馈的正在排期的需求（排名不分先后）
 
@@ -42,6 +39,8 @@ This file records player-visible changes in released versions and the near-term 
 
 ### 未发布 / Unreleased
 
+### 0.1.3 — 2026-11-27
+
 #### 用户反馈解决 / User feedback resolved
 
 @Soulless Jelu：Enemy EVA Pwans cannot be damaged, They just flying around until the die from hunger =(
@@ -57,6 +56,10 @@ This file records player-visible changes in released versions and the near-term 
 @未知者-RX（bilibili）：想给炮台加插件小人一定会把炮台先拆掉，再修插件，我只能重新拍炮塔
 - 小人给炮塔、轨道炮部件、采矿设备或货柜安装覆盖插件时，不再先拆除宿主。附加弹仓、自瞄、激光与轨道炮电容、轨道能量回收与快速复位、采矿货箱与目标识别器、货柜温控模块现在和电缆一样保留施工格上的既有建筑。
   Installing an overlay attachment no longer makes pawns deconstruct the host first. Auxiliary magazines, auto-aim, laser and railgun capacitors, railgun energy recovery and rapid reset, mining cargo modules and target identifiers, and the cargo temperature module now keep the existing building on their cell, like power conduits.
+
+@未知者-RX（bilibili）：原版的加农炮也不索敌了
+- 0.1.2 的自动适配功能引入的bug，错误地将被适配的武器默认模式设成太空战模式了。已修复
+  A bug introduced by the automatic adaptation feature in version 0.1.2 has been fixed; it was incorrectly setting the default mode for adapted weapons to "space combat mode."
 
 @Alexquiet：When playing with Ideologies, it appears that colonist roles get reset whenever the ship switches to a different mode.
 - 修复启用 Ideology 时，随船切换飞行、舱外作业或对接状态会清空道德导师等单人职位人选的问题；殖民者全部在船上时每次都会触发。搬运瞬间船上人员不属于任何地图，原版在第一名殖民者落图时重数信徒并把职位判为失活。现在搬运期间按原版逆重飞行的方式登记在途飞船，职位人选保持不变。
@@ -87,20 +90,11 @@ This file records player-visible changes in released versions and the near-term 
 
 #### 修复 / Fixes
 
-- 修复大最小射程的自动适配炮塔在太空模式中因承载图边缘或本地图占位方向而拒绝开火、转向偏离、延长预热或向协议格绘制目标线的问题。来源开火链现在接收一个真实位于其最小／最大射程内的协议格，但炮身、对齐、宇宙弹道和选中指示都不会把该格当作真实射向；所有可见且正在预热的炮塔无需选中，都会从真实炮口沿真实射向显示醒目的短激光，并逐渐加快闪烁直至趋于常亮。实现不包含具体 Mod、武器或类型特判。
-  Fixed auto-adapted turrets with large minimum ranges refusing to fire, turning away, extending warmup, or drawing target lines toward a protocol cell in space. The source firing chain now receives a protocol cell genuinely within its local minimum and maximum range, while turret orientation, alignment, universe ballistics, and selection overlays never treat that cell as the real firing direction. Every visible warming turret now shows a prominent short aiming laser from its real muzzle without requiring selection, blinking faster toward a nearly steady light as source warmup completes, without mod-, weapon-, or type-specific branches.
+- 使用 REF 真实地图绘制时，可见邻船上的原版爆炸现在会正常显示爆闪、烟雾等地图内视效；Delta-V 的宇宙爆炸仍独立绘制。该修复由 REF 1.0.7 提供、。
+  With REF native map rendering, vanilla explosions on visible neighboring ships now show their map-local flashes, smoke, and related effects. Delta-V's universe-space explosions remain separately rendered. This is provided by REF 1.0.7.
 
-- 修复自动适配 Mod 炮塔与舱外人员武器的实体弹丸被守卫圆盾截停时不消耗盾容的问题；现在每发按该弹丸实例的实际伤害扣除盾容。
-  Fixed native projectiles from adapted mod turrets and EVA personnel weapons being stopped by guard shields without draining capacity. Each intercepted round now drains its actual instance damage.
-
-- 修复原版与 Mod 实体射弹在太空中必定被第一格裸露基架截停、又无法破坏基架的问题。未拦截的射弹现在可继续命中内舱；普通直击弹按实际伤害破坏基架，标准即时与延迟爆炸按真实爆炸格结算，不创建额外受击代理。
-  Fixed vanilla and mod projectiles always stopping on the first exposed substructure cell without being able to damage it. Rounds that are not intercepted can now reach internal structures; ordinary direct hits and standard immediate or delayed explosions can damage substructure without persistent hit proxies.
-
-- 使用 REF 真实地图绘制时，可见邻船上的原版爆炸现在会正常显示爆闪、烟雾等地图内视效；Delta-V 的宇宙爆炸仍独立绘制。该修复由 REF 1.0.7 提供，不增加静息轮询或额外地图 tick。
-  With REF native map rendering, vanilla explosions on visible neighboring ships now show their map-local flashes, smoke, and related effects. Delta-V's universe-space explosions remain separately rendered. This is provided by REF 1.0.7 without idle polling or extra map ticks.
-
-- 修复舰载点防把舱外人员当作拦截目标、敌舰主炮把附近舱外人员选作攻击目标的问题。人员体积太小，敌我识别也分不清被抛出的己方人员与准备登舰的敌人，现在点防、自动火控和导弹制导都不再锁定舱外人员，「配置近防目标」不再提供舱外人员选项；直射弹仍可能命中。
-  Fixed ship point defense treating EVA personnel as interception targets and enemy main guns choosing nearby EVA personnel as attack targets. Personnel are too small to matter and IFF cannot tell ejected friendly crew from boarders, so point defense, automatic fire control and missile guidance no longer lock onto EVA personnel, and the point-defense target dialog no longer offers a personnel option; direct-fire rounds can still hit them.
+- 修复舰载点防把舱外人员当作拦截目标、敌舰主炮把附近舱外人员选作攻击目标的问题，手动瞄准直射或者人员飞到火线上仍可能命中。
+  Fixed an issue where ship-mounted point-defense systems would target personnel outside the ship as if they were incoming projectiles, and another issue where enemy capital ship main guns would select nearby personnel outside the ship as targets. Note that personnel may still be hit if they drift into the line of fire or if a weapon is aimed manually.
 
 - 修复制导导弹发射后不追踪目标、只沿发射方向直飞的问题。
   Fixed guided missiles flying straight along their launch direction instead of tracking their target.
