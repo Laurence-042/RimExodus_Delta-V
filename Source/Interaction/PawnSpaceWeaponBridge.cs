@@ -1,5 +1,4 @@
 using RimWorld;
-using System.Collections.Generic;
 using UnityEngine;
 using Verse;
 
@@ -13,27 +12,6 @@ namespace DeltaV
     internal static class PawnSpaceWeaponBridge
     {
         [System.ThreadStatic] private static Verb directCastVerb;
-        [System.ThreadStatic] private static Verb pendingShotVerb;
-        [System.ThreadStatic] private static List<PendingProjectile> pendingProjectiles;
-
-        private readonly struct PendingProjectile
-        {
-            internal readonly Projectile projectile;
-            internal readonly Pawn launcher;
-            internal readonly Thing equipment;
-            internal readonly Vector3 origin;
-            internal readonly Vector2 direction;
-
-            internal PendingProjectile(Projectile projectile, Pawn launcher, Thing equipment,
-                Vector3 origin, Vector2 direction)
-            {
-                this.projectile = projectile;
-                this.launcher = launcher;
-                this.equipment = equipment;
-                this.origin = origin;
-                this.direction = direction;
-            }
-        }
 
         internal static bool DirectCastActive(Verb verb) => verb != null && directCastVerb == verb;
 
@@ -117,94 +95,9 @@ namespace DeltaV
         }
 
         internal static bool BypassShootLine(Verb verb) => DirectCastActive(verb)
-            || verb?.state == VerbState.Bursting && IsSpacePrimaryVerb(verb);
-
-        // Launch can be virtual: capturing in the base Launch postfix would remove the
-        // projectile before a derived Launch finishes. The non-virtual burst-shot wrapper
-        // supplies the safe boundary after the complete real Verb shot has run.
-        internal static void BeginShot(Verb verb)
-        {
-            if (!IsSpacePrimaryVerb(verb)) return;
-            if (pendingShotVerb != null && pendingShotVerb != verb)
-                AbortShot(pendingShotVerb);
-            pendingShotVerb = verb;
-            (pendingProjectiles ??= new List<PendingProjectile>(2)).Clear();
-        }
-
-        internal static void NoteProjectile(Projectile projectile, Pawn launcher, Thing equipment,
-            Vector3 origin, LocalTargetInfo usedTarget)
-        {
-            if (pendingShotVerb == null || projectile == null || launcher != pendingShotVerb.CasterPawn
-                || equipment != null && equipment != pendingShotVerb.EquipmentSource) return;
-            equipment ??= pendingShotVerb.EquipmentSource;
-            if (equipment == null) return;
-            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            Vector2 direction = universe?.FrameOf(launcher.Map) is MapSpaceObject frame
-                && frame.PersonnelPawn == launcher && frame.PersonnelShip?.IsValid == true
-                ? frame.PersonnelShip.WeaponAimDirection
-                : new Vector2(launcher.Rotation.FacingCell.x, launcher.Rotation.FacingCell.z);
-            pendingProjectiles.Add(new PendingProjectile(projectile, launcher, equipment,
-                origin, direction));
-        }
-
-        internal static void CompleteShot(Verb verb)
-        {
-            if (pendingShotVerb != verb) return;
-            try
-            {
-                UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-                foreach (PendingProjectile pending in pendingProjectiles)
-                {
-                    bool captured = false;
-                    try
-                    {
-                        captured = universe != null
-                            && universe.Projectiles.CapturePawnProjectile(pending.projectile,
-                                pending.launcher, pending.equipment, pending.origin, pending.direction);
-                    }
-                    finally
-                    {
-                        if (!captured) RetireLocalProjectile(pending.projectile);
-                    }
-                }
-            }
-            finally
-            {
-                pendingProjectiles.Clear();
-                pendingShotVerb = null;
-            }
-        }
-
-        internal static void AbortShot(Verb verb)
-        {
-            if (pendingShotVerb != verb) return;
-            try
-            {
-                if (pendingProjectiles != null)
-                    foreach (PendingProjectile pending in pendingProjectiles)
-                        RetireLocalProjectile(pending.projectile);
-                try { verb?.Reset(); }
-                catch (System.Exception ex)
-                {
-                    Log.Error($"[DeltaV] Could not reset an exceptional personnel weapon Verb: {ex}");
-                }
-            }
-            finally
-            {
-                pendingProjectiles?.Clear();
-                pendingShotVerb = null;
-            }
-        }
-
-        private static void RetireLocalProjectile(Projectile projectile)
-        {
-            if (projectile == null || projectile.Destroyed) return;
-            try { projectile.Destroy(DestroyMode.Vanish); }
-            catch (System.Exception ex)
-            {
-                Log.Error($"[DeltaV] Could not retire an uncaptured personnel projectile: {ex}");
-            }
-        }
+            || verb?.state == VerbState.Bursting && IsSpacePrimaryVerb(verb)
+            || Current.Game?.GetComponent<UniverseManager>()?.Projectiles
+                .NativeCastAuthorized(verb) == true;
 
         internal static bool TryFire(UniverseManager universe, PawnSpaceflightShip vessel,
             SpaceObject container, Vector2 mapPoint)
@@ -237,6 +130,13 @@ namespace DeltaV
             Verb previous = directCastVerb;
             directCastVerb = verb;
             bool started;
+            Vector2 direction = vessel.WeaponAimDirection;
+            Vector3 placeholder = pawn.Position.ToVector3Shifted();
+            int authorizationTicks = Mathf.Max(120, verb.verbProps.burstShotCount
+                * Mathf.Max(1, verb.verbProps.ticksBetweenBurstShots) + 60);
+            universe.Projectiles.AuthorizeNativeFire(verb, null, pawn.Map, direction,
+                verb.EffectiveRange, new Vector2(placeholder.x, placeholder.z),
+                verb.EffectiveRange, authorizationTicks);
             try
             {
                 started = verb.TryStartCastOn(targetCell, surpriseAttack: false,
@@ -244,6 +144,7 @@ namespace DeltaV
                     nonInterruptingSelfCast: false);
             }
             finally { directCastVerb = previous; }
+            if (!started) universe.Projectiles.CancelNativeFire(verb, null);
             return started;
         }
     }

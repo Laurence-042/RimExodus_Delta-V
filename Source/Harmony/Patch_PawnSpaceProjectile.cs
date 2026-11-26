@@ -46,7 +46,9 @@ namespace DeltaV
     {
         private static void Postfix(Verb __instance, ref bool __result)
         {
-            if (PawnSpaceWeaponBridge.DirectCastActive(__instance)) __result = true;
+            if (PawnSpaceWeaponBridge.DirectCastActive(__instance)
+                || Current.Game?.GetComponent<UniverseManager>()?.Projectiles
+                    .NativeCastAuthorized(__instance) == true) __result = true;
         }
     }
 
@@ -72,34 +74,4 @@ namespace DeltaV
         }
     }
 
-    [HarmonyPatch]
-    internal static class Patch_PawnSpaceWeapon_BurstShot
-    {
-        private static MethodBase TargetMethod() => AccessTools.Method(typeof(Verb), "TryCastNextBurstShot");
-
-        private static void Prefix(Verb __instance) => PawnSpaceWeaponBridge.BeginShot(__instance);
-        private static void Postfix(Verb __instance) => PawnSpaceWeaponBridge.CompleteShot(__instance);
-        private static Exception Finalizer(Verb __instance, Exception __exception)
-        {
-            if (__exception != null) PawnSpaceWeaponBridge.AbortShot(__instance);
-            return __exception;
-        }
-    }
-
-    [HarmonyPatch]
-    internal static class Patch_PawnSpaceWeapon_ProjectileLaunch
-    {
-        private static MethodBase TargetMethod() => AccessTools.Method(typeof(Verse.Projectile),
-            nameof(Verse.Projectile.Launch), new[]
-            {
-                typeof(Thing), typeof(Vector3), typeof(LocalTargetInfo), typeof(LocalTargetInfo),
-                typeof(ProjectileHitFlags), typeof(bool), typeof(Thing), typeof(ThingDef)
-            });
-
-        private static void Postfix(Verse.Projectile __instance, Thing launcher, Vector3 origin,
-            LocalTargetInfo usedTarget, Thing equipment)
-        {
-            PawnSpaceWeaponBridge.NoteProjectile(__instance, launcher as Pawn, equipment, origin, usedTarget);
-        }
-    }
 }

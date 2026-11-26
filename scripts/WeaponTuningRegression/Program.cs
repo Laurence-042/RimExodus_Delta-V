@@ -24,7 +24,9 @@ internal static partial class Program
             return File.Exists(path) ? AssemblyLoadContext.Default.LoadFromAssemblyPath(path) : null;
         };
         try {
-            Run(args[1]); Console.WriteLine($"PASS {checks} weapon checks");
+            Run(args[1]);
+            RunNativeProjectileAdaptationChecks(args[1]);
+            Console.WriteLine($"PASS {checks} weapon checks");
             if (args.Contains("--auto-weapon-adaptation-audit")) RunAutoWeaponAdaptationAudit(args[1]);
             else if (args.Contains("--energy-impulse-audit")) RunEnergyImpulseAudit(args[1], RunOutputAudit(args[1]));
             else if (args.Contains("--role-balance-audit")) RunRoleBalanceAudit(args[1], RunOutputAudit(args[1]));

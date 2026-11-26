@@ -1332,6 +1332,7 @@ namespace DeltaV
 
         public void ResetFlow()
         {
+            ResetNativeProjectileFlow();
             collisionBodies.Clear();
             globeVisuals.Clear();
             for (int i = projectiles.Count - 1; i >= 0; i--)

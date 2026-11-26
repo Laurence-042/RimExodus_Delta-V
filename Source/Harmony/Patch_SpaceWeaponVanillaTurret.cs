@@ -56,7 +56,7 @@ namespace DeltaV
             CompSpaceWeaponTraverse traverse =
                 (___parentTurret as ThingWithComps)?.TryGetComp<CompSpaceWeaponTraverse>();
             if (traverse == null) return true;
-            if (___parentTurret is Building_TurretGun generated
+            if (___parentTurret is Building_Turret generated
                 && AutoSpaceWeaponTurretBridge.IsAdapted(generated)
                 && generated.TryGetComp<CompSpaceWeapon>()?.GroundModeEnabled == true)
                 return true;
@@ -78,7 +78,9 @@ namespace DeltaV
         public static bool Prefix(Building_TurretGun __instance)
         {
             if (AutoSpaceWeaponTurretBridge.IsAdapted(__instance))
-                return !AutoSpaceWeaponTurretBridge.SpaceMode(__instance);
+                return !AutoSpaceWeaponTurretBridge.SpaceMode(__instance)
+                    || Current.Game?.GetComponent<UniverseManager>()?.Projectiles
+                        .NativeCastAuthorized(__instance.AttackVerb) == true;
             CompSpaceWeaponTraverse traverse = __instance.TryGetComp<CompSpaceWeaponTraverse>();
             if (traverse == null || !__instance.CurrentTarget.IsValid) return true;
             float angle = CompSpaceWeaponTraverse.MapAngleTo(__instance.CurrentTarget, __instance);
@@ -110,7 +112,9 @@ namespace DeltaV
             AutoSpaceWeaponTurretPatchTargets.DeclaredMethods(nameof(Building_TurretGun.OrderAttack));
 
         public static bool Prefix(Building_TurretGun __instance, LocalTargetInfo targ) =>
-            !AutoSpaceWeaponTurretBridge.SpaceMode(__instance) || !targ.IsValid;
+            !AutoSpaceWeaponTurretBridge.SpaceMode(__instance) || !targ.IsValid
+            || Current.Game?.GetComponent<UniverseManager>()?.Projectiles
+                .NativeCastAuthorized(__instance.AttackVerb) == true;
     }
 
     [HarmonyPatch]
@@ -168,7 +172,7 @@ namespace DeltaV
         {
             if (acc.HasValue || caster is not ThingWithComps comps) return true;
             CompSpaceWeapon weapon = comps.TryGetComp<CompSpaceWeapon>();
-            if (caster is Building_TurretGun turret
+            if (caster is Building_Turret turret
                 && AutoSpaceWeaponTurretBridge.IsAdapted(turret)
                 && weapon?.GroundModeEnabled == true) return true;
             if (weapon?.Mannable == null || !weapon.TryGetSkillLevel(out int skill)) return true;

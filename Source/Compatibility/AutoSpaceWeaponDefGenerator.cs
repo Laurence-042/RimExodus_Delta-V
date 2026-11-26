@@ -105,16 +105,17 @@ namespace DeltaV
             ThingDef heavy = DefDatabase<ThingDef>.GetNamedSilentFail("DeltaV_Projectile_Cannon");
             ThingDef heavyUranium = DefDatabase<ThingDef>.GetNamedSilentFail("DeltaV_Projectile_CannonUranium");
             ThingDef laser = DefDatabase<ThingDef>.GetNamedSilentFail("DeltaV_Projectile_Laser");
+            ThingDef nativeProjectile = DefDatabase<ThingDef>.GetNamedSilentFail("DeltaV_PawnNativeProjectileProxy");
             if (steel?.defenderEffect == null || uranium?.defenderEffect == null || steelHead == null
                 || uraniumHead == null || propellant == null || rapid == null || rapidUranium == null
-                || heavy == null || heavyUranium == null || laser == null) return;
+                || heavy == null || heavyUranium == null || laser == null || nativeProjectile == null) return;
 
             var physics = new ProductionPhysics(steel.defenderEffect, uranium.defenderEffect);
             if (!hotReload) candidates.Clear();
             foreach (ThingDef turret in DefDatabase<ThingDef>.AllDefsListForReading.ToList())
             {
                 if (turret?.thingClass == null
-                    || !typeof(Building_TurretGun).IsAssignableFrom(turret.thingClass)
+                    || !typeof(Building_Turret).IsAssignableFrom(turret.thingClass)
                     || turret.GetModExtension<DefModExtension_AutoSpaceWeaponResolved>() != null
                     || turret.HasComp<CompSpaceWeapon>()) continue;
                 bool supported = TrySnapshot(turret, out AutoSpaceWeaponSource source,
@@ -152,7 +153,7 @@ namespace DeltaV
                 });
                 if (!enabled || profile == null) continue;
                 Inject(turret, profile, steelHead, uraniumHead, propellant,
-                    rapid, rapidUranium, heavy, heavyUranium, laser, hotReload);
+                    rapid, rapidUranium, heavy, heavyUranium, laser, nativeProjectile, hotReload);
             }
         }
 
@@ -170,7 +171,7 @@ namespace DeltaV
         private static void Inject(ThingDef turret, AutoSpaceWeaponProfile profile,
             ThingDef steelHead, ThingDef uraniumHead, ThingDef propellant,
             ThingDef rapid, ThingDef rapidUranium, ThingDef heavy, ThingDef heavyUranium,
-            ThingDef laser, bool hotReload)
+            ThingDef laser, ThingDef nativeProjectile, bool hotReload)
         {
             var comps = turret.comps == null
                 ? new List<CompProperties>() : new List<CompProperties>(turret.comps);
@@ -181,7 +182,8 @@ namespace DeltaV
                 mechanicalArcDeg = 360f
             });
 
-            bool chemical = profile.family != AutoSpaceWeaponFamily.Laser;
+            bool native = profile.mode == AutoSpaceWeaponMode.NativeProjectile;
+            bool chemical = !native && profile.family != AutoSpaceWeaponFamily.Laser;
             if (chemical)
             {
                 comps.Add(Supply(GunSupplyKind.Heads, profile.headCapacity, steelHead, uraniumHead));
@@ -194,9 +196,11 @@ namespace DeltaV
                 });
             }
 
-            ThingDef projectile = profile.family == AutoSpaceWeaponFamily.Rapid ? rapid
+            ThingDef projectile = native ? nativeProjectile
+                : profile.family == AutoSpaceWeaponFamily.Rapid ? rapid
                 : profile.family == AutoSpaceWeaponFamily.Heavy ? heavy : laser;
-            ThingDef apProjectile = profile.family == AutoSpaceWeaponFamily.Rapid ? rapidUranium
+            ThingDef apProjectile = native ? null
+                : profile.family == AutoSpaceWeaponFamily.Rapid ? rapidUranium
                 : profile.family == AutoSpaceWeaponFamily.Heavy ? heavyUranium : null;
             float muzzleDistance = Math.Max(.5f, Math.Max(turret.size.x, turret.size.z) * .5f
                 + (turret.building?.turretTopOffset.magnitude ?? 0f) + .15f);
@@ -215,8 +219,8 @@ namespace DeltaV
                 minRange = profile.family == AutoSpaceWeaponFamily.Heavy ? 15f : 10f,
                 groundModeAvailable = true,
                 defaultEngagementMode = SpaceWeaponEngagementMode.Ground,
-                shotEnergy = profile.family == AutoSpaceWeaponFamily.Laser ? profile.laserShotEnergy : 0f,
-                impactScale = profile.family == AutoSpaceWeaponFamily.Laser
+                shotEnergy = !native && profile.family == AutoSpaceWeaponFamily.Laser ? profile.laserShotEnergy : 0f,
+                impactScale = !native && profile.family == AutoSpaceWeaponFamily.Laser
                     ? profile.laserBaseDamage / 8f : 1f,
                 intrinsicAimSkill = turret.HasComp<CompMannable>() ? -1 : profile.intrinsicAimSkill,
                 turretMuzzleDistance = muzzleDistance,
@@ -229,7 +233,7 @@ namespace DeltaV
                 defaultManualFireDeviationDeg = 6f
             };
             comps.Add(weapon);
-            comps.Add(Tuning(profile));
+            if (!native) comps.Add(Tuning(profile));
             comps.Add(new CompProperties_AutoSpaceWeaponTurretBridge());
             turret.comps = comps;
 
@@ -238,7 +242,8 @@ namespace DeltaV
             extensions.Add(new DefModExtension_AutoSpaceWeaponResolved
             {
                 sourceDefName = turret.defName,
-                family = profile.family
+                family = profile.family,
+                mode = profile.mode
             });
             turret.modExtensions = extensions;
 
@@ -328,7 +333,7 @@ namespace DeltaV
             source = null;
             rejection = AutoSpaceWeaponRejection.None;
             warnings = AutoSpaceWeaponWarning.None;
-            if (turret?.thingClass == null || !typeof(Building_TurretGun).IsAssignableFrom(turret.thingClass))
+            if (turret?.thingClass == null || !typeof(Building_Turret).IsAssignableFrom(turret.thingClass))
                 return Reject(AutoSpaceWeaponRejection.NotTurret, out rejection);
             if (turret.HasComp<CompSpaceWeapon>())
                 return Reject(AutoSpaceWeaponRejection.ExistingSpaceWeapon, out rejection);
@@ -356,9 +361,17 @@ namespace DeltaV
             DamageDef damageDef = props?.damageDef ?? verb.beamDamageDef;
             if (props == null && (!standardBeamVerb || damageDef == null))
                 return Reject(AutoSpaceWeaponRejection.MissingProjectile, out rejection);
-            bool beam = standardBeamVerb
+            bool nativeProjectile = projectile?.thingClass != null
+                && typeof(Verse.Projectile).IsAssignableFrom(projectile.thingClass);
+            // Entity identity wins over damage category: plasma and other Heat projectiles
+            // still have a real instance whose Impact must be replayed.
+            bool beam = !nativeProjectile && (standardBeamVerb
                 || projectile?.thingClass != null && typeof(Beam).IsAssignableFrom(projectile.thingClass)
-                || damageDef?.armorCategory?.defName == "Heat";
+                || damageDef?.armorCategory?.defName == "Heat");
+            if (!beam && !nativeProjectile)
+                return Reject(AutoSpaceWeaponRejection.UnsupportedProjectile, out rejection);
+            bool customFlight = nativeProjectile && HasCustomFlight(projectile.thingClass);
+            if (customFlight) warnings |= AutoSpaceWeaponWarning.CustomFlight;
             bool kinetic = damageDef?.armorCategory?.defName is "Sharp" or "Blunt";
             if (props?.explosionRadius > 0f)
                 warnings |= AutoSpaceWeaponWarning.ExplosiveProjectile;
@@ -398,6 +411,8 @@ namespace DeltaV
                 blunt = damageDef?.armorCategory?.defName == "Blunt",
                 explosiveProjectile = props?.explosionRadius > 0f,
                 flyOverhead = props?.flyOverhead == true,
+                nativeProjectile = nativeProjectile,
+                customFlight = customFlight,
                 sourceUsesMortarBarrel = usesMortarBarrel,
                 sourceFuelCapacity = Math.Max(0f, refuelable?.fuelCapacity ?? 0f),
                 sourceFuelPerShot = Math.Max(0f, verb.consumeFuelPerShot),
@@ -437,6 +452,25 @@ namespace DeltaV
             return turret.comps?.Any(comp => comp != null
                 && (comp.GetType().Assembly != gameAssembly
                     || comp.compClass != null && comp.compClass.Assembly != gameAssembly)) == true;
+        }
+
+        private static bool HasCustomFlight(Type projectileType)
+        {
+            if (projectileType == null || projectileType.Assembly == typeof(Verse.Projectile).Assembly)
+                return false;
+            for (Type type = projectileType; type != null && type != typeof(Verse.Projectile);
+                type = type.BaseType)
+            {
+                const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
+                    | System.Reflection.BindingFlags.DeclaredOnly;
+                if (type.GetMethod("Tick", flags,
+                        null, Type.EmptyTypes, null) != null
+                    || type.GetMethod("TickInterval", flags,
+                        null, new[] { typeof(int) }, null) != null)
+                    return true;
+            }
+            return false;
         }
 
         private static bool Reject(AutoSpaceWeaponRejection value,

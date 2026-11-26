@@ -329,8 +329,10 @@ internal static partial class Program
             "unreachable 1200 damage and 1000% AP request caps at 95% of production performance bounds");
         AutoSpaceWeaponWarning risky = AutoSpaceWeaponWarning.CustomVerb
             | AutoSpaceWeaponWarning.ExplosiveProjectile | AutoSpaceWeaponWarning.MortarBarrel;
-        Check(!AutoSpaceWeaponPolicy.Enabled(AutoSpaceWeaponModPolicy.Recommended,
+        Check(AutoSpaceWeaponPolicy.Enabled(AutoSpaceWeaponModPolicy.Recommended,
                 AutoSpaceWeaponOverride.Inherit, true, risky, false)
+            && !AutoSpaceWeaponPolicy.Enabled(AutoSpaceWeaponModPolicy.Recommended,
+                AutoSpaceWeaponOverride.Inherit, true, AutoSpaceWeaponWarning.CustomFlight, false)
             && AutoSpaceWeaponPolicy.Enabled(AutoSpaceWeaponModPolicy.EnableAll,
                 AutoSpaceWeaponOverride.Inherit, true, risky, false)
             && AutoSpaceWeaponPolicy.Enabled(AutoSpaceWeaponModPolicy.DisableAll,
@@ -339,7 +341,7 @@ internal static partial class Program
                 AutoSpaceWeaponOverride.Disabled, true, AutoSpaceWeaponWarning.None, false)
             && !AutoSpaceWeaponPolicy.Enabled(AutoSpaceWeaponModPolicy.EnableAll,
                 AutoSpaceWeaponOverride.Enabled, false, AutoSpaceWeaponWarning.None, false),
-            "weapon override, mod policy, recommended warnings and hard rejection have stable precedence");
+            "weapon override, mod policy, unsafe custom flight and hard rejection have stable precedence");
         Check(AutoSpaceWeaponPolicy.WeaponKey("Example.Mod", "SyntheticTurret")
                 == AutoSpaceWeaponPolicy.WeaponKey("example.mod", "SyntheticTurret"),
             "automatic adaptation keys normalize package IDs while preserving turret identity");
@@ -525,7 +527,7 @@ internal static partial class Program
         {
             JsonElement root = reportJson.RootElement;
             JsonElement firstMod = root.GetProperty("mods")[0];
-            Check(root.GetProperty("schemaVersion").GetInt32() == 2
+            Check(root.GetProperty("schemaVersion").GetInt32() == 3
                 && root.GetProperty("settingsRequireRestart").GetBoolean()
                 && root.GetProperty("summary").GetProperty("activeMods").GetInt32() == 2,
                 "report JSON exposes a versioned restart-only schema and aggregate summary");

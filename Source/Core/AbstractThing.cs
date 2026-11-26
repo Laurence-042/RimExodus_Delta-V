@@ -6,6 +6,9 @@ using Verse;
 
 namespace DeltaV
 {
+    internal enum TransientHandoffDisposition : byte { Consumed, Placed, Return }
+    internal enum TransientHandoffResult : byte { Rejected, Consumed, Placed, Returned }
+
     public abstract class AbstractThing : IExposable, IThingHolder
     {
         private ThingOwner<Thing> contents;
@@ -80,10 +83,38 @@ namespace DeltaV
         internal TractorReceiveResult Handoff(Action<Thing> receive)
             => HandoffCore(receive, requireRecoverable: true);
 
-        // Transient combat payloads are not tractor-recoverable, but their owning service
-        // still needs the same single-owner handoff when replaying the original entity.
-        internal TractorReceiveResult HandoffTransient(Action<Thing> receive)
-            => HandoffCore(receive, requireRecoverable: false);
+        // Transient combat payloads are not tractor-recoverable. Impact replay may consume
+        // the entity, leave it on the destination map, or return the same instance to its
+        // universe payload so a surviving penetrator can continue flying.
+        internal TransientHandoffResult HandoffTransient(
+            Func<Thing, TransientHandoffDisposition> receive)
+        {
+            if (Entity == null || receive == null) return TransientHandoffResult.Rejected;
+            Thing entity = Entity;
+            BeforeTransfer(entity);
+            contents.Remove(entity);
+            TransientHandoffDisposition disposition = TransientHandoffDisposition.Consumed;
+            try
+            {
+                disposition = receive(entity);
+                if (disposition == TransientHandoffDisposition.Return
+                    && !entity.Destroyed && entity.Spawned)
+                    entity.DeSpawn(DestroyMode.WillReplace);
+                else if (entity.Spawned)
+                    entity.PostSwapMap();
+            }
+            finally
+            {
+                if (disposition == TransientHandoffDisposition.Return && !entity.Destroyed
+                    && !entity.Spawned && entity.holdingOwner == null)
+                    contents.TryAdd(entity, canMergeWithExistingStacks: false);
+            }
+            if (disposition == TransientHandoffDisposition.Return)
+                return Entity == entity ? TransientHandoffResult.Returned : TransientHandoffResult.Rejected;
+            if (disposition == TransientHandoffDisposition.Placed)
+                return entity.Spawned ? TransientHandoffResult.Placed : TransientHandoffResult.Rejected;
+            return entity.Destroyed ? TransientHandoffResult.Consumed : TransientHandoffResult.Rejected;
+        }
 
         private TractorReceiveResult HandoffCore(Action<Thing> receive, bool requireRecoverable)
         {

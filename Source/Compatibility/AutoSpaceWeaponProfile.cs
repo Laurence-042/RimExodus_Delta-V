@@ -11,6 +11,12 @@ namespace DeltaV
         Laser
     }
 
+    public enum AutoSpaceWeaponMode : byte
+    {
+        NativeProjectile,
+        ConvertedBeam
+    }
+
     public enum AutoSpaceWeaponRejection : byte
     {
         None,
@@ -51,7 +57,8 @@ namespace DeltaV
     {
         public string sourceDefName;
         public AutoSpaceWeaponFamily family;
-        public int profileVersion = 1;
+        public AutoSpaceWeaponMode mode;
+        public int profileVersion = 2;
     }
 
     /// <summary>Frozen final-Def observations. No runtime Thing state belongs here.</summary>
@@ -64,6 +71,8 @@ namespace DeltaV
         public bool blunt;
         public bool explosiveProjectile;
         public bool flyOverhead;
+        public bool nativeProjectile;
+        public bool customFlight;
         public bool sourceUsesMortarBarrel;
         public float damage;
         public float armorPenetration;
@@ -97,6 +106,7 @@ namespace DeltaV
     {
         public string defName;
         public AutoSpaceWeaponFamily family;
+        public AutoSpaceWeaponMode mode;
         public int charge;
         public int heads;
         public int intervalTicks;
@@ -173,6 +183,8 @@ namespace DeltaV
             {
                 defName = source.defName,
                 family = family,
+                mode = source.beam ? AutoSpaceWeaponMode.ConvertedBeam
+                    : AutoSpaceWeaponMode.NativeProjectile,
                 sourceSustainedRate = (float)source.SustainedRate
             };
             ResolveGeometry(source, result);

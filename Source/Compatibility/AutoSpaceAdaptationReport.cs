@@ -14,7 +14,7 @@ namespace DeltaV
     [DataContract]
     public sealed class AutoSpaceAdaptationReportDocument
     {
-        [DataMember(Order = 0)] public int schemaVersion = 2;
+        [DataMember(Order = 0)] public int schemaVersion = 3;
         [DataMember(Order = 1)] public string generatedAtUtc;
         [DataMember(Order = 2)] public string rimWorldVersion;
         [DataMember(Order = 3)] public string deltaVAssemblyVersion;
@@ -95,6 +95,7 @@ namespace DeltaV
         [DataMember(Order = 18)] public bool injectedThisLaunch;
         [DataMember(Order = 19, EmitDefaultValue = false)] public AutoSpaceAdaptationWeaponSourceReport source;
         [DataMember(Order = 20, EmitDefaultValue = false)] public AutoSpaceAdaptationWeaponProfileReport profile;
+        [DataMember(Order = 21)] public string mode;
     }
 
     [DataContract]
@@ -129,6 +130,8 @@ namespace DeltaV
         [DataMember(Order = 26)] public bool explosiveProjectile;
         [DataMember(Order = 27)] public bool flyOverhead;
         [DataMember(Order = 28)] public bool sourceUsesMortarBarrel;
+        [DataMember(Order = 29)] public bool nativeProjectile;
+        [DataMember(Order = 30)] public bool customFlight;
     }
 
     [DataContract]
@@ -176,6 +179,7 @@ namespace DeltaV
         [DataMember(Order = 39)] public int intrinsicAimSkill;
         [DataMember(Order = 40)] public bool performanceCapped;
         [DataMember(Order = 41)] public bool safetyLimited;
+        [DataMember(Order = 42)] public string mode;
     }
 
     [DataContract]
@@ -311,6 +315,7 @@ namespace DeltaV
                 rejection = candidate.rejection.ToString(),
                 warnings = WarningNames(candidate.warnings),
                 family = candidate.family.ToString(),
+                mode = candidate.profile?.mode.ToString(),
                 modPolicy = modPolicy.ToString(),
                 weaponOverride = weaponOverride.ToString(),
                 configuredEnabled = configured,
@@ -355,6 +360,8 @@ namespace DeltaV
                 explosiveProjectile = source.explosiveProjectile,
                 flyOverhead = source.flyOverhead,
                 sourceUsesMortarBarrel = source.sourceUsesMortarBarrel,
+                nativeProjectile = source.nativeProjectile,
+                customFlight = source.customFlight,
             };
         }
 
@@ -363,7 +370,8 @@ namespace DeltaV
             if (profile == null) return null;
             return new AutoSpaceAdaptationWeaponProfileReport
             {
-                family = profile.family.ToString(), charge = profile.charge, heads = profile.heads,
+                family = profile.family.ToString(), mode = profile.mode.ToString(),
+                charge = profile.charge, heads = profile.heads,
                 intervalTicks = profile.intervalTicks, burstShots = profile.burstShots,
                 restTicks = profile.restTicks, heatPerShot = profile.heatPerShot,
                 coolingPerSecond = profile.coolingPerSecond, heatCapacity = profile.heatCapacity,

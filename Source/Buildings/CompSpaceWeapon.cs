@@ -478,7 +478,7 @@ namespace DeltaV
             }
             Universe?.Weapons?.RegisterWeapon(this);
             Universe?.Weapons?.QueuePower(this);
-            if (SpaceModeEnabled && parent is Building_TurretGun turret
+            if (SpaceModeEnabled && parent is Building_Turret turret
                 && AutoSpaceWeaponTurretBridge.IsAdapted(turret))
                 AutoSpaceWeaponTurretBridge.NotifyEngagementModeChanged(this);
             if (respawningAfterLoad) return;

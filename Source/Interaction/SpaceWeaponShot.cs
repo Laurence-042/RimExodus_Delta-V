@@ -25,6 +25,11 @@ namespace DeltaV
         bool TryLaunch(SpaceWeaponShot shot);
     }
 
+    public interface ISpaceWeaponOwnsCommit
+    {
+        bool OwnsCommit(SpaceWeaponShot shot);
+    }
+
     /// <summary>
     /// 一次跨容器射击事务。Prepare 冻结炮口、弹仓、弹体、速度、程序和目标；Launch
     /// 成功后才 Commit。能力 Comp 只读写本对象，不得建立武器家族分支。
@@ -97,8 +102,13 @@ namespace DeltaV
         {
             if (!(emitter != null ? emitter.TryLaunch(this) : LaunchProjectile()))
                 return Reject(WeaponReject.Launch);
-            Commit();
-            universe.Projectiles.RegisterShotVisuals(this);
+            bool sourceOwnsCommit = emitter is ISpaceWeaponOwnsCommit owner && owner.OwnsCommit(this);
+            if (!sourceOwnsCommit)
+            {
+                Commit();
+                universe.Projectiles.RegisterShotVisuals(this);
+            }
+            else universe?.Performance.RecordWeaponResult(WeaponReject.None);
             return true;
         }
 

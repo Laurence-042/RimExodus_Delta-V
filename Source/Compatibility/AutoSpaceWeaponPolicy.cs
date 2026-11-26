@@ -25,7 +25,8 @@ namespace DeltaV
         FlyOverhead = 1 << 2,
         ExternalResourceTransaction = 1 << 3,
         ThirdPartyMechanics = 1 << 4,
-        MortarBarrel = 1 << 5
+        MortarBarrel = 1 << 5,
+        CustomFlight = 1 << 6
     }
 
     /// <summary>Pure policy resolution shared by Def generation, settings UI and offline audit.</summary>
@@ -46,7 +47,10 @@ namespace DeltaV
             if (weaponOverride == AutoSpaceWeaponOverride.Disabled) return false;
             if (modPolicy == AutoSpaceWeaponModPolicy.EnableAll) return true;
             if (modPolicy == AutoSpaceWeaponModPolicy.DisableAll) return false;
-            return warnings == AutoSpaceWeaponWarning.None || definitionForcesSupport;
+            // Native entity replay preserves custom Verbs, source resource transactions,
+            // explosive Impact logic and other third-party mechanics. Only source-map flight
+            // behavior is lost when the projectile is captured before its first Tick.
+            return (warnings & AutoSpaceWeaponWarning.CustomFlight) == 0 || definitionForcesSupport;
         }
 
         public static int SourceSupportedShots(float capacity, float consumptionPerShot,
