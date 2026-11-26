@@ -27,6 +27,8 @@
 
 `TutorialRegression/run.ps1` 默认检查教程使用的 prefab、教学流程及委托接线。`-SectorOnly` 独立检查星区资源、12 个叶子类型的默认池、实装舰船和站点几何、电网、维生及泊位。用 `-Version 1.6` 或 `-Version 1.7` 选择环境，并通过 `-HarmonyPath` 传入对应的 Lib.Harmony .NET 运行时 DLL。
 
+`TutorialRegression/run.ps1` 默认流程包含 `EnvironmentLayerChecks.cs`：对当前版本的游戏程序集逐个解析 `Patch_SpaceEnvironment` 与驾驶台两个补丁类的目标并运行生产 transpiler，断言 `Map.Tile` 读取全部被替换、补丁目标均能解析。`-Version 1.6` 与 `-Version 1.7` 分别覆盖两版 IL；行为本身留待游戏内验收。
+
 `TutorialRegression/run.ps1 -RangeOnly` 只读取试验平台与靶舰 prefab，检查本地占地、操作格、电网、轨道链、自瞄槽位、嵌套枪械、原版数字 ID、武器／终端 Scribe、护盾预设、射界和可选课程状态。脚本读取 `Source/obj/TutorialContent/` 下的同源布局记录。正式布局由 `TutorialContent/build.py --only WeaponRange ShieldTarget` 生成。
 
 `PrefabRegression/run.ps1` 默认执行原有 Scribe 回归。用 `-PrefabPath` 传一个或多个文件或目录即可检查指定 prefab，目录内递归读取 XML。默认验证 REF 环境数据及原版数字 ID。可独立组合以下要求。

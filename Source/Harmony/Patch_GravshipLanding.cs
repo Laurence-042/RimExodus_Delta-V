@@ -76,6 +76,26 @@ namespace DeltaV
     }
 
     /// <summary>
+    /// 驾驶台检查面板的航程换算层。原版读 parent.Map.Tile.Layer，口袋图因此按地表层换算，
+    /// 显示值与选址器的实际可选范围不一致。与选址器共用 StrategicSelectionTile，面板数值
+    /// 与可选范围取同一个轨道格。
+    /// </summary>
+    [HarmonyPatch(typeof(CompPilotConsole), nameof(CompPilotConsole.CompInspectStringExtra))]
+    public static class Patch_CompPilotConsole_InspectRange_StrategicLayer
+    {
+        private static readonly MethodInfo MapTileGetter =
+            AccessTools.PropertyGetter(typeof(Map), nameof(Map.Tile));
+        private static readonly MethodInfo StrategicSelectionTile =
+            AccessTools.Method(typeof(ShipFlightTransitionService),
+                nameof(ShipFlightTransitionService.StrategicSelectionTile));
+
+        public static IEnumerable<CodeInstruction> Transpiler(
+            IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod)
+            => Patch_SpaceEnvironment.ReplaceCalls(instructions, __originalMethod, MapTileGetter,
+                StrategicSelectionTile, 1, "Strategic range");
+    }
+
+    /// <summary>
     /// 自由飞行口袋图战略发射的燃料/距离计算源地址改写：
     /// 口袋图 Map.Tile 无效，原版 TryGetPathFuelCost 对 Invalid 起点给出天文距离 →
     /// 选图界面全部「燃料不足」。Prefix 在「起点无效且当前聚焦图可解析出 Delta-V

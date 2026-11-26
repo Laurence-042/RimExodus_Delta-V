@@ -67,6 +67,7 @@ $lines += '"' + "$PSScriptRoot/PilotConsoleChecks.cs" + '"'
 $lines += '"' + "$PSScriptRoot/ThrusterThrustChecks.cs" + '"'
 $lines += '"' + "$PSScriptRoot/ShieldSettingChecks.cs" + '"'
 $lines += '"' + "$PSScriptRoot/RangeChecks.cs" + '"'
+$lines += '"' + "$PSScriptRoot/EnvironmentLayerChecks.cs" + '"'
 $lines | Set-Content -LiteralPath "$out/build.rsp"
 & $dotnet "$($sdkVersion.FullName)/Roslyn/bincore/csc.dll" /noconfig "@$out/build.rsp"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

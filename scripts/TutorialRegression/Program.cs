@@ -208,6 +208,7 @@ internal static partial class Program
             Theory(game, harmony);
             FlightEvidence();
             PilotConsoleChecks(game, harmony);
+            EnvironmentLayerChecks();
             string layoutDirectory = Path.GetDirectoryName(args[1]);
             PrefabLifeSupport(layoutDirectory, game, "ArrivalStation");
             PrefabLifeSupport(layoutDirectory, game, "Shipyard");

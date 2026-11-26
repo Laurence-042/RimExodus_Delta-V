@@ -21,8 +21,10 @@ namespace DeltaV
     /// 玩家真正降落时，逆重引擎随船体落到真实降落图上，该图经同一条引擎回退
     /// 自然成为 home——与原版 gravship 降落语义一致，无需额外处理。
     /// POI 口袋图共用同一 parent 类型，一并排除（它们本就无引擎、非 home）。
-    /// 事件系统同理闭环：口袋图 def 无 IncidentTargetTags，TargetAllowed 的
-    /// 标签交集恒为空，storyteller 不会把口袋图选为事件目标。
+    /// 地图目标事件同理闭环：口袋图 def 无 IncidentTargetTags，TargetAllowed 的
+    /// 标签交集恒为空，storyteller 不会把口袋图选为事件目标。这不覆盖目标为 World
+    /// 的事件（如太阳耀斑）：其条件注册在世界级管理器并作用于全部地图，口袋图的
+    /// 星球层豁免由 Patch_SpaceEnvironment 的游戏条件过滤补上。
     /// </summary>
     [HarmonyPatch(typeof(Map), nameof(Map.IsPlayerHome), MethodType.Getter)]
     public static class Patch_Map_IsPlayerHome_DeltaVPocket

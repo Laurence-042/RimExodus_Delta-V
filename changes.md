@@ -47,6 +47,12 @@ This file records player-visible changes in released versions and the near-term 
 
 #### 用户反馈解决 / User feedback resolved
 
+@jeff_steveng：几个小问题：
+1.飞船行驶时会受太阳耀斑影响，考虑到维生系统基本上得靠电力驱动，而且奥德赛本来轨道上太阳耀斑是不造成影响的，可能改一改比较好
+2.飞船在飞行而未开启EVA时，小人不会感觉自己在太空，导致星舟永嗣模因的小人会扣心情——虽然本质上是pocketmap的锅，但是还是很难绷
+- 第 1、2 条：飞船与空间站口袋图现在按轨道层处理环境与星球层判定，与真实轨道图一致：不再受太阳耀斑影响（日食与极光照常），「太空居所」信条（含复用原版该判定的模因）与「低重力适应」基因在飞船上按太空计算，观星报告、驾驶台航程显示和条件提示使用轨道口径。原版对轨道层的限制同样生效：迫击炮无法操作，帝国的劳工队、劳工帮、三档军事援助、两种无人机打击和运输穿梭机许可，以及天灯节在飞船上不可用。口袋图仍不会被 storyteller 选为事件目标。
+  Items 1 and 2: Ship and station pocket maps now follow orbit-layer environment and planet-layer rules, matching real orbital maps: solar flares no longer affect them (eclipses and auroras still do), the "space habitat" precept (including memes that reuse the vanilla check) and the "low gravity adapted" gene treat ships as space, and stargazing reports, pilot-console range readouts and condition tooltips use orbit wording. Vanilla orbit-layer restrictions apply as well: mortars cannot be manned, and the Empire's laborer team, laborer gang, three tiers of military aid, two aerodrone strike permits and transport shuttle permit, along with the skylantern festival, are unavailable aboard ships. Pocket maps are still never chosen as storyteller incident targets.
+
 @Alexquiet：When playing with Ideologies, it appears that colonist roles get reset whenever the ship switches to a different mode.
 - 修复启用 Ideology 时，随船切换飞行、舱外作业或对接状态会清空道德导师等单人职位人选的问题；殖民者全部在船上时每次都会触发。搬运瞬间船上人员不属于任何地图，原版在第一名殖民者落图时重数信徒并把职位判为失活。现在搬运期间按原版逆重飞行的方式登记在途飞船，职位人选保持不变。
   Fixed Ideology roles with a single holder, such as the moral guide, being cleared whenever the ship they were on switched between flight, worksite and docking states. This happened every time while the whole colony was aboard: pawns briefly belonged to no map during the transfer, so the base game's believer recount on the first colonist spawn deactivated the role. The ship in transit is now registered like a native gravship flight, and role holders are preserved.
