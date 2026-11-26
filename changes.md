@@ -69,6 +69,11 @@ This file records player-visible changes in released versions and the near-term 
 - 教程开局在队长休眠舱旁新增一把电荷步枪。
   The tutorial start now includes a charge rifle beside the captain's cryptosleep casket.
 
+#### 修复 / Fixes
+
+- 使用 REF 真实地图绘制时，可见邻船上的原版爆炸现在会正常显示爆闪、烟雾等地图内视效；Delta-V 的宇宙爆炸仍独立绘制。该修复由 REF 1.0.7 提供，不增加静息轮询或额外地图 tick。
+  With REF native map rendering, vanilla explosions on visible neighboring ships now show their map-local flashes, smoke, and related effects. Delta-V's universe-space explosions remain separately rendered. This is provided by REF 1.0.7 without idle polling or extra map ticks.
+
 ### 0.1.2 — 2026-11-26
 
 #### 核心开发路线进度 / Core development progress
