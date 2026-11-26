@@ -17,6 +17,16 @@ namespace DeltaV
             return CanDamage(map, cell) && TryDestroyHitFoundation(map, cell, scatterNearbyRoofs, instigator);
         }
 
+        /// <summary>基架不保存隐形耐久；本次伤害按共同阈值换算为一次击毁概率。</summary>
+        internal static bool TryDamage(Map map, IntVec3 cell, float amount, float breakThreshold,
+            Thing instigator = null)
+        {
+            if (amount <= 0f || !CanDamage(map, cell)) return false;
+            float chance = breakThreshold > 0f ? Math.Min(1f, amount / breakThreshold) : 1f;
+            return Rand.Chance(chance)
+                && TryDestroyHitFoundation(map, cell, instigator: instigator);
+        }
+
         internal static bool TryDestroyHitFoundation(Map map, IntVec3 cell,
             bool scatterNearbyRoofs = true, Thing instigator = null, Action<Building> removeAttachment = null)
         {

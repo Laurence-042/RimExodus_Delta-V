@@ -623,6 +623,13 @@ internal static partial class Program
         SetEngagementFoundation(map, CellRect.SingleCell(cell), foundation);
         var frame = new MapSpaceObject(159001, map, new SpacePose(Vector3.forward, 0));
         universe.RegisterObject(frame);
+        Check(!SubstructureDamageUtility.TryDamage(map, cell, 0f, 60f)
+            && SubstructureOwnership.HasFoundation(map, cell),
+            "zero direct damage cannot destroy an exposed foundation");
+        Check(SubstructureDamageUtility.TryDamage(map, cell, 60f, 60f)
+            && !SubstructureOwnership.HasFoundation(map, cell),
+            "direct damage at the shared break threshold destroys an exposed foundation once");
+        SetEngagementFoundation(map, CellRect.SingleCell(cell), foundation);
         var projectile = TestBuildingDef("foundationProbabilityBeam");
         projectile.comps.Add(new CompProperties_SpaceProjectile { hasMap = false, laserRange = 10, speed = 60 });
         DefDatabase<SpaceImpactEffectDef>.Add(new SpaceImpactEffectDef { defName = "FoundationProbabilityImpact",

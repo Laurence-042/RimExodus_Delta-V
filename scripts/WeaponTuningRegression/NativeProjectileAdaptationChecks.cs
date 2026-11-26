@@ -20,6 +20,12 @@ internal static partial class Program
             "Source/Interaction/SpaceProjectileService.Native.cs"));
         string nativePatch = File.ReadAllText(Path.Combine(repo,
             "Source/Harmony/Patch_NativeSpaceProjectile.cs"));
+        string collision = File.ReadAllText(Path.Combine(repo,
+            "Source/Core/SpaceCollision.cs"));
+        string foundationDamage = File.ReadAllText(Path.Combine(repo,
+            "Source/Core/SubstructureDamageUtility.cs"));
+        string foundationPatch = File.ReadAllText(Path.Combine(repo,
+            "Source/Harmony/Patch_SubstructureDamage.cs"));
         string pawnBridge = File.ReadAllText(Path.Combine(repo,
             "Source/Interaction/PawnSpaceWeaponBridge.cs"));
         string turretBridge = File.ReadAllText(Path.Combine(repo,
@@ -92,6 +98,21 @@ internal static partial class Program
             && nativeService.Contains("TransientHandoffDisposition.Placed")
             && nativeService.Contains("TransientHandoffDisposition.Return"),
             "native impact distinguishes terminal destruction, placed delayed effects and surviving penetration");
+        Check(!collision.Contains("body.onStructureImpact != null || ray.kind")
+            && collision.Contains("SpaceImpactEffects.HitTest(body.projectileDef, ray.kind")
+            && collision.Contains("rejected.foundations"),
+            "native structure callbacks share building and deck hit tests; a missed deck remains a pass-through contact");
+        Check(nativeService.Contains("ApplyNativeFoundationDirectDamage")
+            && nativeService.Contains("projectile is not Bullet")
+            && nativeService.Contains("projectile is Projectile_Explosive")
+            && nativeService.Contains("props.explosionRadius > 0f")
+            && foundationDamage.Contains("internal static bool TryDamage"),
+            "ordinary native bullets add one stateless deck damage roll while standard explosives defer to their real explosion");
+        Check(foundationPatch.Contains("private static void Postfix(Explosion explosion, IntVec3 c)")
+            && foundationPatch.Contains("DamageWorker_SpaceHighExplosive")
+            && foundationPatch.Contains("explosion.GetDamageAmountAt(c)")
+            && !foundationPatch.Contains("Dictionary<") && !foundationPatch.Contains("Scribe_"),
+            "standard immediate and delayed explosions damage exposed decks without persistent hit proxies or duplicate Delta-V HE rolls");
 
         var sourceOwned = new SourceOwnedLaunch();
         var weapon = new CompSpaceWeapon

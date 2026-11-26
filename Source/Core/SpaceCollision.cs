@@ -503,7 +503,7 @@ namespace DeltaV
                 if (first.defender == null) return false;
 
                 RayContact ray = first.ray;
-                if (body.onStructureImpact != null || ray.kind == SpaceCellKind.Empty
+                if (ray.kind == SpaceCellKind.Empty
                     || SpaceImpactEffects.HitTest(body.projectileDef, ray.kind, ray.building, first.effect))
                 {
                     first.ray = ConfirmedStructureContact(first.target.map, ray);

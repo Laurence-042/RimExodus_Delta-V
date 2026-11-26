@@ -71,6 +71,9 @@ This file records player-visible changes in released versions and the near-term 
 
 #### 修复 / Fixes
 
+- 修复原版与 Mod 实体射弹在太空中必定被第一格裸露基架截停、又无法破坏基架的问题。未拦截的射弹现在可继续命中内舱；普通直击弹按实际伤害破坏基架，标准即时与延迟爆炸按真实爆炸格结算，不创建额外受击代理。
+  Fixed vanilla and mod projectiles always stopping on the first exposed substructure cell without being able to damage it. Rounds that are not intercepted can now reach internal structures; ordinary direct hits and standard immediate or delayed explosions can damage substructure without persistent hit proxies.
+
 - 使用 REF 真实地图绘制时，可见邻船上的原版爆炸现在会正常显示爆闪、烟雾等地图内视效；Delta-V 的宇宙爆炸仍独立绘制。该修复由 REF 1.0.7 提供，不增加静息轮询或额外地图 tick。
   With REF native map rendering, vanilla explosions on visible neighboring ships now show their map-local flashes, smoke, and related effects. Delta-V's universe-space explosions remain separately rendered. This is provided by REF 1.0.7 without idle polling or extra map ticks.
 

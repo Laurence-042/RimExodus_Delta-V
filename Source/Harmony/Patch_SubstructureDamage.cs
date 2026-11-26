@@ -34,5 +34,17 @@ namespace DeltaV
     {
         private static bool Prefix(Explosion explosion, IntVec3 c) =>
             Patch_SubstructureDamage.AllowTerrainDamage(explosion.Map, c);
+
+        private static void Postfix(Explosion explosion, IntVec3 c)
+        {
+            Map map = explosion.Map;
+            if (map == null || Current.Game?.GetComponent<UniverseManager>()?.FrameOf(map) == null
+                || explosion.damType?.Worker is DamageWorker_SpaceHighExplosive
+                || !SubstructureOwnership.HasFoundation(map, c)) return;
+
+            ImpactOutcomePart part = SpaceImpactEffects.Resolve(explosion.projectile, null)?.defenderEffect;
+            SubstructureDamageUtility.TryDamage(map, c, explosion.GetDamageAmountAt(c),
+                part?.substructureBreakThreshold ?? 60f, explosion.instigator);
+        }
     }
 }

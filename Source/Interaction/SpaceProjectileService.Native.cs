@@ -417,10 +417,24 @@ namespace DeltaV
             projectile.Rotation = Rot4.FromAngleFlat(
                 Mathf.Atan2(localDirection.x, localDirection.y) * Mathf.Rad2Deg);
             GenSpawn.Spawn(projectile, cell, map, WipeMode.Vanish);
+            ApplyNativeFoundationDirectDamage(projectile, map, cell, hitThing);
             ImpactMethod(projectile.GetType()).Invoke(projectile, new object[] { hitThing, false });
             if (projectile.Destroyed) return TransientHandoffDisposition.Consumed;
             return (bool)NativeLanded.GetValue(projectile)
                 ? TransientHandoffDisposition.Placed : TransientHandoffDisposition.Return;
+        }
+
+        private static void ApplyNativeFoundationDirectDamage(Verse.Projectile projectile,
+            Map map, IntVec3 cell, Thing hitThing)
+        {
+            ProjectileProperties props = projectile?.def?.projectile;
+            if (hitThing != null || projectile is not Bullet || props == null
+                || projectile is Projectile_Explosive || props.explosionRadius > 0f
+                || props.explosionDelay > 0 || !SubstructureOwnership.HasFoundation(map, cell)) return;
+
+            ImpactOutcomePart part = SpaceImpactEffects.Resolve(projectile.def, null)?.defenderEffect;
+            SubstructureDamageUtility.TryDamage(map, cell, projectile.DamageAmount,
+                part?.substructureBreakThreshold ?? 60f, projectile.Launcher);
         }
 
         private static MethodInfo ImpactMethod(Type type)
