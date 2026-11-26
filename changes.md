@@ -37,11 +37,8 @@ This file records player-visible changes in released versions and the near-term 
 - 我搞完手头这些会考虑给个可以调的设置阈值，默认0
 - 不对，我得考虑点防……只让墙有这种特性？
 
-@Alexquiet：When playing with Ideologies, it appears that colonist roles get reset whenever the ship switches to a different mode.
-- 这个之前没有发现，我先记下，如果确实是问题应该会在0.1.3里解决
-
 @Alexquiet：could you please increase the quantity of goods available at stations?
-- 这个功能现在其实有点占位的感觉……目前其核心机制其实是直接调用原版商人库存生成器，所以原版商人卖多少它就在补货时使用多少货物替换供货的锁定货柜的内容（会强制预留1/3的空间用来放玩家卖出的货物，所以总是不会满）。实际数量我还没有做好平衡
+- 这个功能现在其实有点占位的感觉……目前其核心机制其实是直接调用原版商人库存生成器，所以原版商人卖多少它就在补货时使用多少货物替换供货的锁定货柜的内容（会强制预留1/3的空间用来放玩家卖出的货物，所以总是不会满）。实际数量我还没有做好平衡。贸易系统仍是一个占位符，仅在此处用于演示。除了这个空间站，其他所有贸易站都有自动生成的布局和货柜接线，不保证能正常工作。我们还计划在“空间站自给自足”开发目标完成后，对贸易系统进行大幅重构，替换掉目前这种实际上只是原版商人的机制
 
 ## 一些俺寻思
 
@@ -67,13 +64,13 @@ This file records player-visible changes in released versions and the near-term 
 - 第 1、2 条：飞船与空间站口袋图现在按轨道层处理环境与星球层判定，与真实轨道图一致：不再受太阳耀斑影响（日食与极光照常），「太空居所」信条（含复用原版该判定的模因）与「低重力适应」基因在飞船上按太空计算，观星报告、驾驶台航程显示和条件提示使用轨道口径。原版对轨道层的限制同样生效：迫击炮无法操作，帝国的劳工队、劳工帮、三档军事援助、两种无人机打击和运输穿梭机许可，以及天灯节在飞船上不可用。口袋图仍不会被 storyteller 选为事件目标。
   Items 1 and 2: Ship and station pocket maps now follow orbit-layer environment and planet-layer rules, matching real orbital maps: solar flares no longer affect them (eclipses and auroras still do), the "space habitat" precept (including memes that reuse the vanilla check) and the "low gravity adapted" gene treat ships as space, and stargazing reports, pilot-console range readouts and condition tooltips use orbit wording. Vanilla orbit-layer restrictions apply as well: mortars cannot be manned, and the Empire's laborer team, laborer gang, three tiers of military aid, two aerodrone strike permits and transport shuttle permit, along with the skylantern festival, are unavailable aboard ships. Pocket maps are still never chosen as storyteller incident targets.
 
-@Alexquiet：When playing with Ideologies, it appears that colonist roles get reset whenever the ship switches to a different mode.
-- 修复启用 Ideology 时，随船切换飞行、舱外作业或对接状态会清空道德导师等单人职位人选的问题；殖民者全部在船上时每次都会触发。搬运瞬间船上人员不属于任何地图，原版在第一名殖民者落图时重数信徒并把职位判为失活。现在搬运期间按原版逆重飞行的方式登记在途飞船，职位人选保持不变。
-  Fixed Ideology roles with a single holder, such as the moral guide, being cleared whenever the ship they were on switched between flight, worksite and docking states. This happened every time while the whole colony was aboard: pawns briefly belonged to no map during the transfer, so the base game's believer recount on the first colonist spawn deactivated the role. The ship in transit is now registered like a native gravship flight, and role holders are preserved.
-
 @未知者-RX（bilibili）：想给炮台加插件小人一定会把炮台先拆掉，再修插件，我只能重新拍炮塔
 - 小人给炮塔、轨道炮部件、采矿设备或货柜安装覆盖插件时，不再先拆除宿主。附加弹仓、自瞄、激光与轨道炮电容、轨道能量回收与快速复位、采矿货箱与目标识别器、货柜温控模块现在和电缆一样保留施工格上的既有建筑。
   Installing an overlay attachment no longer makes pawns deconstruct the host first. Auxiliary magazines, auto-aim, laser and railgun capacitors, railgun energy recovery and rapid reset, mining cargo modules and target identifiers, and the cargo temperature module now keep the existing building on their cell, like power conduits.
+
+@Alexquiet：When playing with Ideologies, it appears that colonist roles get reset whenever the ship switches to a different mode.
+- 修复启用 Ideology 时，随船切换飞行、舱外作业或对接状态会清空道德导师等单人职位人选的问题；殖民者全部在船上时每次都会触发。搬运瞬间船上人员不属于任何地图，原版在第一名殖民者落图时重数信徒并把职位判为失活。现在搬运期间按原版逆重飞行的方式登记在途飞船，职位人选保持不变。
+  Fixed Ideology roles with a single holder, such as the moral guide, being cleared whenever the ship they were on switched between flight, worksite and docking states. This happened every time while the whole colony was aboard: pawns briefly belonged to no map during the transfer, so the base game's believer recount on the first colonist spawn deactivated the role. The ship in transit is now registered like a native gravship flight, and role holders are preserved.
 
 @未知者-RX（bilibili）：建议是和本体开局给的教程一样给个教程白信封或者给个交易教程，比如开局摸到的75铁换几个白银做个演示
 - 最后一段领船对话说明本站交易：对接后在西泊口交易终端买卖，站内无人机按飞船的轨道交易信标取货，购入货物放在终端旁的取货柜自取。对话附开发人员注释：贸易系统目前为占位实现，其他贸易站的布局与货仓接线为自动生成、不保证可用，计划在空间站自我维持后重构。
@@ -88,6 +85,9 @@ This file records player-visible changes in released versions and the near-term 
   Item 4: Fixed maps that contain corpses becoming impossible to restore after being archived and reloading the save. When a station or ship far away was archived with corpses left on its map (for example, station crew that starved), it could never be restored again after a reload: approaching it caused heavy lag and log spam. The pawns behind those corpses are now kept while the archive exists and handled as usual once it is restored or retired. Saves already affected should restore under the new rules: corpses whose pawn is gone are removed, missing filth no longer blocks the restore, and everything else comes back as usual. An object that really cannot be restored no longer retries constantly and slows the game; retries start about 42 seconds apart and stretch up to a day, with a single notice. In-game results are still to be confirmed.
 
 #### 修复 / Fixes
+
+- 修复大最小射程的自动适配炮塔在太空模式中因承载图边缘或本地图占位方向而拒绝开火、转向偏离、延长预热或向协议格绘制目标线的问题。来源开火链现在接收一个真实位于其最小／最大射程内的协议格，但炮身、对齐、宇宙弹道和选中指示都不会把该格当作真实射向；实现不包含具体 Mod、武器或类型特判。
+  Fixed auto-adapted turrets with large minimum ranges refusing to fire, turning away, extending warmup, or drawing target lines toward a protocol cell in space. The source firing chain now receives a protocol cell genuinely within its local minimum and maximum range, while turret orientation, alignment, universe ballistics, and selection overlays never treat that cell as the real firing direction, without mod-, weapon-, or type-specific branches.
 
 - 修复自动适配 Mod 炮塔与舱外人员武器的实体弹丸被守卫圆盾截停时不消耗盾容的问题；现在每发按该弹丸实例的实际伤害扣除盾容。
   Fixed native projectiles from adapted mod turrets and EVA personnel weapons being stopped by guard shields without draining capacity. Each intercepted round now drains its actual instance damage.
@@ -217,3 +217,6 @@ This file records player-visible changes in released versions and the near-term 
 - 现实里主要用动量轮或者类似机制CMG的空间站，也仍然需要RCS，而DeltaV的空间站通常不会面临现实空间站的角度微调要求，往哪一停就不再动了，动量轮的使用场景也很有限
 - 动量卸载仍然需要RCS、旋转的动量轮能否拆除、同时有动量轮和RCS转向时用哪个也需要更多的控制复杂度
 - 综上，收益有限、工作量不小且潜在风险也不小，至少在alpha阶段不会进行实现。
+
+@jeff_steveng：当距离较远时，自动导航不会沿测底线方向驾驶船只，此外有时会用垂直于船头方向的rcs推进器而不是沿船体方向的主推进器推进
+- 应该不是问题，飞船侧推比较强时，同时斜向侧置和后置推进器合力比单独直向后置推进器更大，自动驾驶就会用合力更大的方案
