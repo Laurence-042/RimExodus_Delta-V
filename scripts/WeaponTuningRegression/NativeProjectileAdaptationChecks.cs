@@ -89,11 +89,14 @@ internal static partial class Program
         Check(forceTargetPatch.Contains("NativeCastAuthorized(__instance.AttackVerb) == true")
             && forceTargetPatch.Contains("__result ="),
             "authorized native turret targets survive source warmup while unauthorized forced targets remain disabled");
-        Check(turretBridge.Contains("TryTargetCell(turret, verb")
-            && turretBridge.Contains("EffectiveMinRange(localTarget, turret)")
-            && turretBridge.Contains("cellDistance > verb.EffectiveRange")
-            && turretBridge.Contains("CancelNativeFire(verb, weapon)"),
-            "native turret placeholders satisfy the source OrderAttack minimum and maximum range contract");
+        Check(turretBridge.Contains("IntVec3 target = turret.Position")
+            && turretBridge.Contains("AuthorizeNativeFire(verb, weapon")
+            && !turretBridge.Contains("TryTargetCell(")
+            && turretPatch.Contains("class Patch_VerbProperties_AutoSpaceMinimumRange")
+            && turretPatch.Contains("verb?.verbProps != __instance")
+            && turretPatch.Contains("NativeCastAuthorized(verb) == true) __result = 0f")
+            && !turretPatch.Contains("VGE_") && !turretPatch.Contains("VanillaGravshipExpanded"),
+            "authorized native turrets use an in-bounds launch placeholder while local minimum range is bypassed without mod identity checks");
         Check(nativeService.Contains("TransientHandoffResult.Returned")
             && nativeService.Contains("TransientHandoffDisposition.Placed")
             && nativeService.Contains("TransientHandoffDisposition.Return"),
