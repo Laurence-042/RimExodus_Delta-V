@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
-  <ThingDef ParentName="BuildingBase">
+  <ThingDef ParentName="DeltaV_SpaceWeaponAttachmentBase">
     <defName>DeltaV_RailgunEnergyRecovery</defName>
     <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li><li>Fabrication</li></researchPrerequisites>
     <label>railgun energy recovery module</label>

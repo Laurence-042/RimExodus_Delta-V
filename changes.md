@@ -5,9 +5,6 @@ This file records player-visible changes in released versions and the near-term 
 
 ## 下一版本计划 / Next version plan
 
-@未知者-RX（bilibili）：想给炮台加插件小人一定会把炮台先拆掉，再修插件，我只能重新拍炮塔
-- 这个确实是bug，之前测试时都是直接god mode立刻建造所以没测出来。1.1.3会进行修复
-
 默认使用类似pawn武器的机制适配，而不是以映射成速射炮之类的东西的适配？
 
 - 为跳帮艇被击毁时的乘员死亡补充明确通知。
@@ -53,6 +50,10 @@ This file records player-visible changes in released versions and the near-term 
 @Alexquiet：When playing with Ideologies, it appears that colonist roles get reset whenever the ship switches to a different mode.
 - 修复启用 Ideology 时，随船切换飞行、舱外作业或对接状态会清空道德导师等单人职位人选的问题；殖民者全部在船上时每次都会触发。搬运瞬间船上人员不属于任何地图，原版在第一名殖民者落图时重数信徒并把职位判为失活。现在搬运期间按原版逆重飞行的方式登记在途飞船，职位人选保持不变。
   Fixed Ideology roles with a single holder, such as the moral guide, being cleared whenever the ship they were on switched between flight, worksite and docking states. This happened every time while the whole colony was aboard: pawns briefly belonged to no map during the transfer, so the base game's believer recount on the first colonist spawn deactivated the role. The ship in transit is now registered like a native gravship flight, and role holders are preserved.
+
+@未知者-RX（bilibili）：想给炮台加插件小人一定会把炮台先拆掉，再修插件，我只能重新拍炮塔
+- 小人给炮塔、轨道炮部件、采矿设备或货柜安装覆盖插件时，不再先拆除宿主。附加弹仓、自瞄、激光与轨道炮电容、轨道能量回收与快速复位、采矿货箱与目标识别器、货柜温控模块现在和电缆一样保留施工格上的既有建筑。
+  Installing an overlay attachment no longer makes pawns deconstruct the host first. Auxiliary magazines, auto-aim, laser and railgun capacitors, railgun energy recovery and rapid reset, mining cargo modules and target identifiers, and the cargo temperature module now keep the existing building on their cell, like power conduits.
 
 ### 0.1.2 — 2026-11-26
 

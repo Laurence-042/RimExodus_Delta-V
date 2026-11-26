@@ -97,7 +97,7 @@
     <modExtensions><li Class="DeltaV.DefModExtension_SpaceTurretArt"><topTexPath>Things/Building/SpaceWeapons/MiningBeam_Top</topTexPath></li></modExtensions>
   </ThingDef>
 
-  <ThingDef ParentName="BuildingBase">
+  <ThingDef ParentName="DeltaV_SpaceWeaponAttachmentBase">
     <defName>DeltaV_Building_MiningCargoAttachment</defName>
     <researchPrerequisites Inherit="False"><li>DeltaV_ShipLasers</li></researchPrerequisites>
     <label>mining cargo module</label><uiOrder>2103</uiOrder>
@@ -132,7 +132,7 @@
     </comps>
   </ThingDef>
 
-  <ThingDef ParentName="BuildingBase">
+  <ThingDef ParentName="DeltaV_SpaceWeaponAttachmentBase">
     <defName>DeltaV_Building_MiningTargetIdentifier</defName>
     <researchPrerequisites Inherit="False"><li>DeltaV_ShipLasers</li></researchPrerequisites>
     <label>mining target identifier</label><uiOrder>2104</uiOrder>

@@ -92,7 +92,7 @@ You may be wondering whether you could cut this off and install it on your own s
     <graphicData><texPath>Things/Building/StationTrade/TradeTerminal</texPath><graphicClass>Graphic_Single</graphicClass><drawSize>(2,2)</drawSize></graphicData>
     <building />
   </ThingDef>
-  <ThingDef ParentName="BuildingBase">
+  <ThingDef ParentName="DeltaV_SpaceWeaponAttachmentBase">
     <defName>DeltaV_CargoTemperatureModule</defName>
     <researchPrerequisites Inherit="False"><li>Machining</li></researchPrerequisites><label>cargo temperature-control module</label>
     <description>Fits the cargo bay's single module slot. Cools at 200 W or heats at 175 W toward the target temperature, with at most a 100°C change from outdoors. Disable the module to stop power use and return cargo to outdoor temperature.</description>

@@ -55,7 +55,7 @@ $harmony = '<Lib.Harmony/lib/net8.0/0Harmony.dll>'
 | `FoundationTopologyRegression/run.ps1` | 直接编译生产拓扑／归属计数／地图服务，与独立 BFS 对拍，含 250×250 场景和缓存生命周期；[接入回归说明](FoundationTopologyRegression/README.md) |
 | `WeaponTuningRegression/run.ps1` | 当前 1.7 武器数值／伤害回归；`-OutputAudit` 扫描全部调校组合及现行盾；`-ShieldDurationAudit` 追加候选盾容／恢复、多炮齐射与间歇交火时长对照，均调用生产组件、不改游戏数值，详见其 README |
 | `RailgunRegression/run.ps1 -RailgunOnly` | 1.6 轨道炮开火、冷却存读档、共享电网扣费、欠费跳段、回收与电容混装、长炮标定；装弹机与加速段的四向占格和侧槽由两版 `TutorialRegression -RangeOnly` 验证 |
-| `RailgunRegression/run.ps1 -EquipmentOnly` | 1.6 电池隔离与短路、反应堆、货柜温控和生命周期、ASF 图形与库存、终端交易。交易夹具提供船域与信标覆盖，使用生产选船、原版信标枚举和成交复核，覆盖货源断开、主台或派系变化及库存离开信标覆盖 |
+| `RailgunRegression/run.ps1 -EquipmentOnly` | 1.6 电池隔离与短路、反应堆、货柜温控和生命周期、ASF 图形与库存、终端交易、覆盖挂件施工。交易夹具提供船域与信标覆盖，使用生产选船、原版信标枚举和成交复核，覆盖货源断开、主台或派系变化及库存离开信标覆盖；覆盖挂件检查用原版 `XmlInheritance` 解析真实 XML，验证两版 Def 一致、全部挂件继承 `DeltaV_SpaceWeaponAttachmentBase`，并用原版 `GenConstruct.BlocksConstruction` 核对蓝图与框架不把炮塔宿主判为阻挡，默认值对照复现阻挡 |
 | `RailgunRegression/run.ps1 -EnergyOnly` | 兼容入口，仍按顺序运行轨道炮组和设备组，并提示改用各自入口 |
 | `CombatStrategyRegression/` | 使用最小占位类型的策略、曲线与文件校验；不替代游戏运行时验证 |
 | `NpcRetreatRegression/run.ps1` | 1.6 的战斗、驾驶、结构和生命周期专项；已接 REF，名称不代表只测撤退；`-PlayerFlightOnly` 验证驾驶权限、显式驾驶和原版按键抑制边界、导航参考与任务替换（2026-11-02 共 72 项通过；模拟焦点／按键绑定环境，不启动游戏）；`-SeparationOnly` 验证实际 Mod DLL 的归属、增量断裂检查与出力分离门禁；`-DockingOnly` 验证作业图、对接、战略选点两处 Map.Tile 的限定改写、无捕获地表降落的幂等收尾，以及战略离场只选择实际 worldtile 源图、不把口袋源的星区地址 POI 当成弃置目标；`-TractorOnly` 验证自动跨船独占与过滤、手动叠力、残骸分离请求、点防伤害分配及坐标／存读档 |

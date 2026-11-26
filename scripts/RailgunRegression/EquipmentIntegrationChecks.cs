@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using System.Xml;
@@ -35,8 +37,99 @@ internal static partial class Program
         __result = new RecordingCargoPrintData(thing, graphic); return false;
     }
 
+    // Overlay attachments share the conduit-style no-clear building area. When the vanilla
+    // GenConstruct.BlocksConstruction reports the host as a blocker, the construction work
+    // giver hands the pawn a deconstruct job for that host through HandleBlockingThingJob.
+    // ThingDefGenerator_Buildings copies clearBuildingArea onto the generated blueprint and
+    // frame Defs, so both stages are evaluated with that same copy.
+    static void CheckOverlayAttachmentConstruction()
+    {
+        const string placeWorker = "DeltaV.PlaceWorker_SpaceWeaponAttachment";
+        const string baseName = "DeltaV_SpaceWeaponAttachmentBase";
+        var files = new[] { "Defs/SpaceCombat/DeltaV_SpaceWeapons.xml", "Defs/SpaceCombat/DeltaV_EnergyRecovery.xml",
+            "Defs/SpaceCombat/DeltaV_Engineering.xml", "Defs/SpaceCombat/DeltaV_RailgunRapidReset.xml",
+            "Defs/ThingDefs_Buildings/DeltaV_StationTrade.xml" };
+        var named = new Dictionary<string, XmlNode>();
+        var defs = new List<XmlNode>();
+        foreach (var file in files)
+        {
+            Check(File.ReadAllBytes(Path.Combine("1.6", file)).SequenceEqual(File.ReadAllBytes(Path.Combine("1.7", file))),
+                file + " is shared verbatim by 1.6 and 1.7");
+            var document = new XmlDocument(); document.Load(Path.Combine("1.6", file));
+            foreach (XmlNode node in document.SelectNodes("/Defs/ThingDef"))
+            {
+                if (node.Attributes["Name"] is XmlAttribute name) named[name.Value] = node;
+                if (node["defName"] != null) defs.Add(node);
+            }
+        }
+        IEnumerable<XmlNode> Chain(XmlNode node)
+        {
+            for (; node != null; node = node.Attributes["ParentName"] is XmlAttribute parent
+                    ? named.GetValueOrDefault(parent.Value) : null) yield return node;
+        }
+        bool Declares(XmlNode node) => node.SelectNodes("placeWorkers/li").Cast<XmlNode>().Any(li => li.InnerText == placeWorker);
+        var overlays = defs.Where(node => Chain(node).Any(Declares)
+            || node.Attributes["ParentName"]?.Value == baseName).ToList();
+
+        XmlInheritance.Clear();
+        // Core's BuildingBase does not declare the field; a same-named empty root only closes
+        // the vanilla inheritance chain inside this offline fixture.
+        var core = new XmlDocument(); core.LoadXml("<ThingDef Name=\"BuildingBase\" Abstract=\"True\" />");
+        XmlInheritance.TryRegister(core.DocumentElement, null);
+        foreach (XmlNode node in overlays.SelectMany(Chain).Distinct()) XmlInheritance.TryRegister(node, null);
+        try
+        {
+            XmlInheritance.Resolve();
+            XmlNode[] resolved = overlays.Select(XmlInheritance.GetResolvedNodeFor).ToArray();
+            var uncleared = resolved.Where(node => node["clearBuildingArea"]?.InnerText != "false" || !Declares(node))
+                .Select(node => node["defName"].InnerText).ToList();
+            Check(resolved.Length > 0 && uncleared.Count == 0,
+                "every overlay attachment resolves " + baseName + " and keeps its place worker: " + string.Join(", ", uncleared));
+
+            XmlNode turret = named["DeltaV_SpaceTurret1"];
+            var hostDef = MakeDef("DeltaV_Weapon_RapidMainSmall"); hostDef.destroyable = true;
+            hostDef.passability = (Traversability)Enum.Parse(typeof(Traversability), turret["passability"].InnerText);
+            hostDef.fillPercent = float.Parse(turret["fillPercent"].InnerText, CultureInfo.InvariantCulture);
+            var host = new Building { def = hostDef };
+            Blueprint_Build Blueprint(XmlNode node, bool clearBuildingArea)
+            {
+                var building = MakeDef(node["defName"].InnerText);
+                building.destroyable = true;
+                building.passability = (Traversability)Enum.Parse(typeof(Traversability), node["passability"].InnerText);
+                building.building.isEdifice = node["building"]["isEdifice"].InnerText == "true";
+                building.clearBuildingArea = clearBuildingArea;
+                var blueprintDef = MakeDef(building.defName + "_Blueprint");
+                blueprintDef.clearBuildingArea = clearBuildingArea;
+                blueprintDef.entityDefToBuild = building; building.blueprintDef = blueprintDef;
+                var blueprint = (Blueprint_Build)Raw(typeof(Blueprint_Build)); blueprint.def = blueprintDef;
+                return blueprint;
+            }
+            Frame FrameOf(Blueprint_Build blueprint)
+            {
+                var frame = (Frame)Raw(typeof(Frame));
+                frame.def = MakeDef(blueprint.def.entityDefToBuild.defName + "_Frame");
+                frame.def.entityDefToBuild = blueprint.def.entityDefToBuild;
+                return frame;
+            }
+            var blocking = new List<string>();
+            foreach (XmlNode node in resolved)
+            {
+                var blueprint = Blueprint(node, node["clearBuildingArea"]?.InnerText != "false");
+                if (GenConstruct.BlocksConstruction(blueprint, host) || GenConstruct.BlocksConstruction(FrameOf(blueprint), host))
+                    blocking.Add(blueprint.def.entityDefToBuild.defName);
+            }
+            Check(resolved.Length > 0 && blocking.Count == 0,
+                "overlay blueprints and frames do not treat the host turret as a construction blocker: " + string.Join(", ", blocking));
+            var clearing = Blueprint(resolved[0], clearBuildingArea: true);
+            Check(GenConstruct.BlocksConstruction(clearing, host) && GenConstruct.BlocksConstruction(FrameOf(clearing), host),
+                "default clearBuildingArea reproduces the vanilla blocker that sent pawns to deconstruct the host");
+        }
+        finally { XmlInheritance.Clear(); }
+    }
+
     static void CheckEquipmentIntegration()
     {
+        CheckOverlayAttachmentConstruction();
         CheckCargoLifecycle();
         CheckCargoModes();
         CheckStationTrade();

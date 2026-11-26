@@ -1007,7 +1007,10 @@
     </comps>
     <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li></researchPrerequisites>
   </ThingDef>
-  <ThingDef ParentName="BuildingBase" Name="DeltaV_AutoAimPluginBase">
+  <ThingDef Name="DeltaV_SpaceWeaponAttachmentBase" ParentName="BuildingBase" Abstract="True">
+    <clearBuildingArea>false</clearBuildingArea>
+  </ThingDef>
+  <ThingDef ParentName="DeltaV_SpaceWeaponAttachmentBase" Name="DeltaV_AutoAimPluginBase">
     <defName>DeltaV_Building_AutoAimPluginI</defName>
     <researchPrerequisites Inherit="False"><li>MicroelectronicsBasics</li><li>Machining</li></researchPrerequisites>
     <uiOrder>-185</uiOrder>
@@ -1066,7 +1069,7 @@
       </li>
     </comps>
   </ThingDef>
-  <ThingDef ParentName="BuildingBase">
+  <ThingDef ParentName="DeltaV_SpaceWeaponAttachmentBase">
     <defName>DeltaV_Building_UraniumMagazine</defName>
     <researchPrerequisites Inherit="False"><li>DeltaV_ShipArtillery</li></researchPrerequisites>
     <uiOrder>-183</uiOrder>
@@ -1126,7 +1129,7 @@
       </li>
     </comps>
   </ThingDef>
-  <ThingDef ParentName="BuildingBase">
+  <ThingDef ParentName="DeltaV_SpaceWeaponAttachmentBase">
     <defName>DeltaV_Building_LaserCapacitor</defName>
     <researchPrerequisites Inherit="False"><li>DeltaV_ShipLasers</li></researchPrerequisites>
     <uiOrder>-182</uiOrder>
@@ -1171,7 +1174,7 @@
       </li>
     </comps>
   </ThingDef>
-  <ThingDef ParentName="BuildingBase">
+  <ThingDef ParentName="DeltaV_SpaceWeaponAttachmentBase">
     <defName>DeltaV_Building_RailgunCapacitor</defName>
     <researchPrerequisites Inherit="False"><li>DeltaV_Railguns</li></researchPrerequisites>
     <uiOrder>-190</uiOrder>

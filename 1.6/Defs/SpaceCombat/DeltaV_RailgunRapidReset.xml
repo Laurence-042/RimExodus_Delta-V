@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
-  <ThingDef ParentName="BuildingBase">
+  <ThingDef ParentName="DeltaV_SpaceWeaponAttachmentBase">
     <defName>DeltaV_RailgunRapidReset</defName>
     <label>railgun rapid reset module</label>
     <description>Fits on a railgun loading unit. Each enabled module halves the interval set by the next successful shot. One module gives a 17.5-second interval, and two give an 8.75-second interval. Each shot still uses its full ammunition and pulse costs.</description>

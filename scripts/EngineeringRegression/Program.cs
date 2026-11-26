@@ -80,7 +80,8 @@ internal static class Program
         var weapons = new XmlDocument(); weapons.Load("1.6/Defs/SpaceCombat/DeltaV_SpaceWeapons.xml");
         foreach (XmlNode node in weapons.DocumentElement.ChildNodes)
             if (node.NodeType == XmlNodeType.Element
-                && node.Attributes["Name"]?.Value is "DeltaV_SpaceTurret1" or "DeltaV_SpaceTurret2" or "DeltaV_SpaceTurret3")
+                && node.Attributes["Name"]?.Value is "DeltaV_SpaceTurret1" or "DeltaV_SpaceTurret2" or "DeltaV_SpaceTurret3"
+                    or "DeltaV_SpaceWeaponAttachmentBase")
                 XmlInheritance.TryRegister(node, null);
         var engineering = new XmlDocument(); engineering.Load("1.6/Defs/SpaceCombat/DeltaV_Engineering.xml");
         foreach (XmlNode node in engineering.DocumentElement.ChildNodes)
