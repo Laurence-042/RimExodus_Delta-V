@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
@@ -46,6 +47,13 @@ namespace DeltaV
             SpaceTurretTopRenderer.Draw(___parentTurret, source, drawLoc, recoilDrawOffset, recoilAngleOffset);
             return false;
         }
+
+        public static void Postfix(Building_Turret ___parentTurret)
+        {
+            if (!SpaceProjectileService.HasNativeWarmupIndicators) return;
+            if (___parentTurret is Building_TurretGun gun)
+                AutoSpaceWeaponTurretBridge.DrawNativeWarmupIndicator(gun);
+        }
     }
 
     [HarmonyPatch(typeof(TurretTop), nameof(TurretTop.TurretTopTick))]
@@ -57,9 +65,11 @@ namespace DeltaV
                 (___parentTurret as ThingWithComps)?.TryGetComp<CompSpaceWeaponTraverse>();
             if (traverse == null) return true;
             if (___parentTurret is Building_Turret generated
-                && AutoSpaceWeaponTurretBridge.IsAdapted(generated)
-                && generated.TryGetComp<CompSpaceWeapon>()?.GroundModeEnabled == true)
-                return true;
+                && AutoSpaceWeaponTurretBridge.IsAdapted(generated))
+            {
+                if (generated.TryGetComp<CompSpaceWeapon>()?.GroundModeEnabled == true) return true;
+                return false;
+            }
             LocalTargetInfo target = ___parentTurret.CurrentTarget;
             if (target.IsValid)
             {
@@ -78,9 +88,14 @@ namespace DeltaV
         public static bool Prefix(Building_TurretGun __instance)
         {
             if (AutoSpaceWeaponTurretBridge.IsAdapted(__instance))
-                return !AutoSpaceWeaponTurretBridge.SpaceMode(__instance)
-                    || Current.Game?.GetComponent<UniverseManager>()?.Projectiles
-                        .NativeCastAuthorized(__instance.AttackVerb) == true;
+            {
+                if (!AutoSpaceWeaponTurretBridge.SpaceMode(__instance)) return true;
+                SpaceProjectileService projectiles = Current.Game?.GetComponent<UniverseManager>()?.Projectiles;
+                CompSpaceWeaponTraverse adaptedTraverse = __instance.TryGetComp<CompSpaceWeaponTraverse>();
+                return adaptedTraverse != null
+                    && projectiles?.RefreshNativeFireDirection(__instance.AttackVerb,
+                        adaptedTraverse.CurrentAngle) == true;
+            }
             CompSpaceWeaponTraverse traverse = __instance.TryGetComp<CompSpaceWeaponTraverse>();
             if (traverse == null || !__instance.CurrentTarget.IsValid) return true;
             float angle = CompSpaceWeaponTraverse.MapAngleTo(__instance.CurrentTarget, __instance);
@@ -88,6 +103,39 @@ namespace DeltaV
             CompSpaceWeapon weapon = __instance.TryGetComp<CompSpaceWeapon>();
             float tolerance = weapon?.fireDeviationDeg ?? traverse.TraverseProps.fireToleranceDeg;
             return SpaceWeaponGeometry.WithinFireDeviation(angle, traverse.CurrentAngle, tolerance);
+        }
+    }
+
+    [HarmonyPatch]
+    public static class Patch_BuildingTurretGun_AutoSpaceTick
+    {
+        public static IEnumerable<MethodBase> TargetMethods() =>
+            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods("Tick");
+
+        public static void Prefix(Building_TurretGun __instance) =>
+            AutoSpaceWeaponTurretBridge.PrepareAuthorizedTick(__instance);
+
+        public static void Postfix(Building_TurretGun __instance) =>
+            AutoSpaceWeaponTurretBridge.RestoreAuthorizedTraverse(__instance);
+    }
+
+    [HarmonyPatch]
+    internal static class Patch_BuildingTurretGun_AutoSpaceSelectionOverlay
+    {
+        public static IEnumerable<MethodBase> TargetMethods() =>
+            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods(
+                nameof(Building_TurretGun.DrawExtraSelectionOverlays));
+
+        public static void Prefix(Building_TurretGun __instance,
+            out AutoSpaceWeaponTurretBridge.SelectionOverlayState __state) =>
+            __state = AutoSpaceWeaponTurretBridge.HideProtocolTargetForSelectionOverlay(__instance);
+
+        public static Exception Finalizer(Building_TurretGun __instance,
+            AutoSpaceWeaponTurretBridge.SelectionOverlayState __state, Exception __exception)
+        {
+            AutoSpaceWeaponTurretBridge.RestoreProtocolTargetAfterSelectionOverlay(
+                __instance, __state);
+            return __exception;
         }
     }
 

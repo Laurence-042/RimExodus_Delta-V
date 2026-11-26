@@ -27,6 +27,10 @@ namespace DeltaV
             internal float spreadReferenceRange;
             internal float[] degenerateSpreadAngles;
             internal int emissionIndex;
+            internal int warmupStartedTick = -1;
+            internal int warmupDurationTicks;
+            internal int warmupReadyTick = -1;
+            internal bool warmupIndicatorActive;
             internal int expiresTick;
 
             internal bool Valid(int now) => sourceMap != null && !sourceMap.Disposed && now <= expiresTick
@@ -63,7 +67,22 @@ namespace DeltaV
         // Harmony's projectile Tick hook reads only this process-wide quick gate while idle.
         // Authoritative records remain in this UniverseManager-owned service.
         private static int nativePendingCount;
+        private static int nativeWarmupIndicatorCount;
+        private static int nativeWarmupIndicatorDeadline = -1;
         internal static bool HasPendingNativeProjectiles => nativePendingCount > 0;
+        internal static bool HasNativeWarmupIndicators
+        {
+            get
+            {
+                if (nativeWarmupIndicatorCount <= 0) return false;
+                if (Find.TickManager?.TicksGame <= nativeWarmupIndicatorDeadline) return true;
+                // A despawned source may never revisit its authorization. Bound that stale
+                // edge so the render hot path always returns to its single integer gate.
+                nativeWarmupIndicatorCount = 0;
+                nativeWarmupIndicatorDeadline = -1;
+                return false;
+            }
+        }
 
         internal void AuthorizeNativeFire(Verb verb, CompSpaceWeapon weapon, Map sourceMap,
             Vector2 fallbackDirection, float range, Vector2 placeholderCenter,
@@ -84,14 +103,24 @@ namespace DeltaV
                 degenerateSpreadAngles = BuildDegenerateSpreadAngles(verb, spreadReferenceRange),
                 expiresTick = Find.TickManager.TicksGame + Mathf.Max(2, durationTicks)
             };
+            if (nativeVerbAuthorizations.TryGetValue(verb, out NativeFireAuthorization previous))
+                RemoveNativeAuthorization(previous);
             nativeVerbAuthorizations[verb] = authorization;
             if (weapon != null) nativeWeaponAuthorizations[weapon] = authorization;
         }
 
         internal void CancelNativeFire(Verb verb, CompSpaceWeapon weapon)
         {
-            if (verb != null) nativeVerbAuthorizations.Remove(verb);
-            if (weapon != null) nativeWeaponAuthorizations.Remove(weapon);
+            NativeFireAuthorization authorization = null;
+            if (verb != null) nativeVerbAuthorizations.TryGetValue(verb, out authorization);
+            if (authorization == null && weapon != null)
+                nativeWeaponAuthorizations.TryGetValue(weapon, out authorization);
+            if (authorization != null) RemoveNativeAuthorization(authorization);
+            else
+            {
+                if (verb != null) nativeVerbAuthorizations.Remove(verb);
+                if (weapon != null) nativeWeaponAuthorizations.Remove(weapon);
+            }
         }
 
         internal bool NativeCastAuthorized(Verb verb)
@@ -99,9 +128,67 @@ namespace DeltaV
             if (verb == null || !nativeVerbAuthorizations.TryGetValue(verb, out NativeFireAuthorization authorization))
                 return false;
             if (authorization.Valid(Find.TickManager.TicksGame)) return true;
-            nativeVerbAuthorizations.Remove(verb);
-            if (authorization.weapon != null) nativeWeaponAuthorizations.Remove(authorization.weapon);
+            RemoveNativeAuthorization(authorization);
             return false;
+        }
+
+        internal void SetNativeWarmupDeadline(Verb verb, int warmupTicks)
+        {
+            if (verb == null || !nativeVerbAuthorizations.TryGetValue(verb,
+                out NativeFireAuthorization authorization)) return;
+            authorization.warmupStartedTick = Find.TickManager.TicksGame;
+            authorization.warmupDurationTicks = Mathf.Max(0, warmupTicks);
+            authorization.warmupReadyTick = authorization.warmupStartedTick
+                + authorization.warmupDurationTicks;
+            if (authorization.warmupDurationTicks > 0 && !authorization.warmupIndicatorActive)
+            {
+                authorization.warmupIndicatorActive = true;
+                nativeWarmupIndicatorCount++;
+            }
+            nativeWarmupIndicatorDeadline = Mathf.Max(nativeWarmupIndicatorDeadline,
+                authorization.warmupReadyTick);
+            int burstWindow = Mathf.Max(1, verb.verbProps.burstShotCount)
+                * Mathf.Max(1, verb.verbProps.ticksBetweenBurstShots) + 60;
+            authorization.expiresTick = Mathf.Max(authorization.expiresTick,
+                authorization.warmupReadyTick + burstWindow);
+        }
+
+        internal bool TryGetNativeWarmupRemaining(Verb verb, out int remaining)
+        {
+            remaining = -1;
+            if (!NativeCastAuthorized(verb)
+                || !nativeVerbAuthorizations.TryGetValue(verb,
+                    out NativeFireAuthorization authorization)) return false;
+            if (authorization.warmupReadyTick < 0) return true;
+            remaining = authorization.warmupReadyTick - Find.TickManager.TicksGame;
+            if (remaining <= 0) RetireNativeWarmupIndicator(authorization);
+            return true;
+        }
+
+        internal bool TryGetNativeWarmupProgress(Verb verb, out int remaining,
+            out float progress)
+        {
+            remaining = -1;
+            progress = 0f;
+            if (!NativeCastAuthorized(verb)
+                || !nativeVerbAuthorizations.TryGetValue(verb,
+                    out NativeFireAuthorization authorization)
+                || authorization.warmupStartedTick < 0) return false;
+            int now = Find.TickManager.TicksGame;
+            remaining = Mathf.Max(0, authorization.warmupReadyTick - now);
+            if (remaining <= 0) RetireNativeWarmupIndicator(authorization);
+            progress = authorization.warmupDurationTicks <= 0 ? 1f : Mathf.Clamp01(
+                (now - authorization.warmupStartedTick) / (float)authorization.warmupDurationTicks);
+            return true;
+        }
+
+        internal bool RefreshNativeFireDirection(Verb verb, float mapAngle)
+        {
+            if (!NativeCastAuthorized(verb)
+                || !nativeVerbAuthorizations.TryGetValue(verb,
+                    out NativeFireAuthorization authorization)) return false;
+            authorization.fallbackDirection = SpaceTransform.Rotate(Vector2.right, mapAngle).normalized;
+            return true;
         }
 
         internal void CompleteNativeBurst(Verb verb)
@@ -109,9 +196,8 @@ namespace DeltaV
             if (verb == null || verb.state == VerbState.Bursting
                 || !nativeVerbAuthorizations.TryGetValue(verb, out NativeFireAuthorization authorization))
                 return;
-            nativeVerbAuthorizations.Remove(verb);
+            RemoveNativeAuthorization(authorization);
             if (authorization.weapon == null) return;
-            nativeWeaponAuthorizations.Remove(authorization.weapon);
             if (authorization.weapon.parent is not Building_Turret turret) return;
             MethodInfo orderAttack = turret.GetType().GetMethod(nameof(Building_TurretGun.OrderAttack),
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
@@ -121,6 +207,22 @@ namespace DeltaV
             {
                 Log.Error($"[DeltaV] Adapted turret could not leave its native firing cycle: {ex.InnerException ?? ex}");
             }
+        }
+
+        private static void RetireNativeWarmupIndicator(NativeFireAuthorization authorization)
+        {
+            if (authorization?.warmupIndicatorActive != true) return;
+            authorization.warmupIndicatorActive = false;
+            nativeWarmupIndicatorCount = Math.Max(0, nativeWarmupIndicatorCount - 1);
+            if (nativeWarmupIndicatorCount == 0) nativeWarmupIndicatorDeadline = -1;
+        }
+
+        private void RemoveNativeAuthorization(NativeFireAuthorization authorization)
+        {
+            if (authorization == null) return;
+            if (authorization.verb != null) nativeVerbAuthorizations.Remove(authorization.verb);
+            if (authorization.weapon != null) nativeWeaponAuthorizations.Remove(authorization.weapon);
+            RetireNativeWarmupIndicator(authorization);
         }
 
         internal void RegisterNativeLaunch(Verse.Projectile projectile, Thing launcher, Thing equipment)
@@ -458,6 +560,8 @@ namespace DeltaV
             pendingNativeProjectiles.Clear();
             nativeVerbAuthorizations.Clear();
             nativeWeaponAuthorizations.Clear();
+            nativeWarmupIndicatorCount = 0;
+            nativeWarmupIndicatorDeadline = -1;
         }
     }
 }

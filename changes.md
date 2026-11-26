@@ -84,8 +84,8 @@ This file records player-visible changes in released versions and the near-term 
 
 #### 修复 / Fixes
 
-- 修复大最小射程的自动适配炮塔在太空模式中因承载图边缘或本地图占位方向而拒绝开火、转向偏离、延长预热或向协议格绘制目标线的问题。来源开火链现在接收一个真实位于其最小／最大射程内的协议格，但炮身、对齐、宇宙弹道和选中指示都不会把该格当作真实射向；实现不包含具体 Mod、武器或类型特判。
-  Fixed auto-adapted turrets with large minimum ranges refusing to fire, turning away, extending warmup, or drawing target lines toward a protocol cell in space. The source firing chain now receives a protocol cell genuinely within its local minimum and maximum range, while turret orientation, alignment, universe ballistics, and selection overlays never treat that cell as the real firing direction, without mod-, weapon-, or type-specific branches.
+- 修复大最小射程的自动适配炮塔在太空模式中因承载图边缘或本地图占位方向而拒绝开火、转向偏离、延长预热或向协议格绘制目标线的问题。来源开火链现在接收一个真实位于其最小／最大射程内的协议格，但炮身、对齐、宇宙弹道和选中指示都不会把该格当作真实射向；所有可见且正在预热的炮塔无需选中，都会从真实炮口沿真实射向显示醒目的短激光，并逐渐加快闪烁直至趋于常亮。实现不包含具体 Mod、武器或类型特判。
+  Fixed auto-adapted turrets with large minimum ranges refusing to fire, turning away, extending warmup, or drawing target lines toward a protocol cell in space. The source firing chain now receives a protocol cell genuinely within its local minimum and maximum range, while turret orientation, alignment, universe ballistics, and selection overlays never treat that cell as the real firing direction. Every visible warming turret now shows a prominent short aiming laser from its real muzzle without requiring selection, blinking faster toward a nearly steady light as source warmup completes, without mod-, weapon-, or type-specific branches.
 
 - 修复自动适配 Mod 炮塔与舱外人员武器的实体弹丸被守卫圆盾截停时不消耗盾容的问题；现在每发按该弹丸实例的实际伤害扣除盾容。
   Fixed native projectiles from adapted mod turrets and EVA personnel weapons being stopped by guard shields without draining capacity. Each intercepted round now drains its actual instance damage.

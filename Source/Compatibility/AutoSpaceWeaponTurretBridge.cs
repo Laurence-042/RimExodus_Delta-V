@@ -53,10 +53,14 @@ namespace DeltaV
             AccessTools.FieldRefAccess<Building_TurretGun, int>("burstWarmupTicksLeft");
         private static readonly AccessTools.FieldRef<Building_TurretGun, LocalTargetInfo> CurrentTarget =
             AccessTools.FieldRefAccess<Building_TurretGun, LocalTargetInfo>("currentTargetInt");
+        private static readonly AccessTools.FieldRef<Building_Turret, LocalTargetInfo> ForcedTarget =
+            AccessTools.FieldRefAccess<Building_Turret, LocalTargetInfo>("forcedTarget");
         private static readonly AccessTools.FieldRef<CompSpaceWeaponTraverse, float> TraverseAngle =
             AccessTools.FieldRefAccess<CompSpaceWeaponTraverse, float>("currentAngle");
         private static readonly AccessTools.FieldRef<CompSpaceWeaponTraverse, int> TraverseTick =
             AccessTools.FieldRefAccess<CompSpaceWeaponTraverse, int>("rotationTick");
+        private static Material warmupIndicatorGlow;
+        private static Material warmupIndicatorCore;
 
         public static bool IsAdapted(ThingDef def) =>
             def?.GetModExtension<DefModExtension_AutoSpaceWeaponResolved>() != null;
@@ -79,7 +83,7 @@ namespace DeltaV
                 return false;
 
             Vector2 direction = SpaceTransform.Rotate(Vector2.right, shot.launchMapAngle);
-            if (!TryTargetCell(turret, verb, direction, out IntVec3 target))
+            if (!TryProtocolCell(turret, verb, out IntVec3 target))
             {
                 universe.Projectiles.CancelNativeFire(verb, weapon);
                 return false;
@@ -101,7 +105,11 @@ namespace DeltaV
                 try
                 {
                     orderAttack.Invoke(turret, new object[] { new LocalTargetInfo(target) });
-                    return turret.CurrentTarget.IsValid || verb.state == VerbState.Bursting;
+                    bool accepted = turret.CurrentTarget.IsValid || verb.state == VerbState.Bursting;
+                    if (accepted && turret is Building_TurretGun gun)
+                        universe.Projectiles.SetNativeWarmupDeadline(verb, BurstWarmup(gun));
+                    if (!accepted) universe.Projectiles.CancelNativeFire(verb, weapon);
+                    return accepted;
                 }
                 catch (TargetInvocationException ex)
                 {
@@ -116,28 +124,119 @@ namespace DeltaV
             return started;
         }
 
-        private static bool TryTargetCell(Building_Turret turret, Verb verb, Vector2 direction,
-            out IntVec3 target)
+        private static bool TryProtocolCell(Building_Turret turret, Verb verb, out IntVec3 target)
         {
             Map map = turret.Map;
             target = turret.Position;
-            bool found = false;
-            int limit = Mathf.Max(2, Mathf.Min(Mathf.CeilToInt(Mathf.Max(2f, verb.EffectiveRange)),
-                Mathf.Max(map.Size.x, map.Size.z) * 2));
+            int limit = Mathf.Min(Mathf.CeilToInt(Mathf.Max(1f, verb.EffectiveRange)),
+                Mathf.CeilToInt(Mathf.Sqrt(map.Size.x * map.Size.x + map.Size.z * map.Size.z)) + 1);
             Vector2 origin = new Vector2(turret.Position.x + .5f, turret.Position.z + .5f);
-            for (int distance = 1; distance <= limit; distance++)
+            // This cell only satisfies the source OrderAttack/Verb contract. It deliberately
+            // does not encode the universe aim ray; Traverse is the sole orientation source.
+            for (int distance = limit; distance >= 1; distance--)
             {
-                Vector2 point = origin + direction * distance;
-                IntVec3 cell = new IntVec3(Mathf.FloorToInt(point.x), 0, Mathf.FloorToInt(point.y));
-                if (!cell.InBounds(map)) break;
-                float cellDistance = (cell - turret.Position).LengthHorizontal;
-                var localTarget = new LocalTargetInfo(cell);
-                if (cellDistance < verb.verbProps.EffectiveMinRange(localTarget, turret)
-                    || cellDistance > verb.EffectiveRange) continue;
-                target = cell;
-                found = true;
+                for (int spoke = 0; spoke < 16; spoke++)
+                {
+                    Vector2 ray = SpaceTransform.Rotate(Vector2.right, spoke * Mathf.PI / 8f);
+                    Vector2 point = origin + ray * distance;
+                    IntVec3 cell = new IntVec3(Mathf.FloorToInt(point.x), 0, Mathf.FloorToInt(point.y));
+                    if (!cell.InBounds(map) || cell == turret.Position) continue;
+                    float cellDistance = (cell - turret.Position).LengthHorizontal;
+                    var localTarget = new LocalTargetInfo(cell);
+                    if (cellDistance < verb.verbProps.EffectiveMinRange(localTarget, turret)
+                        || cellDistance > verb.EffectiveRange) continue;
+                    target = cell;
+                    return true;
+                }
             }
-            return found;
+            return false;
+        }
+
+        internal static void PrepareAuthorizedTick(Building_TurretGun turret)
+        {
+            if (!SpaceMode(turret)) return;
+            SpaceProjectileService projectiles = Current.Game?.GetComponent<UniverseManager>()?.Projectiles;
+            if (projectiles == null || !projectiles.TryGetNativeWarmupRemaining(
+                turret.AttackVerb, out int remaining)) return;
+            if (remaining >= 0 && turret.AttackVerb.state != VerbState.Bursting
+                && turret.CurrentTarget.IsValid)
+                BurstWarmup(turret) = Mathf.Max(1, remaining);
+        }
+
+        internal static void RestoreAuthorizedTraverse(Building_TurretGun turret)
+        {
+            if (!SpaceMode(turret)
+                || turret.TryGetComp<CompSpaceWeaponTraverse>() is not { } traverse) return;
+            turret.Top.CurRotation = 90f - traverse.CurrentAngle * Mathf.Rad2Deg;
+        }
+
+        internal readonly struct SelectionOverlayState
+        {
+            internal readonly bool hidden;
+            internal readonly LocalTargetInfo forcedTarget;
+            internal readonly LocalTargetInfo currentTarget;
+            internal readonly int warmupTicks;
+
+            internal SelectionOverlayState(LocalTargetInfo forcedTarget,
+                LocalTargetInfo currentTarget, int warmupTicks)
+            {
+                hidden = true;
+                this.forcedTarget = forcedTarget;
+                this.currentTarget = currentTarget;
+                this.warmupTicks = warmupTicks;
+            }
+        }
+
+        internal static SelectionOverlayState HideProtocolTargetForSelectionOverlay(
+            Building_TurretGun turret)
+        {
+            if (!SpaceMode(turret)) return default;
+            var state = new SelectionOverlayState(ForcedTarget(turret), CurrentTarget(turret),
+                BurstWarmup(turret));
+            // Protocol cells exist only to drive the source firing transaction. Selection
+            // overlays must not expose their arbitrary local position as an aim direction.
+            ForcedTarget(turret) = LocalTargetInfo.Invalid;
+            CurrentTarget(turret) = LocalTargetInfo.Invalid;
+            BurstWarmup(turret) = 0;
+            return state;
+        }
+
+        internal static void RestoreProtocolTargetAfterSelectionOverlay(Building_TurretGun turret,
+            SelectionOverlayState state)
+        {
+            if (!state.hidden) return;
+            ForcedTarget(turret) = state.forcedTarget;
+            CurrentTarget(turret) = state.currentTarget;
+            BurstWarmup(turret) = state.warmupTicks;
+        }
+
+        internal static void DrawNativeWarmupIndicator(Building_TurretGun turret)
+        {
+            if (!SpaceMode(turret)
+                || turret.TryGetComp<CompSpaceWeapon>() is not { } weapon
+                || turret.TryGetComp<CompSpaceWeaponTraverse>() is not { } traverse) return;
+            SpaceProjectileService projectiles = Current.Game?.GetComponent<UniverseManager>()?.Projectiles;
+            if (projectiles == null || !projectiles.TryGetNativeWarmupProgress(
+                turret.AttackVerb, out int remaining, out float progress) || remaining <= 0) return;
+
+            float eased = progress * progress * (3f - 2f * progress);
+            int period = Mathf.Max(3, Mathf.RoundToInt(Mathf.Lerp(36f, 3f, eased)));
+            int onTicks = Mathf.Clamp(Mathf.CeilToInt(period * Mathf.Lerp(.22f, .92f, eased)),
+                1, period);
+            if (Find.TickManager.TicksGame % period >= onTicks) return;
+
+            Vector2 direction = SpaceTransform.Rotate(Vector2.right, traverse.CurrentAngle);
+            Vector2 muzzle = SpaceWeaponGeometry.MuzzleMapPointAtAngle(weapon, traverse.CurrentAngle);
+            Vector2 end = muzzle + direction * 4f;
+            float altitude = AltitudeLayer.MetaOverlays.AltitudeFor();
+            var start3 = new Vector3(muzzle.x, altitude, muzzle.y);
+            var end3 = new Vector3(end.x, altitude, end.y);
+            warmupIndicatorGlow ??= MaterialPool.MatFrom(GenDraw.LineTexPath,
+                ShaderDatabase.Transparent, new Color(1f, .08f, .03f, .72f));
+            warmupIndicatorCore ??= MaterialPool.MatFrom(GenDraw.LineTexPath,
+                ShaderDatabase.Transparent, new Color(1f, .78f, .62f, 1f));
+            GenDraw.DrawLineBetween(start3, end3, warmupIndicatorGlow, .32f);
+            GenDraw.DrawLineBetween(start3, end3, warmupIndicatorCore, .10f);
         }
 
         public static void NotifyEngagementModeChanged(CompSpaceWeapon weapon)

@@ -91,11 +91,49 @@ internal static partial class Program
         Check(forceTargetPatch.Contains("NativeCastAuthorized(__instance.AttackVerb) == true")
             && forceTargetPatch.Contains("__result ="),
             "authorized native turret targets survive source warmup while unauthorized forced targets remain disabled");
-        Check(turretBridge.Contains("TryTargetCell(turret, verb")
+        Check(turretBridge.Contains("TryProtocolCell(turret, verb")
             && turretBridge.Contains("EffectiveMinRange(localTarget, turret)")
             && turretBridge.Contains("cellDistance > verb.EffectiveRange")
+            && !turretBridge.Contains("TryProtocolCell(turret, verb, direction")
             && turretBridge.Contains("CancelNativeFire(verb, weapon)"),
-            "native turret placeholders satisfy the source OrderAttack minimum and maximum range contract");
+            "native turret protocol cells satisfy source minimum and maximum range without encoding aim direction");
+        Check(turretPatch.Contains("class Patch_BuildingTurretGun_AutoSpaceTick")
+            && turretPatch.Contains("PrepareAuthorizedTick(__instance)")
+            && turretPatch.Contains("RestoreAuthorizedTraverse(__instance)")
+            && turretPatch.Contains("RefreshNativeFireDirection(__instance.AttackVerb")
+            && nativeService.Contains("warmupReadyTick")
+            && nativeService.Contains("TryGetNativeWarmupRemaining")
+            && nativeService.Contains("authorization.warmupReadyTick + burstWindow"),
+            "adapted turret orientation and warmup use authorized Traverse state instead of the protocol cell");
+        Check(turretPatch.Contains("class Patch_BuildingTurretGun_AutoSpaceSelectionOverlay")
+            && turretPatch.Contains("nameof(Building_TurretGun.DrawExtraSelectionOverlays)")
+            && turretPatch.Contains("HideProtocolTargetForSelectionOverlay(__instance)")
+            && turretPatch.Contains("RestoreProtocolTargetAfterSelectionOverlay(")
+            && turretPatch.Contains("public static Exception Finalizer")
+            && turretBridge.Contains("ForcedTarget(turret) = LocalTargetInfo.Invalid")
+            && turretBridge.Contains("CurrentTarget(turret) = LocalTargetInfo.Invalid")
+            && turretBridge.Contains("BurstWarmup(turret) = 0")
+            && turretBridge.Contains("ForcedTarget(turret) = state.forcedTarget")
+            && turretBridge.Contains("CurrentTarget(turret) = state.currentTarget")
+            && turretBridge.Contains("BurstWarmup(turret) = state.warmupTicks"),
+            "protocol targets are hidden only for source selection overlays and restored even when drawing throws");
+        Check(nativeService.Contains("warmupStartedTick")
+            && nativeService.Contains("warmupDurationTicks")
+            && nativeService.Contains("TryGetNativeWarmupProgress")
+            && nativeService.Contains("authorization.warmupReadyTick - now")
+            && nativeService.Contains("HasNativeWarmupIndicators")
+            && nativeService.Contains("if (nativeWarmupIndicatorCount <= 0) return false")
+            && turretPatch.Contains("if (!SpaceProjectileService.HasNativeWarmupIndicators) return")
+            && turretPatch.Contains("DrawNativeWarmupIndicator(gun)")
+            && !turretPatch.Contains("DrawNativeWarmupIndicator(__instance, __state)")
+            && turretBridge.Contains("SpaceWeaponGeometry.MuzzleMapPointAtAngle(weapon, traverse.CurrentAngle)")
+            && turretBridge.Contains("SpaceTransform.Rotate(Vector2.right, traverse.CurrentAngle)")
+            && turretBridge.Contains("Find.TickManager.TicksGame % period")
+            && turretBridge.Contains("warmupIndicatorGlow, .32f")
+            && turretBridge.Contains("warmupIndicatorCore, .10f")
+            && !turretBridge.Contains("Time.time")
+            && !turretBridge.Contains("state.currentTarget.Cell"),
+            "visible native turret warmup has an idle integer gate and uses game-tick progress plus the authoritative muzzle and Traverse ray");
         Check(nativeService.Contains("TransientHandoffResult.Returned")
             && nativeService.Contains("TransientHandoffDisposition.Placed")
             && nativeService.Contains("TransientHandoffDisposition.Return"),
