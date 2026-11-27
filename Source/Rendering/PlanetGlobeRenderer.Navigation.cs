@@ -327,9 +327,7 @@ namespace DeltaV
             if (view.Whole) Widgets.Label(text, "DeltaV_NavWhole".Translate());
             else
             {
-                float desired = 60f / view.PixelsPerCell;
-                float power = (float)Math.Pow(10, Math.Floor(Math.Log10(desired)));
-                float cells = (desired / power >= 5f ? 5f : desired / power >= 2f ? 2f : 1f) * power;
+                float cells = CoordinateGridStepCells(view);
                 float length = cells * view.PixelsPerCell;
                 Widgets.DrawLineHorizontal(text.x, text.y + 14f, length);
                 Widgets.Label(new Rect(text.x + length + 5f, text.y, text.width - length - 5f, 18f),

@@ -6,11 +6,8 @@ namespace DeltaV
 {
     internal static class SpaceCoordinateGrid
     {
-        // 网格是轨道球面的绝对经纬线；缩放只选择嵌套线距，没有随船平移的网格原点。
-        internal static double Step(double desired) => Math.Pow(2d, Math.Ceiling(Math.Log(Math.Max(1d, desired), 2d)));
-        internal static double AngularStep(double desired) => 2d * Math.PI
-            / Step(2d * Math.PI / Math.Max(1e-9d, Math.Min(Math.PI / 8d, desired)));
-
+        // 网格是轨道球面的绝对经纬线；步长统一走 OrbitSphere 的共享选择入口，
+        // 与星区图面板网格和比例尺同档，没有随船平移的网格原点。
         internal static int Emit(UniverseManager universe, SpaceObject frame, Map map, ShellLayer layer, int slot)
         {
             if (!universe.ShowCoordinateGrid || !OrbitSphere.Valid) return slot;
@@ -23,24 +20,25 @@ namespace DeltaV
             OrbitSphere.GridAngles(center, out double lat, out double lon);
             double radius = OrbitSphere.CellsPerRadian;
             double reach = camera.orthographicSize * Math.Sqrt(1d + camera.aspect * camera.aspect) * 1.2d / radius;
-            // 整圈二等分使 ±π 接缝两侧同相位，跨接缝／切图不会整张网格跳动。
-            double latStep = AngularStep(perPixel * 90d / radius);
-            double lonStep = Math.Min(Math.PI / 8d, latStep * Step(1d / Math.Max(0.000001d, Math.Cos(lat))));
+            double latStep = OrbitSphere.GridLatitudeStep(90d * perPixel, radius);
+            double lonStep = Math.Min(Math.PI / 8d, OrbitSphere.GridLongitudeStep(latStep, lat));
             double bottom = Math.Max(-Math.PI / 2d, lat - reach), top = Math.Min(Math.PI / 2d, lat + reach);
             bool polar = Math.Abs(lat) + reach >= Math.PI / 2d;
             double span = polar ? Math.PI : Math.Min(Math.PI, reach / Math.Max(0.000001d, Math.Cos(lat)) * 1.2d);
+            // 极区辐条是共享经度步长的有意例外：极点处经线全部汇聚，按 cos 补偿无意义，
+            // 固定 16 条扇面只求可读；线数上限仍走共享的截断式规则。
             if (polar) lonStep = Math.PI / 8d;
             double left = lon - span, right = lon + span;
             MotionParticleRenderer.Begin(MotionParticleRenderer.Kind.Grid);
             int count = 0;
-            for (long i = (long)Math.Floor(bottom / latStep); i * latStep <= top && count < 96; i++, count++)
+            for (long i = (long)Math.Floor(bottom / latStep); i * latStep <= top && count < OrbitSphere.MaxGridLines; i++, count++)
             {
                 double y = i * latStep;
                 if (y < -Math.PI / 2d || y > Math.PI / 2d) continue;
                 Curve(frame, map, y, y, left, right, polar ? 6 : 4, perPixel, opacity, i % 4 == 0);
             }
             count = 0;
-            for (long i = (long)Math.Floor(left / lonStep); i * lonStep <= right && count < 96; i++, count++)
+            for (long i = (long)Math.Floor(left / lonStep); i * lonStep <= right && count < OrbitSphere.MaxGridLines; i++, count++)
                 Curve(frame, map, bottom, top, i * lonStep, i * lonStep, 4, perPixel, opacity, i % 4 == 0);
             return MotionParticleRenderer.Emit(MotionParticleRenderer.Kind.Grid, layer, slot);
         }

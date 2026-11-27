@@ -407,15 +407,17 @@ namespace DeltaV
             return new Vector3(Mathf.Cos(lat) * Mathf.Cos(lon), Mathf.Sin(lat), Mathf.Cos(lat) * Mathf.Sin(lon));
         }
 
-        private static readonly float[] CoordinateGridSteps =
-            { .1f, .25f, .5f, 1f, 2f, 5f, 10f, 15f, 30f, 45f, 90f };
+        // 网格步长与下方比例尺共用 OrbitSphere 的共享选择入口，保证比例尺线段恒等于一个网格边长。
+        internal static float CoordinateGridStepCells(GlobeView view)
+        {
+            // 只防除零； globe 缩小视图下 PixelsPerCell 普遍小于 1，不能钳到 1，否则步长恒为同一档。
+            float cells = (float)OrbitSphere.GridStepCells(52f / Mathf.Max(1e-4f, view.PixelsPerCell));
+            return Mathf.Min(cells, view.CellsPerRadian * Mathf.Deg2Rad * 90f);
+        }
 
         internal static float CoordinateGridStepDegrees(GlobeView view)
         {
-            float desired = 52f / Mathf.Max(1f, view.PixelsPerRad) * Mathf.Rad2Deg;
-            foreach (float step in CoordinateGridSteps)
-                if (step >= desired) return step;
-            return 90f;
+            return CoordinateGridStepCells(view) / view.CellsPerRadian * Mathf.Rad2Deg;
         }
 
         private static void DrawCoordinateGrid(GlobeView view, Vector3 shipDir,
@@ -432,15 +434,17 @@ namespace DeltaV
             float lonRange = Mathf.Min(180f, range / Mathf.Max(.18f,
                 Mathf.Abs(Mathf.Cos(centerLat * Mathf.Deg2Rad))));
             float lonMin = centerLon - lonRange, lonMax = centerLon + lonRange;
-            float lonStep = step;
-            while ((lonMax - lonMin) / lonStep > 30f) lonStep *= 2f;
+            // 经度步长走共享的纬度补偿 + 整圆整数等分；极区由函数内部的 cos 0.18 钳制兜底。
+            float lonStep = (float)(OrbitSphere.GridLongitudeStep(
+                step * Mathf.Deg2Rad, centerLat * Mathf.Deg2Rad) * Mathf.Rad2Deg);
             float sample = Mathf.Clamp(step * .25f, .2f, 5f);
             Color ordinary = new Color(.34f, .62f, .72f, .24f);
             Color axis = new Color(.48f, .82f, .92f, .4f);
 
             GL.Begin(GL.LINES);
             int firstLat = Mathf.CeilToInt(latMin / step), lastLat = Mathf.FloorToInt(latMax / step);
-            for (int index = firstLat; index <= lastLat; index++)
+            int count = 0;
+            for (int index = firstLat; index <= lastLat && count < OrbitSphere.MaxGridLines; index++, count++)
             {
                 float lat = index * step;
                 GL.Color(Mathf.Abs(lat) < step * .25f ? axis : ordinary);
@@ -454,7 +458,8 @@ namespace DeltaV
                 }
             }
             int firstLon = Mathf.CeilToInt(lonMin / lonStep), lastLon = Mathf.FloorToInt(lonMax / lonStep);
-            for (int index = firstLon; index <= lastLon; index++)
+            count = 0;
+            for (int index = firstLon; index <= lastLon && count < OrbitSphere.MaxGridLines; index++, count++)
             {
                 float lon = index * lonStep;
                 float wrapped = Mathf.Repeat(lon + 180f, 360f) - 180f;

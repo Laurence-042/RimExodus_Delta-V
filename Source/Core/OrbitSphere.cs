@@ -188,6 +188,41 @@ namespace DeltaV
             return new Direction(c * Math.Cos(longitude), Math.Sin(latitude), c * Math.Sin(longitude)).Vector;
         }
 
+        /// <summary>
+        /// 网格密度的唯一保险：单方向线数超限时只截断边缘线，永不放大步长。
+        /// 2026-11-28 事故教训：星区图面板私有的经线倍增稀疏循环曾使展开窗口
+        /// 约半数缩放档位下格子 2 倍偏宽——密度策略必须与步长选择同源。
+        /// </summary>
+        internal const int MaxGridLines = 96;
+
+        /// <summary>
+        /// 经纬网格步长的唯一选择入口：宇宙图网格、星区图面板网格与比例尺共用，
+        /// 保证网格边长与比例尺读数落在同一 1-2-5×10ⁿ 格数档上。
+        /// </summary>
+        internal static double GridStepCells(double desiredCells)
+        {
+            double power = Math.Pow(10d, Math.Floor(Math.Log10(Math.Max(1e-9d, desiredCells))));
+            double ratio = desiredCells / power;
+            return (ratio >= 5d ? 5d : ratio >= 2d ? 2d : 1d) * power;
+        }
+
+        /// <summary>纬度步长（弧度）：阶梯格数按每弧度格数换算。</summary>
+        internal static double GridLatitudeStep(double desiredCells, double cellsPerRadian)
+        {
+            return GridStepCells(desiredCells) / cellsPerRadian;
+        }
+
+        /// <summary>
+        /// 经度步长（弧度）：按纬度补偿后取整圆整数等分中最近的一档。整数等分使
+        /// 线集对 2π 取模不变，±π 接缝两侧同相位；补偿让屏幕上格子与纬线间距方正。
+        /// </summary>
+        internal static double GridLongitudeStep(double latitudeStep, double latitude)
+        {
+            double cosine = Math.Max(0.18d, Math.Cos(latitude));
+            long divisions = Math.Max(1L, (long)Math.Round(2d * Math.PI * cosine / latitudeStep));
+            return 2d * Math.PI / divisions;
+        }
+
         /// <summary>读档 / 新世界 / 尺度设置变化后清空缓存（与 ShellRenderer 缓存自愈纪律一致）。</summary>
         public static void ClearCache()
         {
