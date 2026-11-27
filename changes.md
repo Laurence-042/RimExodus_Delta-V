@@ -48,27 +48,25 @@ This file records player-visible changes in released versions and the near-term 
 
 ### 未发布 / Unreleased
 
-#### 修复 / Fixes
+#### 用户反馈解决 / User feedback resolved
 
-- 修复联合重工（SRALib 系）等自驱 TurretTop 的炮塔在太空模式头部固定不转、三联涡轮激光炮炮管与头部朝向脱节、以及炮塔朝向偏离射击方向的问题：头部渲染替换现仅用于角度由 Delta-V 接管的原版结构炮塔，其余来源放行其自身绘制（后坐偏移仍注入），非聚焦船壳经来源自身维护的顶部角度显示；协议格方位保真改为优先于来源射程带——同方位档内先取射程带内格，贴边或最小射程过大时直接用同方位任意图内格，`OrderAttack` 层的最小射程拒绝经最小射程公式替答为 0 一并消除。修复为纯通用判定，不含按 Mod 特判。
-  Fixed mod turrets that drive their own TurretTop (UF Heavy Industrie / SRALib and similar) showing a frozen turret head in space mode, the triplet turbolaser' barrels disagreeing with its head, and heads aiming away from the actual shot direction: the render replacement now applies only to vanilla-structured turrets whose orientation Delta-V owns, every other source keeps its own draw (with recoil offset still injected), non-focused hulls read the source's live top angle, and protocol-cell bearing fidelity now outranks the source range band — an in-band cell is preferred within one bearing step, map edges or a long minimum range fall back to any cell on the exact bearing, and the OrderAttack-level minimum-range rejection is answered as zero through the shared minimum-range formula. The gates are purely generic with no per-mod checks.
-
-- 修复 Milira 一类自建炮塔逻辑的 Mod 炮塔在太空模式既不跟随瞄准也无法开火，以及 Dead man switch 类武器开火瞬间炮口甩向无关方向的问题。自动适配的接管面从原版 `Building_TurretGun` 子类扩大到全部 `Building_Turret` 实现：开火授权改在来源武器发射门现场续期与重建，第三方炮塔的慢速摆头和长预热不再令授权过期死锁；本地协议格改为发射方位的代理，来源对它做的本地射程／视线判定由火控替答，炮塔贴边或最小射程过大不再直接拒射；太空模式下不再采信来源武器的本地瞄准角覆盖绘制炮身。非原版结构的炮塔保留其原生预热与选中指示（方向已对齐真实目标）。
-  Fixed mod turrets that rebuild turret logic on the abstract base (e.g. Milira) neither tracking nor firing in space mode, and Dead-man-switch-style weapons snapping their muzzle elsewhere the moment they fire. Adaptation now spans every `Building_Turret` implementation instead of only `Building_TurretGun` subclasses: the cast gate renews or rebuilds the fire authorization on site so slow third-party head sweeps and long warmups no longer deadlock; the local protocol cell is now a bearing proxy whose local range and sight checks are answered by fire control, so map edges or a long minimum range never refuse the shot; and in space mode a source verb's local aim-angle override is no longer trusted when drawing the turret head. Non-vanilla turrets keep their native warmup and selection visuals, now pointing at the real target.
-
-- 修复 EVA 登舰时在所选格附近来回移动、无法进入：人员与 EVA 的登舰完成不再要求钩索曾经挂上目标，钩索只作为可选加速；EVA 未启用武装或钩索不可用时仅用推进器进场。
-  Fixed EVA boarding oscillating around the selected cell without entering. Personnel and EVA boarding no longer requires the tether to have hooked the target: the tether is an optional accelerator, and an EVA without an armed or usable tether approaches on thrusters alone.
-
-- 统一经纬网格与比例尺的步长与密度机制：宇宙图网格、星区图面板网格与左下角比例尺原本各自取整——宇宙图经度补偿按 2 的幂向上取整，除赤道外格子横向最多偏宽 2 倍；面板网格按度数档、比例尺按 1-2-5×10ⁿ 格数档，同一缩放下可差近一倍；面板还残留一条只把经线间距翻倍的旧密度保险，使展开的导航窗口在约半数缩放档位下格子 2 倍偏宽而纬向仍等于比例尺。现在三处共用 OrbitSphere 的同一选择入口（1-2-5 格数阶梯 + 纬度补偿 + 整圆整数等分保接缝同相位），线数上限也统一为共享的截断式规则（超限只截断边缘线、永不放大步长）：宇宙图格子在任意纬度目视方正、边长为整档格数；紧凑与展开面板的所有档位下格子两边均与比例尺线段等长，跳档同步。
-  Unified the coordinate-grid step and density mechanism: the space-map grid, the sector globe grid and the bottom-left scale bar each snapped to their own ladders — the space map's longitude compensation rounded up to powers of two, making cells up to 2× too wide everywhere off the equator; the globe used degree steps and the bar the 1-2-5×10ⁿ cell ladder, disagreeing by nearly 2× at one zoom; and the globe kept a legacy density guard that doubled only the longitude spacing, leaving expanded-navigation cells 2× too wide at about half the zoom rungs while the vertical edge still matched the bar. All three now share one OrbitSphere entry point (the 1-2-5 cell ladder, latitude compensation, and whole-circle integer division keeping the ±π seam in phase), with one shared truncation cap for line count (excess lines are dropped, steps are never enlarged): space-map cells look square at any latitude with edges on round cell counts, and both compact and expanded globe cells match the scale bar segment on both sides at every rung, re-stepping together.
+@氘镉殆：eva套装要怎么回飞船,选择月池后一直在原地进不去……试了一下,人可以直接进,EVA不行
+- 修复 EVA 登舰时在所选格附近来回移动、无法进入的问题。
+  Fixed EVA boarding oscillating around the selected cell without entering.
 
 #### 自发常规机制打磨
+
+- 经调研 Milira（AncotLibrary）、联合重工（SRALib）等结构各异的自建炮塔实现，进一步优化了自动炮塔的通用适配，尽可能以同一套通用逻辑覆盖更多 Mod 的炮塔。经此优化，Milira 与联合重工的炮塔（含三联涡轮激光炮）及 Dead man switch 类武器的跟随瞄准、开火与朝向均表现相对正常。全部判定纯通用，不含按 Mod 特判。
+  Generic auto-turret adaptation was refined by surveying structurally different self-built turret implementations (Milira / AncotLibrary, UF Heavy Industrie / SRALib and similar), so that one generic pipeline covers as many mod turrets as possible. After this pass, Milira and UF Heavy Industrie turrets (including the triplet turbolaser) plus Dead-man-switch-style weapons track, fire and aim relatively normally. All gates are purely generic with no per-mod checks.
+  
+- 现在小地图和详细地图使用相同机制进行绘制了，而且比例尺和经纬网格会对应，方便进行快速距离估算。
+  The minimap and the detailed map now use the same rendering mechanism; furthermore, their scales and latitude-longitude grids are aligned, facilitating quick distance estimation..
 
 - 聚焦接管补全：没有自动任务的非基架可控飞船（人员、EVA、shuttle）被聚焦时进入手动驾驶，有武器的船同时启用武装并选择手动集火。此前只有人员／EVA 会切换火控、不会启用武装，shuttle 不受影响，并且只有 Delta-V 自己的切图入口会触发；现在任何切入地图的方式都应用该规则。
   Focusing an idle non-foundation craft (personnel, EVA, shuttle) now enters manual piloting, arms craft that carry weapons and selects manual fire control. Previously only personnel and EVA switched fire control, nothing was armed, shuttles were skipped, and only Delta-V's own map switches triggered the rule; any switch onto the craft's map now applies it.
 
-- 自动适配炮塔在太空模式冷却期间从炮身顶部冒烟，与重炮同款：同一条宇宙粒子流、同一套蓬松消散参数，随船体运动、随炮身转向，冷却结束即停。冷却状态直接读炮塔自带的冷却倒计时：原版结构与镜像该字段的第三方自建炮塔通用，未镜像者无烟降级。地面模式与原生舰炮表现不变。
-  Auto-adapted turrets now vent smoke from the turret top while cooling down in space mode, matching the heavy cannon: the same ship-bound particle stream and puffy fade-out profile, following both the hull and the turret's rotation, and stopping when the cooldown ends. The cooldown fact is the turret's own countdown: vanilla-structured turrets and third-party rebuilds that mirror the vanilla field both work, while sources without the mirrored field simply stay smokeless. Ground mode and native ship guns are unchanged.
+- 优化了第三方炮塔的冷却指示，现在其会在太空模式冷却期间和重炮冷却一样冒烟。
+  Optimized the cooldown indicator for third-party turrets; they will now emit smoke during their cooldown period in space mode, just like heavy cannons do.
 
 ### 0.1.3 — 2026-11-27
 
