@@ -28,12 +28,13 @@ namespace DeltaV
         {
             get
             {
-                // In space a map-local AimAngleOverride describes the protocol cell or another
-                // local artifact, never the universe ray; only the Traverse angle is the aim truth.
+                // Display angle of the source's own head: in space a map-local AimAngleOverride
+                // describes the protocol cell or another local artifact, never the universe ray,
+                // so the live top rotation the source itself maintains is the display truth.
                 weaponComp ??= parent.TryGetComp<CompSpaceWeapon>();
                 float? localOverride = weaponComp?.SpaceModeEnabled == true
                     ? (float?)null : Turret?.CurrentEffectiveVerb?.AimAngleOverride;
-                return localOverride ?? (Turret as Building_TurretGun)?.Top?.CurRotation
+                return localOverride ?? AutoSpaceWeaponTurretBridge.SourceTurretTop(Turret)?.CurRotation
                     ?? parent.Rotation.AsAngle;
             }
         }
@@ -93,6 +94,8 @@ namespace DeltaV
             AccessTools.FieldRefAccess<CompSpaceWeaponTraverse, int>("rotationTick");
         private static readonly Dictionary<Type, FieldInfo> NativeCooldownFields =
             new Dictionary<Type, FieldInfo>();
+        private static readonly Dictionary<Type, FieldInfo> NativeTopFields =
+            new Dictionary<Type, FieldInfo>();
         private static Material warmupIndicatorGlow;
         private static Material warmupIndicatorCore;
 
@@ -130,6 +133,30 @@ namespace DeltaV
                 NativeCooldownFields[type] = field;
             }
             return field != null ? (int)field.GetValue(turret) : 0;
+        }
+
+        /// <summary>
+        /// The live vanilla-style top of a source turret. Building_TurretGun exposes its own;
+        /// other implementations resolve a vanilla-mirrored "top" field per concrete type, and
+        /// sources without one report no top (callers fall back to the building facing).
+        /// </summary>
+        internal static TurretTop SourceTurretTop(Building_Turret turret)
+        {
+            if (turret is Building_TurretGun gun) return gun.Top;
+            Type type = turret.GetType();
+            if (!NativeTopFields.TryGetValue(type, out FieldInfo field))
+            {
+                for (Type scan = type; scan != null && scan != typeof(Building_Turret);
+                    scan = scan.BaseType)
+                {
+                    field = scan.GetField("top", BindingFlags.Instance | BindingFlags.Public
+                        | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+                    if (field != null && typeof(TurretTop).IsAssignableFrom(field.FieldType)) break;
+                    field = null;
+                }
+                NativeTopFields[type] = field;
+            }
+            return field != null ? field.GetValue(turret) as TurretTop : null;
         }
 
         /// <summary>Speed of the round the source Verb will actually launch, in cells per second.</summary>
@@ -263,10 +290,11 @@ namespace DeltaV
             int limit = Mathf.Min(Mathf.CeilToInt(Mathf.Max(1f, verb.EffectiveRange)),
                 Mathf.CeilToInt(Mathf.Sqrt(map.Size.x * map.Size.x + map.Size.z * map.Size.z)) + 1);
             Vector2 origin = new Vector2(turret.Position.x + .5f, turret.Position.z + .5f);
-            IntVec3 fallback = IntVec3.Invalid;
             // The cell is a bearing proxy for the universe aim ray so self-aiming turret heads
-            // turn toward the real target. Distance only ranks candidates: source range bands
-            // come first, but map edges or a long source minimum range never refuse the shot.
+            // turn toward the real target. Bearing fidelity always outranks the source range
+            // band: within one spoke the band ranks candidates, but a bearing-exact cell of
+            // any distance beats an off-bearing cell inside the band, and only a spoke with
+            // no in-bounds cell at all widens the angle by one step.
             for (int spoke = 0; spoke <= 16; spoke++)
             {
                 float spread = spoke * (Mathf.PI / 8f);
@@ -274,27 +302,35 @@ namespace DeltaV
                 {
                     Vector2 ray = SpaceTransform.Rotate(Vector2.right,
                         launchMapAngle + (side == 0 ? spread : -spread));
+                    IntVec3 bandHit = IntVec3.Invalid;
+                    IntVec3 anyHit = IntVec3.Invalid;
                     for (int distance = limit; distance >= 1; distance--)
                     {
                         Vector2 point = origin + ray * distance;
                         IntVec3 cell = new IntVec3(Mathf.FloorToInt(point.x), 0,
                             Mathf.FloorToInt(point.y));
                         if (!cell.InBounds(map) || cell == turret.Position) continue;
+                        if (!anyHit.IsValid) anyHit = cell;
+                        else if (bandHit.IsValid) break;
                         float cellDistance = (cell - turret.Position).LengthHorizontal;
                         var localTarget = new LocalTargetInfo(cell);
                         if (cellDistance >= verb.verbProps.EffectiveMinRange(localTarget, turret)
                             && cellDistance <= verb.EffectiveRange)
-                        {
-                            target = cell;
-                            return true;
-                        }
-                        if (!fallback.IsValid) fallback = cell;
+                            bandHit = cell;
+                    }
+                    if (bandHit.IsValid)
+                    {
+                        target = bandHit;
+                        return true;
+                    }
+                    if (anyHit.IsValid)
+                    {
+                        target = anyHit;
+                        return true;
                     }
                 }
             }
-            if (!fallback.IsValid) return false;
-            target = fallback;
-            return true;
+            return false;
         }
 
         internal static void PrepareAuthorizedTick(Building_Turret turret)

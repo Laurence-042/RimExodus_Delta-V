@@ -96,9 +96,11 @@ internal static partial class Program
         Check(turretBridge.Contains("TryProtocolCell(turret, verb, shot.launchMapAngle")
             && turretBridge.Contains("EffectiveMinRange(localTarget, turret)")
             && turretBridge.Contains("cellDistance <= verb.EffectiveRange")
-            && turretBridge.Contains("fallback.IsValid")
+            && turretBridge.Contains("if (bandHit.IsValid)")
+            && turretBridge.Contains("if (anyHit.IsValid)")
+            && turretBridge.Contains("Bearing fidelity always outranks")
             && turretBridge.Contains("CancelNativeFire(verb, weapon)"),
-            "protocol cells encode the launch bearing, prefer source range bands and never fail on map edges or long minimum ranges");
+            "protocol cells keep the launch bearing first, prefer the source range band only within one bearing step and never fail on map edges");
         Check(turretPatch.Contains("class Patch_BuildingTurretGun_AutoSpaceTick")
             && turretPatch.Contains("PrepareAuthorizedTick(__instance)")
             && turretPatch.Contains("RestoreAuthorizedTraverse(__instance)")
@@ -131,11 +133,29 @@ internal static partial class Program
         Check(shootLine != null && shootLine.GetParameters()[2].IsOut
             && nativePatch.Contains("VerbShootLineMethods()"),
             "the exemption hook binds the real TryFindShootLineFromTo declaration of the running assembly");
+        MethodInfo minRange = typeof(VerbProperties).GetMethod("EffectiveMinRange",
+            BindingFlags.Instance | BindingFlags.Public, null,
+            new[] { typeof(LocalTargetInfo), typeof(Thing) }, null);
+        Check(minRange != null
+            && nativePatch.Contains("class Patch_VerbProperties_ProtocolCellMinRange")
+            && nativePatch.Contains("TryGetNativeProtocolCell(verb, out IntVec3 cell)")
+            && nativePatch.Contains("__result = 0f"),
+            "the registered placeholder cell answers zero to every local minimum-range formula call, covering source OrderAttack branches without per-mod checks");
         Check(turretPatch.Contains("typeof(Building_Turret).AllSubclasses()")
             && turretPatch.Contains("method.IsAbstract")
             && turretPatch.Contains("Prefix(Building_Turret __instance)")
             && !turretPatch.Contains("Prefix(Building_TurretGun __instance)"),
             "turret patches cover every Building_Turret implementation with contract-filtered name matches");
+        int recoilPatchStart = turretPatch.IndexOf("class Patch_TurretTop_SpaceWeaponRecoil", StringComparison.Ordinal);
+        int traversePatchStart = turretPatch.IndexOf("class Patch_TurretTop_SpaceWeaponTraverse", StringComparison.Ordinal);
+        string recoilPatch = recoilPatchStart >= 0 && traversePatchStart > recoilPatchStart
+            ? turretPatch.Substring(recoilPatchStart, traversePatchStart - recoilPatchStart) : "";
+        Check(recoilPatch.Contains("if (___parentTurret is not Building_TurretGun) return true;")
+            && recoilPatch.Contains("SpaceTurretTopRenderer.Draw(___parentTurret, source, drawLoc, recoilDrawOffset, recoilAngleOffset)")
+            && turretBridge.Contains("internal static TurretTop SourceTurretTop(Building_Turret turret)")
+            && turretBridge.Contains("\"top\"")
+            && turretBridge.Contains("SourceTurretTop(Turret)?.CurRotation"),
+            "render replacement only covers turrets whose orientation Delta-V owns; other sources keep their live top angle for focused draw and shells");
         string heatVisuals = File.ReadAllText(Path.Combine(repo,
             "Source/Rendering/WeaponHeatVisuals.cs"));
         string motionVisuals = File.ReadAllText(Path.Combine(repo,

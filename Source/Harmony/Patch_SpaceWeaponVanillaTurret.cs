@@ -71,6 +71,11 @@ namespace DeltaV
             if (weapon?.SpaceModeEnabled == true) recoilDrawOffset = weapon.VisualRecoilOffset;
             IShellTurretTopSource source = SpaceTurretTopRenderer.SourceFor(___parentTurret);
             if (source == null) return true;
+            // Only Building_TurretGun orientation is owned by Delta-V: Traverse writes
+            // Top.CurRotation every tick. Other source implementations drive their own top
+            // through this same call (or bypass it); replacing their draw would freeze the
+            // head at the building facing instead of the source's live angle.
+            if (___parentTurret is not Building_TurretGun) return true;
             SpaceTurretTopRenderer.Draw(___parentTurret, source, drawLoc, recoilDrawOffset, recoilAngleOffset);
             return false;
         }

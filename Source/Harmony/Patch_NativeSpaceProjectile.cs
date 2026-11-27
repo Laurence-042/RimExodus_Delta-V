@@ -29,6 +29,8 @@ namespace DeltaV
             typeof(bool)
         };
 
+        private static readonly Type[] MinRangeSignature = { typeof(LocalTargetInfo), typeof(Thing) };
+
         internal static IEnumerable<MethodBase> ProjectileMethods(string name, Type[] signature)
             => DeclaredVirtualMethods(typeof(Verse.Projectile), name, signature);
 
@@ -40,6 +42,9 @@ namespace DeltaV
 
         internal static IEnumerable<MethodBase> VerbShootLineMethods()
             => DeclaredVirtualMethods(typeof(Verb), "TryFindShootLineFromTo", ShootLineSignature);
+
+        internal static IEnumerable<MethodBase> VerbMinRangeMethods()
+            => DeclaredVirtualMethods(typeof(VerbProperties), "EffectiveMinRange", MinRangeSignature);
 
         private static IEnumerable<MethodBase> DeclaredVirtualMethods(Type root, string name,
             Type[] signature)
@@ -169,6 +174,33 @@ namespace DeltaV
                 || targ.Cell != cell) return true;
             resultingLine = new ShootLine(root, cell);
             __result = true;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 太空模式下协议格由火控替答射程判定：登记在案的协议格对一切本地最小射程计算
+    /// （建筑层 OrderAttack 分支、施法链与来源内部逻辑）一律按 0 处理；地面模式、其他
+    /// 目标与选中绘制的最小射程环（bool 重载）保持原判定。最大射程不需替答：选格构造
+    /// 保证协议格距离不超过来源射程。
+    /// </summary>
+    [HarmonyPatch]
+    internal static class Patch_VerbProperties_ProtocolCellMinRange
+    {
+        private static IEnumerable<MethodBase> TargetMethods() =>
+            NativeSpaceProjectilePatchTargets.VerbMinRangeMethods();
+
+        private static bool Prefix(LocalTargetInfo target, Thing caster, ref float __result)
+        {
+            if (caster is not Building_Turret turret
+                || !AutoSpaceWeaponTurretBridge.SpaceMode(turret)
+                || !AutoSpaceWeaponTurretBridge.IsNativeAdapted(turret.def)) return true;
+            Verb verb = turret.AttackVerb;
+            if (verb == null) return true;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe?.Projectiles.TryGetNativeProtocolCell(verb, out IntVec3 cell) != true
+                || target.Cell != cell) return true;
+            __result = 0f;
             return false;
         }
     }
