@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using RimWorld;
@@ -53,6 +54,23 @@ namespace DeltaV
 
         public bool OwnsCommit(SpaceWeaponShot shot) =>
             AutoSpaceWeaponTurretBridge.IsNativeAdapted(parent.def);
+
+        public override void CompTick()
+        {
+            base.CompTick();
+            // Space-mode cooldown vents the same heavy-cannon smoke the native guns use: the
+            // shared combat-particle stream while attached to a ship, map flecks as fallback.
+            // The turret's own countdown is the fact source; unmirrored sources stay smokeless.
+            if (!parent.IsHashIntervalTick(15)) return;
+            Building_Turret turret = Turret;
+            if (turret == null || !AutoSpaceWeaponTurretBridge.SpaceMode(turret)
+                || AutoSpaceWeaponTurretBridge.NativeCooldownTicksLeft(turret) <= 0) return;
+            weaponComp ??= parent.TryGetComp<CompSpaceWeapon>();
+            if (weaponComp?.Container != null)
+                weaponComp.Universe?.Projectiles.EmitGunCoolingSmoke(weaponComp);
+            else if (turret.Spawned)
+                WeaponHeatVisuals.EmitCoolingSmoke(turret, ShellTopAngle, cannon: true);
+        }
     }
 
     /// <summary>
@@ -73,6 +91,8 @@ namespace DeltaV
             AccessTools.FieldRefAccess<CompSpaceWeaponTraverse, float>("currentAngle");
         private static readonly AccessTools.FieldRef<CompSpaceWeaponTraverse, int> TraverseTick =
             AccessTools.FieldRefAccess<CompSpaceWeaponTraverse, int>("rotationTick");
+        private static readonly Dictionary<Type, FieldInfo> NativeCooldownFields =
+            new Dictionary<Type, FieldInfo>();
         private static Material warmupIndicatorGlow;
         private static Material warmupIndicatorCore;
 
@@ -87,6 +107,30 @@ namespace DeltaV
 
         public static bool SpaceMode(Building_Turret turret) => IsAdapted(turret)
             && turret.TryGetComp<CompSpaceWeapon>()?.SpaceModeEnabled == true;
+
+        /// <summary>
+        /// Remaining ticks of the turret's own burst cooldown. Building_TurretGun uses its field
+        /// ref; other implementations resolve a vanilla-mirrored countdown field per concrete
+        /// type, and sources without one simply report no cooldown.
+        /// </summary>
+        internal static int NativeCooldownTicksLeft(Building_Turret turret)
+        {
+            if (turret is Building_TurretGun gun) return BurstCooldown(gun);
+            Type type = turret.GetType();
+            if (!NativeCooldownFields.TryGetValue(type, out FieldInfo field))
+            {
+                for (Type scan = type; scan != null && scan != typeof(Building_Turret);
+                    scan = scan.BaseType)
+                {
+                    field = scan.GetField("burstCooldownTicksLeft", BindingFlags.Instance
+                        | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+                    if (field != null && field.FieldType == typeof(int)) break;
+                    field = null;
+                }
+                NativeCooldownFields[type] = field;
+            }
+            return field != null ? (int)field.GetValue(turret) : 0;
+        }
 
         /// <summary>Speed of the round the source Verb will actually launch, in cells per second.</summary>
         internal static float? NativeProjectileSpeed(Building_Turret turret)

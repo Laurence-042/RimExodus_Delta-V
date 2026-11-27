@@ -56,10 +56,16 @@ This file records player-visible changes in released versions and the near-term 
 - 修复 EVA 登舰时在所选格附近来回移动、无法进入：人员与 EVA 的登舰完成不再要求钩索曾经挂上目标，钩索只作为可选加速；EVA 未启用武装或钩索不可用时仅用推进器进场。
   Fixed EVA boarding oscillating around the selected cell without entering. Personnel and EVA boarding no longer requires the tether to have hooked the target: the tether is an optional accelerator, and an EVA without an armed or usable tether approaches on thrusters alone.
 
+- 修复星区图经纬网格与左下角比例尺互不对齐：网格步长与比例尺长度原本各自按不同阶梯取整（度数档 vs 1-2-5×10ⁿ 格数档），同一缩放下可差近一倍。现在两者共用同一格数阶梯，比例尺线段长度恒等于一个网格边长，跳档时机同步。
+  Fixed the sector globe's coordinate grid and the bottom-left scale bar disagreeing: the grid step and the bar length were each snapped to their own ladders (degree steps vs the 1-2-5×10ⁿ cell ladder) and could differ by nearly 2× at one zoom. Both now share the same cell ladder, so the scale bar segment always equals one grid edge and they re-step together.
+
 #### 自发常规机制打磨
 
 - 聚焦接管补全：没有自动任务的非基架可控飞船（人员、EVA、shuttle）被聚焦时进入手动驾驶，有武器的船同时启用武装并选择手动集火。此前只有人员／EVA 会切换火控、不会启用武装，shuttle 不受影响，并且只有 Delta-V 自己的切图入口会触发；现在任何切入地图的方式都应用该规则。
   Focusing an idle non-foundation craft (personnel, EVA, shuttle) now enters manual piloting, arms craft that carry weapons and selects manual fire control. Previously only personnel and EVA switched fire control, nothing was armed, shuttles were skipped, and only Delta-V's own map switches triggered the rule; any switch onto the craft's map now applies it.
+
+- 自动适配炮塔在太空模式冷却期间从炮身顶部冒烟，与重炮同款：同一条宇宙粒子流、同一套蓬松消散参数，随船体运动、随炮身转向，冷却结束即停。冷却状态直接读炮塔自带的冷却倒计时：原版结构与镜像该字段的第三方自建炮塔通用，未镜像者无烟降级。地面模式与原生舰炮表现不变。
+  Auto-adapted turrets now vent smoke from the turret top while cooling down in space mode, matching the heavy cannon: the same ship-bound particle stream and puffy fade-out profile, following both the hull and the turret's rotation, and stopping when the cooldown ends. The cooldown fact is the turret's own countdown: vanilla-structured turrets and third-party rebuilds that mirror the vanilla field both work, while sources without the mirrored field simply stay smokeless. Ground mode and native ship guns are unchanged.
 
 ### 0.1.3 — 2026-11-27
 

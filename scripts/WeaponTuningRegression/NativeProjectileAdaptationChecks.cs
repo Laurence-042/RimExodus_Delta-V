@@ -136,6 +136,23 @@ internal static partial class Program
             && turretPatch.Contains("Prefix(Building_Turret __instance)")
             && !turretPatch.Contains("Prefix(Building_TurretGun __instance)"),
             "turret patches cover every Building_Turret implementation with contract-filtered name matches");
+        string heatVisuals = File.ReadAllText(Path.Combine(repo,
+            "Source/Rendering/WeaponHeatVisuals.cs"));
+        string motionVisuals = File.ReadAllText(Path.Combine(repo,
+            "Source/Interaction/SpaceProjectileService.MotionVisuals.cs"));
+        Check(heatVisuals.Contains(
+                "internal static void EmitCoolingSmoke(Building_Turret turret, float shellTopAngle,")
+            && heatVisuals.Contains("bool cannon)")
+            && heatVisuals.Contains("ShouldSpawnMotesAt")
+            && turretBridge.Contains("IsHashIntervalTick(15)")
+            && turretBridge.Contains("NativeCooldownTicksLeft(turret) <= 0")
+            && turretBridge.Contains("EmitGunCoolingSmoke(weaponComp)")
+            && turretBridge.Contains("if (turret is Building_TurretGun gun) return BurstCooldown(gun);")
+            && turretBridge.Contains("\"burstCooldownTicksLeft\"")
+            && !turretBridge.Contains("weaponComp?.CooldownTicksLeft")
+            && motionVisuals.Contains("weapon.parent is not Building_Turret turret")
+            && motionVisuals.Contains("SpaceTurretTopRenderer.SourceFor(turret)?.ShellTopAngle"),
+            "adapted turrets vent heavy-cannon cooling smoke through the shared ship-bound particle stream gated by the turret's own countdown");
         Check(turretPatch.Contains("class Patch_BuildingTurretGun_AutoSpaceSelectionOverlay")
             && turretPatch.Contains("nameof(Building_TurretGun.DrawExtraSelectionOverlays)")
             && turretPatch.Contains("HideProtocolTargetForSelectionOverlay(__instance)")

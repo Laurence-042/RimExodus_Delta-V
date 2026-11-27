@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using RimWorld;
 using RimWorld.Planet;
 using UnityEngine;
 using Verse;
@@ -23,11 +24,30 @@ namespace DeltaV
         internal void EmitGunCoolingSmoke(CompSpaceWeapon weapon)
         {
             var obj = weapon.Container;
-            if (obj?.map == null || weapon.parent is not Building_SpaceTurretGun turret) return;
-            int count = WeaponHeatVisuals.SmokePortCount(turret.TryGetComp<CompWeaponTuning>());
+            if (obj?.map == null || weapon.parent is not Building_Turret turret) return;
+            // Native guns read their ports from tuning; adapted turrets always vent the
+            // single heavy-cannon top port at their bridged shell angle.
+            float shellTopAngle;
+            bool cannon;
+            int count;
+            if (turret is Building_SpaceTurretGun native)
+            {
+                CompWeaponTuning tuning = native.TryGetComp<CompWeaponTuning>();
+                count = WeaponHeatVisuals.SmokePortCount(tuning);
+                cannon = tuning.Settings.lockEveryShot;
+                shellTopAngle = native.ShellTopAngle;
+            }
+            else
+            {
+                count = 1;
+                cannon = true;
+                shellTopAngle = SpaceTurretTopRenderer.SourceFor(turret)?.ShellTopAngle
+                    ?? turret.Rotation.AsAngle;
+            }
             for (int i = 0; i < count && gunCoolingSmoke.Count < MaxGunCoolingSmoke; i++)
             {
-                WeaponHeatVisuals.SmokePort(turret, i, out Vector2 point, out Vector2 mapDirection);
+                WeaponHeatVisuals.SmokePort(turret, shellTopAngle, cannon, i,
+                    out Vector2 point, out Vector2 mapDirection);
                 Vector3 position = SpaceTransform.MapPointToUniverse(obj, obj.map, point);
                 Vector2 velocity = SpaceTransform.VelocityAtLocalPoint(obj.pose,
                     SpaceTransform.MapToShipLocal(obj.map, point), position);
