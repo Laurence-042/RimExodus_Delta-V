@@ -140,6 +140,156 @@ internal static partial class Program
         CheckEvaEffects(universe);
         CheckEvaCargo(universe, eva, weapons[2]);
         CheckDepartureAndBeamFixes(universe, eva, weapons[0]);
+        CheckEvaFocusActivation(universe, eva, body);
+        CheckEvaUntetheredArrival(universe, eva, body);
+    }
+
+    static bool FocusFixtureZeroGravity(ref bool __result) { __result = true; return false; }
+    static bool FocusFixtureGunners(ref int __result) { __result = 0; return false; }
+
+    static Harmony PatchEvaFocusEnvironment(string id)
+    {
+        var patch = new Harmony(id);
+        patch.Patch(AccessTools.Method(typeof(Messages), nameof(Messages.Message),
+            new[] { typeof(string), typeof(MessageTypeDef), typeof(bool) }),
+            prefix: new HarmonyMethod(typeof(Program), nameof(IgnoreMaterializationMessage)));
+        patch.Patch(AccessTools.Method(typeof(PilotService), "RebuildPilotKeySet"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(NoKeyRebuild)));
+        // The scene-free world has no planet layers for Map.Tile; the flight map itself is the frame.
+        patch.Patch(AccessTools.Method(typeof(FreeFlightBootstrap), nameof(FreeFlightBootstrap.IsZeroGravity)),
+            prefix: new HarmonyMethod(typeof(Program), nameof(FocusFixtureZeroGravity)));
+        // Gunner dispatch needs the scene pawn registry; the EVA has no gunner stations.
+        patch.Patch(AccessTools.Method(typeof(SpaceWeaponService), "DispatchGunners",
+            new[] { typeof(Map), typeof(Faction), typeof(DriveSubject) }),
+            prefix: new HarmonyMethod(typeof(Program), nameof(FocusFixtureGunners)));
+        return patch;
+    }
+
+    // Real selection and entry paths: the focus rule must resolve and take over the craft itself.
+    static void CheckEvaFocusActivation(UniverseManager universe, CompEvaSuit eva, SpaceObject body)
+    {
+        Harmony patch = PatchEvaFocusEnvironment("DeltaV.Regression.EvaFocusActivation");
+        ShipBase ship = eva.Vessel;
+        var groups = (eva.combat.weaponGroupsMain, eva.combat.weaponGroupsSecondary);
+        FieldInfo task = AccessTools.Field(typeof(PlayerShipController), "autoTask");
+        bool wasArmed = eva.combat.weaponsArmed;
+        var fireControl = eva.combat.fireControlMode;
+        try
+        {
+            foreach (bool loaded in new[] { false, true })
+            {
+                if (loaded)
+                {
+                    // LoadedGame discards every derived index; identities are rebuilt from scratch.
+                    universe.ResetShipStructures();
+                    universe.Controls.Reset();
+                    ShipStatusPanel.ClearRuntimeState();
+                    Call(universe.Controls, "Rebuild");
+                }
+                foreach (bool armed in new[] { true, false })
+                {
+                    // 自动任务：无 + 停火, not under manual control.
+                    universe.Pilot.Exit(universe);
+                    eva.combat.weaponsArmed = armed;
+                    eva.combat.fireControlMode = ShipFireControlMode.Disabled;
+                    universe.Controls.ActivateFocusedVessel(body.map);
+                    Check(universe.Pilot.PilotedTarget(universe).Identity == ship.Identity,
+                        $"focusing an idle EVA enters manual piloting through the real selection and entry paths (loaded={loaded}, armed={armed})");
+                    Check(eva.combat.weaponsArmed && ship.EffectiveFireControlMode == ShipFireControlMode.Manual,
+                        $"focusing an idle EVA enables combat and manual fire control (loaded={loaded}, armed={armed})");
+                }
+            }
+            universe.Pilot.Exit(universe);
+            var controller = (PlayerShipController)universe.Controls.ExistingFor(ship);
+            task.SetValue(controller, Enum.Parse(task.FieldType, "Navigate"));
+            universe.Controls.ActivateFocusedVessel(body.map);
+            Check(!universe.Pilot.PilotedTarget(universe).IsValid && task.GetValue(controller).ToString() == "Navigate",
+                "focusing an EVA that runs an automatic task keeps the task and does not take over");
+            task.SetValue(controller, Enum.Parse(task.FieldType, "Drift"));
+            Check(groups == (eva.combat.weaponGroupsMain, eva.combat.weaponGroupsSecondary),
+                "focus activation preserves the EVA weapon groups");
+        }
+        finally
+        {
+            universe.Pilot.Exit(universe);
+            eva.combat.weaponsArmed = wasArmed;
+            eva.combat.fireControlMode = fireControl;
+            patch.UnpatchAll(patch.Id);
+        }
+    }
+
+    // Boarding completes on thrusters alone: no tether and no capture gate, and the craft
+    // must reach the frozen cell without turning back.
+    static void CheckEvaUntetheredArrival(UniverseManager universe, CompEvaSuit eva, SpaceObject body)
+    {
+        var patch = new Harmony("DeltaV.Regression.EvaUntetheredArrival");
+        // Only the native environment endpoint is replaced; guidance, allocation and integration run.
+        patch.Patch(AccessTools.Method(typeof(ShipFlightTransitionService), "RequestThrust"),
+            prefix: new HarmonyMethod(typeof(Program), nameof(TractorSourceReady)));
+        var targetMap = TestMap(58030);
+        var landing = new IntVec3(2, 0, 2);
+        var target = new MapSpaceObject(58030, targetMap,
+            new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(20f, 0f)), 0f));
+        universe.RegisterObject(target);
+        DriveSubject subject = DriveSubject.Of(PilotTarget.Of(eva.Vessel));
+        CombatTarget handle = CombatTarget.ForContainer(target, new Vector2(landing.x + .5f, landing.z + .5f));
+        // The same reference and pass-through speed HardDockingService.EngageArrival registers.
+        Func<SpacePose, SpacePose> reference = _ =>
+            handle.TryResolve(universe, out ResolvedCombatTarget resolved) ? resolved.Pose : body.pose;
+        var statBases = eva.parent.def.statBases;
+        try
+        {
+            foreach (var scenario in new[] { (mass: 0f, north: 0f), (mass: 20f, north: -4f) })
+            {
+                // The first pass keeps the fixture hull; the second mirrors the 20 kg suit from beside the axis.
+                eva.parent.def.statBases = scenario.mass > 0f
+                    ? new List<StatModifier> { new StatModifier { stat = StatDefOf.Mass, value = scenario.mass } }
+                    : statBases;
+                universe.ShipStructure.ClearPhysicsReports();
+                body.pose = new SpacePose(OrbitSphere.Move(Vector3.forward, new Vector2(0f, scenario.north)), 0f);
+                bool arrived = false;
+                string failure = null;
+                int tick = Find.TickManager.TicksGame;
+                float nearest = float.PositiveInfinity;
+                bool turnedBack = false;
+                Vector3 cell = reference(body.pose).position;
+                Vector2 axis = -OrbitSphere.Offset(cell, body.pose.position);
+                universe.Autopilot.NavigateToReference(subject, reference, () => true,
+                    () => arrived = true, reason => failure = reason,
+                    arrivalVelocityTolerance: HardDockingService.LightArrivalVelocityTolerance,
+                    arrivalApproachSpeed: HardDockingService.LightApproachSpeed);
+                Check(universe.Autopilot.IsFollowing(subject, reference),
+                    $"untethered boarding registers the shared reference navigation (mass={scenario.mass})");
+                int step;
+                for (step = 0; step < 3600 && !arrived && failure == null; step++)
+                {
+                    Set(Find.TickManager, "ticksGameInt", ++tick);
+                    universe.Autopilot.Tick();
+                    body.AdvanceDrift(1f / 60f);
+                    // Offset returns the tangent from the second point toward the first.
+                    Vector2 toward = -OrbitSphere.Offset(cell, body.pose.position);
+                    float distance = toward.magnitude;
+                    nearest = Mathf.Min(nearest, distance);
+                    // A craft that crosses the cell and comes back moves against the approach axis near it.
+                    if (distance < 2f && Vector2.Dot(SpaceTransform.TransportVelocity(body.pose, cell), axis) < 0f)
+                        turnedBack = true;
+                }
+                Check(arrived && failure == null,
+                    $"EVA boarding reaches the frozen cell on thrusters alone (mass={scenario.mass}, steps={step}, nearest={nearest:F4})");
+                Check(!turnedBack && step < 1800,
+                    $"untethered EVA boarding completes at the cell instead of crossing and turning back (mass={scenario.mass}, steps={step})");
+                universe.Autopilot.Detach(subject);
+            }
+        }
+        finally
+        {
+            eva.parent.def.statBases = statBases;
+            universe.ShipStructure.ClearPhysicsReports();
+            universe.Autopilot.Detach(subject);
+            universe.UnregisterObject(target);
+            Find.Maps.Remove(targetMap);
+            patch.UnpatchAll(patch.Id);
+        }
     }
 
     static void CheckEvaThrusters(ShipBase ship)
@@ -196,12 +346,20 @@ internal static partial class Program
             && contracted.velocity == selectedPoint.velocity
             && contracted.angle == own.angle && contracted.angularVelocity == own.angularVelocity,
             "EVA capture preserves a selected rigid point while ignoring target hull heading and spin");
-        Check(ship.HardDockingExecutor != null && ship.HardDockingExecutor.CaptureTether != null
+        IHardDockingExecutor evaExecutor = ship.HardDockingExecutor;
+        InterfaceMapping evaExecutorMap = typeof(CompEvaSuit).GetInterfaceMap(typeof(IHardDockingExecutor));
+        MethodInfo evaBoardingGate = evaExecutorMap.TargetMethods[Array.FindIndex(evaExecutorMap.InterfaceMethods, m => m.Name == "ValidFor")];
+        MethodInfo evaBoardingReason = evaExecutorMap.TargetMethods[Array.FindIndex(evaExecutorMap.InterfaceMethods, m => m.Name == "BlockReasonKey")];
+        Check(evaExecutor != null && evaExecutor.CaptureTether != null
             && !ship.CanBoard && !ship.CanDisableCollisionAvoidance,
-            "EVA exposes non-breaching tethered arrival without becoming a collision boarding shuttle");
-        Check(!HardDockingService.CaptureGate(true, false)
-            && HardDockingService.CaptureGate(true, true),
-            "EVA boarding keeps the shared capture qualification after its live line slackens or releases");
+            "EVA exposes non-breaching arrival with an optional tether instead of becoming a collision boarding shuttle");
+        Check(typeof(HardDockingService).GetMethod("CaptureGate", BindingFlags.Static | BindingFlags.NonPublic) == null
+            && evaBoardingGate != null && evaBoardingReason != null
+            && !CollisionCalls(evaBoardingGate).Any(method => method.Name == "get_CaptureTether")
+            && !CollisionCalls(evaBoardingReason).Any(method => method.Name == "get_CaptureTether")
+            && evaExecutor.ValidFor(body)
+            && evaExecutor.BlockReasonKey(Current.Game.GetComponent<UniverseManager>(), body, true) == null,
+            "EVA boarding starts and stays valid without depending on its tether");
         var evaXml = System.Xml.Linq.XDocument.Load("1.6/Defs/SpaceCombat/DeltaV_Eva.xml");
         var tractor = evaXml.Descendants("DeltaV.VirtualWeaponDef")
             .Single(node => (string)node.Element("defName") == "DeltaV_EvaTractor");

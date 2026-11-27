@@ -54,7 +54,6 @@ namespace DeltaV
             public float elapsed;
             public bool allowVoidThrust;
             public Action onArrived;
-            public Func<bool> arrivalGate;
             public Action onFailed;
             public Action<string> onFailedWithReason;
             public int maxFlightTicks = MaxFlightTicks;
@@ -161,12 +160,10 @@ namespace DeltaV
 
         internal void NavigateToReference(DriveSubject subject, Func<SpacePose, SpacePose> reference,
             Func<bool> valid, Action onArrived, Action<string> onFailed, bool longRange = false,
-            Func<bool> arrivalGate = null,
             float arrivalVelocityTolerance = DefaultArrivalVelocityTolerance,
             float arrivalApproachSpeed = 0f)
             => Register(new Flight { subject = subject, tracked = true, reference = reference,
                 referenceValid = valid, finishWhenMatched = true, onArrived = onArrived,
-                arrivalGate = arrivalGate,
                 onFailedWithReason = onFailed, allowVoidThrust = false, playerInitiated = true,
                 arrivalVelocityTolerance = Mathf.Max(0f, arrivalVelocityTolerance),
                 arrivalApproachSpeed = Mathf.Max(0f, arrivalApproachSpeed),
@@ -419,8 +416,7 @@ namespace DeltaV
                 && (vessel?.RequiresHeadingAlignment == false
                     || Mathf.Abs(angleErr) < ArriveAngleEpsilon)
                 && (vessel?.RequiresAngularVelocityMatch == false
-                    || Mathf.Abs(omega) < ArriveOmegaEpsilon)
-                && flight.arrivalGate?.Invoke() != false)
+                    || Mathf.Abs(omega) < ArriveOmegaEpsilon))
             {
                 Arrive(container, flight, arrivalReference);
                 return;

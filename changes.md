@@ -39,6 +39,16 @@ This file records player-visible changes in released versions and the near-term 
 
 ### 未发布 / Unreleased
 
+#### 修复 / Fixes
+
+- 修复 EVA 登舰时在所选格附近来回移动、无法进入：人员与 EVA 的登舰完成不再要求钩索曾经挂上目标，钩索只作为可选加速；EVA 未启用武装或钩索不可用时仅用推进器进场。
+  Fixed EVA boarding oscillating around the selected cell without entering. Personnel and EVA boarding no longer requires the tether to have hooked the target: the tether is an optional accelerator, and an EVA without an armed or usable tether approaches on thrusters alone.
+
+#### 自发常规机制打磨
+
+- 聚焦接管补全：没有自动任务的非基架可控飞船（人员、EVA、shuttle）被聚焦时进入手动驾驶，有武器的船同时启用武装并选择手动集火。此前只有人员／EVA 会切换火控、不会启用武装，shuttle 不受影响，并且只有 Delta-V 自己的切图入口会触发；现在任何切入地图的方式都应用该规则。
+  Focusing an idle non-foundation craft (personnel, EVA, shuttle) now enters manual piloting, arms craft that carry weapons and selects manual fire control. Previously only personnel and EVA switched fire control, nothing was armed, shuttles were skipped, and only Delta-V's own map switches triggered the rule; any switch onto the craft's map now applies it.
+
 ### 0.1.3 — 2026-11-27
 
 #### 用户反馈解决 / User feedback resolved

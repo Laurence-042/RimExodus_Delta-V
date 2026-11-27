@@ -91,10 +91,8 @@ namespace DeltaV
         string IHardDockingExecutor.CancelLabelKey => "DeltaV_PersonnelLandingCancel";
         string IHardDockingExecutor.CancelTipKey => "DeltaV_PersonnelLandingCancelDesc";
         string IHardDockingExecutor.BlockReasonKey(UniverseManager universe, SpaceObject source,
-            bool playerInitiated) => CaptureTether != null && CanDriveIn(source)
-                ? null : "DeltaV_PersonnelLandingFailed";
-        bool IHardDockingExecutor.ValidFor(SpaceObject source) => IsValid && CanDriveIn(source)
-            && CaptureTether != null;
+            bool playerInitiated) => CanDriveIn(source) ? null : "DeltaV_PersonnelLandingFailed";
+        bool IHardDockingExecutor.ValidFor(SpaceObject source) => IsValid && CanDriveIn(source);
         bool IHardDockingExecutor.TryResolveTarget(SpaceObject target, Vector2 targetMapPoint,
             out HardDockingDestination destination)
         {

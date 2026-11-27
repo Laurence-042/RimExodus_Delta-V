@@ -47,6 +47,9 @@ namespace DeltaV
     /// <summary>
     /// A vessel-specific hard-docking executor. Target selection, intercept guidance,
     /// collision contact and cancellation are shared; only the contact aftermath differs.
+    /// <see cref="CaptureTether"/> is an optional accelerator: when the executor exposes a
+    /// tether weapon, the operation keeps a line to the target hull while that weapon can
+    /// reach it. It never decides whether boarding completes.
     /// </summary>
     internal interface IHardDockingExecutor
     {
@@ -97,7 +100,6 @@ namespace DeltaV
             internal Func<SpacePose, SpacePose> reference;
             internal CompSpaceWeapon captureTether;
             internal int captureToken;
-            internal bool captureEstablished;
         }
 
         internal HardDockingService(UniverseManager universe) { this.universe = universe; }
@@ -130,9 +132,10 @@ namespace DeltaV
                 Vector2 mapPoint = new Vector2(operation.destination.cell.x + .5f,
                     operation.destination.cell.z + .5f);
                 Vector2 arrivalLocal = SpaceTransform.MapToShipLocal(target.map, mapPoint);
-                if (universe.TractorLinks.MaintainDockingLink(operation.captureToken,
-                    source, target, arrivalLocal, operation.captureTether))
-                    operation.captureEstablished = true;
+                // The tether only accelerates the approach while it can reach the hull.
+                // Arrival never depends on it; a craft without a usable tether flies on thrusters.
+                universe.TractorLinks.MaintainDockingLink(operation.captureToken,
+                    source, target, arrivalLocal, operation.captureTether);
             }
         }
 
@@ -251,18 +254,10 @@ namespace DeltaV
                 () => ArrivalValid(source, operation),
                 () => CompleteArrival(source.objectId, operation),
                 _ => Cancel(source),
-                // A real capture must have happened during this operation. The line may
-                // then go slack or lose its surface ray while the light unit crosses the
-                // exposed landing cell; that must not revoke an already-earned capture.
-                arrivalGate: () => CaptureGate(operation.captureTether != null,
-                    operation.captureEstablished),
                 arrivalVelocityTolerance: operation.executor.ArrivalVelocityTolerance,
                 arrivalApproachSpeed: operation.executor.ArrivalApproachSpeed);
             return universe.Autopilot.IsFollowing(subject, operation.reference);
         }
-
-        internal static bool CaptureGate(bool captureRequired, bool captureEstablished) =>
-            !captureRequired || captureEstablished;
 
         private bool ArrivalValid(SpaceObject source, Operation operation)
         {

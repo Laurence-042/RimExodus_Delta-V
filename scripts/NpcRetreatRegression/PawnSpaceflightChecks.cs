@@ -326,16 +326,23 @@ internal static partial class Program
         Check(CollisionCalls(autopilotStep).Any(method => method.DeclaringType
                 == typeof(LandingApproachController) && method.Name == "ApplyMotionContract")
             && autopilotFlight.GetField("arrivalGate",
-                BindingFlags.Instance | BindingFlags.Public) != null,
-            "reference navigation consumes the common EVA/personnel motion contract and a capture-ready arrival gate");
+                BindingFlags.Instance | BindingFlags.Public) == null,
+            "reference navigation consumes the common EVA/personnel motion contract without an arrival gate");
         Type hardDockOperation = typeof(HardDockingService).GetNestedType("Operation",
             BindingFlags.NonPublic);
+        InterfaceMapping personnelExecutorMap = typeof(PawnSpaceflightShip).GetInterfaceMap(typeof(IHardDockingExecutor));
+        MethodInfo ExecutorTarget(string name) => personnelExecutorMap.TargetMethods[
+            Array.FindIndex(personnelExecutorMap.InterfaceMethods, method => method.Name == name)];
         Check(hardDockOperation?.GetField("captureEstablished",
-                BindingFlags.Instance | BindingFlags.NonPublic) != null
-            && !HardDockingService.CaptureGate(true, false)
-            && HardDockingService.CaptureGate(true, true)
-            && HardDockingService.CaptureGate(false, false),
-            "hard docking requires one real capture but does not revoke it when the live line releases near entry");
+                BindingFlags.Instance | BindingFlags.NonPublic) == null
+            && typeof(HardDockingService).GetMethod("CaptureGate", BindingFlags.Static | BindingFlags.NonPublic) == null
+            && CollisionCalls(typeof(HardDockingService).GetMethod("EngageArrival",
+                BindingFlags.Instance | BindingFlags.NonPublic)).All(method => method.Name != "get_captureEstablished")
+            && CollisionCalls(typeof(HardDockingService).GetMethod("Tick", BindingFlags.Instance | BindingFlags.NonPublic))
+                .Any(method => method.Name == "MaintainDockingLink")
+            && !CollisionCalls(ExecutorTarget("ValidFor")).Any(method => method.Name == "GrappleFor")
+            && !CollisionCalls(ExecutorTarget("BlockReasonKey")).Any(method => method.Name == "GrappleFor"),
+            "hard docking completes on arrival alone; the tether only accelerates the approach and is never a boarding condition");
         FieldInfo defaultArrivalTolerance = typeof(ShipAutopilot).GetField(
             "DefaultArrivalVelocityTolerance", BindingFlags.Static | BindingFlags.NonPublic);
         FieldInfo personnelArrivalTolerance = typeof(PawnSpaceflightShip).GetField(
@@ -556,6 +563,12 @@ internal static partial class Program
             && CollisionCalls(typeof(UniverseManager).GetMethod(nameof(UniverseManager.LoadedGame)))
                 .Any(method => method.Name == "QueueFrameAction"),
             "load completion reapplies the ordinary focused-vessel manual control and fire-control policy");
+        MethodInfo focusSetterPostfix = AccessTools.Method(typeof(Patch_Game_CurrentMapFocus), "Postfix");
+        Check(focusSetterPostfix != null
+            && CollisionCalls(focusSetterPostfix).Any(method => method.Name == "ActivateFocusedVessel")
+            && !CollisionCalls(typeof(UniverseManager).GetMethod(nameof(UniverseManager.SetFocused)))
+                .Any(method => method.Name == "ActivateFocusedVessel"),
+            "every map switch applies the focused-vessel rule once, from the CurrentMap setter postfix");
         MethodInfo bilateral = typeof(ShipPhysics).GetMethod("ApplyTractorImpulse",
             BindingFlags.Static | BindingFlags.NonPublic, null,
             new[] { typeof(SpaceObject), typeof(UnityEngine.Vector2), typeof(SpaceObject),

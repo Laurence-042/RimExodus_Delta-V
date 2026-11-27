@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using Verse;
 using Verse.AI;
@@ -93,8 +94,8 @@ namespace DeltaV
 
         /// <summary>
         /// A focused, player-operable non-foundation vessel defaults to direct control only when no real
-        /// automatic operation is active. Direct-axis craft also restore their manual aim
-        /// session while armed.
+        /// automatic operation is active: manual piloting, armed weapons and manual fire control.
+        /// Direct-axis craft also restore their manual aim session while armed.
         /// </summary>
         internal void ActivateFocusedVessel(Map map)
         {
@@ -103,13 +104,18 @@ namespace DeltaV
             PlayerShipController player = PlayerFor(ship, debugTakeover: true);
             if (player == null) return;
             SpaceObject frame = universe.FrameOf(map);
-            bool automatic = player.HasActiveAutoTask
-                || universe.HardDocking.IsActive(frame)
-                || universe.Approach.FlowTarget.Identity == ship.Identity;
-            if (ship is not FoundationShip && !automatic
-                && universe.Pilot.GetControlState(ship) != ShipControlState.Manual)
+            bool takeover = ship is not FoundationShip
+                && !(player.HasActiveAutoTask
+                    || universe.HardDocking.IsActive(frame)
+                    || universe.Approach.FlowTarget.Identity == ship.Identity);
+            if (takeover && universe.Pilot.GetControlState(ship) != ShipControlState.Manual)
                 universe.Pilot.Enter(universe, ship);
-            if (ship.UsesCameraInput && WeaponsArmed(ship))
+            if (takeover && universe.Pilot.GetControlState(ship) == ShipControlState.Manual)
+            {
+                if (ship.Weapons.Any() && !WeaponsArmed(ship)) ArmWeapons(ship);
+                SetFireControlMode(ship, ShipFireControlMode.Manual);
+            }
+            else if (ship.UsesCameraInput && WeaponsArmed(ship))
                 SetFireControlMode(ship, ShipFireControlMode.Manual);
         }
 

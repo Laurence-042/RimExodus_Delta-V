@@ -58,6 +58,10 @@ namespace DeltaV
             if (universe?.TargetCamera is TargetCameraFocus focus && focus.SourceMap != focused)
                 universe.TargetCamera = null;
             universe?.ApplyCameraZoomScope(focused);
+            // 每次切入地图都应用聚焦船规则，不区分由哪个界面发起。读档在后台线程设置当前图，
+            // 其规则由读档收尾的帧动作重新应用。
+            if (focused != null && UnityData.IsInMainThread && Current.ProgramState == ProgramState.Playing)
+                universe?.Controls.ActivateFocusedVessel(focused);
             CameraDriver driver = Find.CameraDriver;
             if (driver?.config != null && driver.RootSize > driver.config.sizeRange.max)
                 driver.SetRootSize(driver.config.sizeRange.max);

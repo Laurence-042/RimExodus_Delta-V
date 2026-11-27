@@ -1390,7 +1390,7 @@ namespace DeltaV
 
         /// <summary>
         /// 切换聚焦参考系。只设置 CurrentMap——原版 setter 负责关闭 targeter、清选区、
-        /// 恢复该图记忆的相机位置。宇宙姿态不受影响。
+        /// 恢复该图记忆的相机位置，其补丁在切图后应用聚焦船规则。宇宙姿态不受影响。
         /// </summary>
         public void SetFocused(SpaceObject obj)
         {
@@ -1403,7 +1403,6 @@ namespace DeltaV
             Current.Game.CurrentMap = targetMap;
             // 与 PocketMapUtility 一致：确保回到地图视图而不是世界球面。
             Find.World.renderer.wantedMode = RimWorld.Planet.WorldRenderMode.None;
-            Controls.ActivateFocusedVessel(targetMap);
         }
 
         /// <summary>
