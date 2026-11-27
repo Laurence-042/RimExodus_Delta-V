@@ -114,6 +114,8 @@ The order roughly reflects priority, but work is not guaranteed to follow it, an
 　　Clear hostile people or creatures from a site
 - 进入beta/正式版本
 　Enter beta and full release
+- CE
+  CE
 - 更多武器机制（但弹体机制应该不会改了，基本上核心就是当前的动能弹体、激光弹体、导弹弹体三种）
 　More weapon mechanics. The projectile system itself should remain largely unchanged, with kinetic projectiles, laser projectiles, and missile projectiles as its three basic types.
 　- 参考cosmoteer的链炮、超大甲板炮、激光汇集之类的？

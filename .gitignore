@@ -32,5 +32,4 @@ scripts/CombatStrategyRegression/bin/
 /tmp/
 
 # 本地宣传视频
-/doc/promo/DeltaV_Gameplay_Promo.mp4
-/doc/art/promo/DeltaV_Gameplay_Promo.mp4
+videos/
