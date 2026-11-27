@@ -24,6 +24,9 @@ namespace DeltaV
             internal Vector2 fallbackDirection;
             internal float range;
             internal Vector2 placeholderCenter;
+            // The local placeholder cell this grant's OrderAttack drives toward. Only this
+            // exact target may bypass the source Verb's own range and sight validation.
+            internal IntVec3 protocolCell = IntVec3.Invalid;
             internal float spreadReferenceRange;
             internal float[] degenerateSpreadAngles;
             internal int emissionIndex;
@@ -110,6 +113,8 @@ namespace DeltaV
             };
             if (nativeVerbAuthorizations.TryGetValue(verb, out NativeFireAuthorization previous))
                 RemoveNativeAuthorization(previous);
+            authorization.protocolCell = new IntVec3(Mathf.FloorToInt(placeholderCenter.x), 0,
+                Mathf.FloorToInt(placeholderCenter.y));
             nativeVerbAuthorizations[verb] = authorization;
             nativeAuthorizationCount++;
             if (weapon != null) nativeWeaponAuthorizations[weapon] = authorization;
@@ -194,6 +199,32 @@ namespace DeltaV
                 || !nativeVerbAuthorizations.TryGetValue(verb,
                     out NativeFireAuthorization authorization)) return false;
             authorization.fallbackDirection = SpaceTransform.Rotate(Vector2.right, mapAngle).normalized;
+            return true;
+        }
+
+        internal bool TryGetNativeProtocolCell(Verb verb, out IntVec3 cell)
+        {
+            cell = IntVec3.Invalid;
+            return verb != null
+                && nativeVerbAuthorizations.TryGetValue(verb, out NativeFireAuthorization authorization)
+                && authorization.Valid(Find.TickManager.TicksGame)
+                && (cell = authorization.protocolCell).IsValid;
+        }
+
+        /// <summary>
+        /// Keeps a grant alive while a source implementation spends many ticks sweeping its
+        /// head or retrying warmup before the cast gate is finally reached.
+        /// </summary>
+        internal bool ExtendNativeAuthorization(Verb verb)
+        {
+            if (verb == null || !nativeVerbAuthorizations.TryGetValue(verb,
+                out NativeFireAuthorization authorization)) return false;
+            int now = Find.TickManager.TicksGame;
+            if (!authorization.Valid(now)) return false;
+            int burstWindow = Mathf.Max(1, verb.verbProps.burstShotCount)
+                * Mathf.Max(1, verb.verbProps.ticksBetweenBurstShots) + 60;
+            authorization.expiresTick = Mathf.Max(authorization.expiresTick,
+                Mathf.Max(now, authorization.warmupReadyTick) + burstWindow);
             return true;
         }
 

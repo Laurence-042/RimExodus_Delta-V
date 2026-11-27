@@ -93,12 +93,12 @@ internal static partial class Program
         Check(forceTargetPatch.Contains("NativeCastAuthorized(__instance.AttackVerb) == true")
             && forceTargetPatch.Contains("__result ="),
             "authorized native turret targets survive source warmup while unauthorized forced targets remain disabled");
-        Check(turretBridge.Contains("TryProtocolCell(turret, verb")
+        Check(turretBridge.Contains("TryProtocolCell(turret, verb, shot.launchMapAngle")
             && turretBridge.Contains("EffectiveMinRange(localTarget, turret)")
-            && turretBridge.Contains("cellDistance > verb.EffectiveRange")
-            && !turretBridge.Contains("TryProtocolCell(turret, verb, direction")
+            && turretBridge.Contains("cellDistance <= verb.EffectiveRange")
+            && turretBridge.Contains("fallback.IsValid")
             && turretBridge.Contains("CancelNativeFire(verb, weapon)"),
-            "native turret protocol cells satisfy source minimum and maximum range without encoding aim direction");
+            "protocol cells encode the launch bearing, prefer source range bands and never fail on map edges or long minimum ranges");
         Check(turretPatch.Contains("class Patch_BuildingTurretGun_AutoSpaceTick")
             && turretPatch.Contains("PrepareAuthorizedTick(__instance)")
             && turretPatch.Contains("RestoreAuthorizedTraverse(__instance)")
@@ -107,17 +107,46 @@ internal static partial class Program
             && nativeService.Contains("TryGetNativeWarmupRemaining")
             && nativeService.Contains("authorization.warmupReadyTick + burstWindow"),
             "adapted turret orientation and warmup use authorized Traverse state instead of the protocol cell");
+        int castGateStart = nativePatch.IndexOf("class Patch_NativeSpaceWeapon_TryStartCastOn", StringComparison.Ordinal);
+        int exemptionStart = nativePatch.IndexOf("class Patch_Verb_ProtocolCellExemption", StringComparison.Ordinal);
+        string castGate = castGateStart >= 0 && exemptionStart > castGateStart
+            ? nativePatch.Substring(castGateStart, exemptionStart - castGateStart) : "";
+        Check(castGate.Contains("RefreshNativeFireDirection(__instance, traverse.CurrentAngle)")
+            && castGate.Contains("ExtendNativeAuthorization(__instance)")
+            && castGate.Contains("ReauthorizeNativeCast(rebuild, __instance)")
+            && turretBridge.Contains("internal static bool ReauthorizeNativeCast(Building_Turret turret, Verb verb)")
+            && turretBridge.Contains("verb.state == VerbState.Bursting || weapon.nativeLaunchUnsupported")
+            && nativeService.Contains("ExtendNativeAuthorization"),
+            "the cast gate renews direction and expiry on site and rebuilds an expired grant from live turret state");
+        Check(exemptionStart >= 0
+            && nativePatch.Contains("TryGetNativeProtocolCell(__instance, out IntVec3 cell)")
+            && nativePatch.Contains("targ.Cell != cell")
+            && nativePatch.Contains("new ShootLine(root, cell)")
+            && nativeService.Contains("TryGetNativeProtocolCell")
+            && nativeService.Contains("authorization.protocolCell = new IntVec3("),
+            "only the registered placeholder cell bypasses local range and sight validation at the shoot-line choke point");
+        MethodInfo shootLine = typeof(Verb).GetMethod("TryFindShootLineFromTo",
+            BindingFlags.Instance | BindingFlags.Public, null,
+            new[] { typeof(IntVec3), typeof(LocalTargetInfo), typeof(ShootLine).MakeByRefType(), typeof(bool) }, null);
+        Check(shootLine != null && shootLine.GetParameters()[2].IsOut
+            && nativePatch.Contains("VerbShootLineMethods()"),
+            "the exemption hook binds the real TryFindShootLineFromTo declaration of the running assembly");
+        Check(turretPatch.Contains("typeof(Building_Turret).AllSubclasses()")
+            && turretPatch.Contains("method.IsAbstract")
+            && turretPatch.Contains("Prefix(Building_Turret __instance)")
+            && !turretPatch.Contains("Prefix(Building_TurretGun __instance)"),
+            "turret patches cover every Building_Turret implementation with contract-filtered name matches");
         Check(turretPatch.Contains("class Patch_BuildingTurretGun_AutoSpaceSelectionOverlay")
             && turretPatch.Contains("nameof(Building_TurretGun.DrawExtraSelectionOverlays)")
             && turretPatch.Contains("HideProtocolTargetForSelectionOverlay(__instance)")
             && turretPatch.Contains("RestoreProtocolTargetAfterSelectionOverlay(")
             && turretPatch.Contains("public static Exception Finalizer")
-            && turretBridge.Contains("ForcedTarget(turret) = LocalTargetInfo.Invalid")
-            && turretBridge.Contains("CurrentTarget(turret) = LocalTargetInfo.Invalid")
-            && turretBridge.Contains("BurstWarmup(turret) = 0")
-            && turretBridge.Contains("ForcedTarget(turret) = state.forcedTarget")
-            && turretBridge.Contains("CurrentTarget(turret) = state.currentTarget")
-            && turretBridge.Contains("BurstWarmup(turret) = state.warmupTicks"),
+            && turretBridge.Contains("ForcedTarget(gun) = LocalTargetInfo.Invalid")
+            && turretBridge.Contains("CurrentTarget(gun) = LocalTargetInfo.Invalid")
+            && turretBridge.Contains("BurstWarmup(gun) = 0")
+            && turretBridge.Contains("ForcedTarget(gun) = state.forcedTarget")
+            && turretBridge.Contains("CurrentTarget(gun) = state.currentTarget")
+            && turretBridge.Contains("BurstWarmup(gun) = state.warmupTicks"),
             "protocol targets are hidden only for source selection overlays and restored even when drawing throws");
         Check(nativeService.Contains("warmupStartedTick")
             && nativeService.Contains("warmupDurationTicks")

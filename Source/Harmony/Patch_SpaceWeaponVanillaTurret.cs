@@ -8,27 +8,54 @@ using UnityEngine;
 
 namespace DeltaV
 {
+    /// <summary>
+    /// Patch roots span every Building_Turret implementation, not only Building_TurretGun
+    /// subclasses: source mods may rebuild turret logic straight on the abstract base. Name
+    /// matches stay constrained by return type and parameters so a same-named third-party
+    /// member with a different contract can never break patch assembly.
+    /// </summary>
     internal static class AutoSpaceWeaponTurretPatchTargets
     {
-        internal static IEnumerable<MethodBase> DeclaredMethods(string name)
+        private static IEnumerable<System.Type> TurretTypes()
         {
-            MethodInfo root = AccessTools.DeclaredMethod(typeof(Building_TurretGun), name);
-            if (root != null) yield return root;
-            foreach (System.Type type in typeof(Building_TurretGun).AllSubclasses())
+            yield return typeof(Building_Turret);
+            foreach (System.Type type in typeof(Building_Turret).AllSubclasses()) yield return type;
+        }
+
+        internal static IEnumerable<MethodBase> DeclaredMethods(string name, Type returnType,
+            params Type[] parameters)
+        {
+            foreach (System.Type type in TurretTypes())
             {
-                MethodInfo method = AccessTools.DeclaredMethod(type, name);
-                if (method != null) yield return method;
+                foreach (MethodInfo method in type.GetMethods(BindingFlags.Instance
+                    | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+                {
+                    if (method.IsAbstract || method.Name != name
+                        || method.ReturnType != returnType) continue;
+                    ParameterInfo[] actual = method.GetParameters();
+                    if (actual.Length != parameters.Length) continue;
+                    bool mismatch = false;
+                    for (int index = 0; index < parameters.Length; index++)
+                    {
+                        if (actual[index].ParameterType != parameters[index])
+                        {
+                            mismatch = true;
+                            break;
+                        }
+                    }
+                    if (mismatch) continue;
+                    yield return method;
+                }
             }
         }
 
         internal static IEnumerable<MethodBase> DeclaredGetters(string name)
         {
-            MethodInfo root = AccessTools.DeclaredPropertyGetter(typeof(Building_TurretGun), name);
-            if (root != null) yield return root;
-            foreach (System.Type type in typeof(Building_TurretGun).AllSubclasses())
+            foreach (System.Type type in TurretTypes())
             {
-                MethodInfo method = AccessTools.DeclaredPropertyGetter(type, name);
-                if (method != null) yield return method;
+                MethodInfo getter = AccessTools.DeclaredProperty(type, name)?.GetGetMethod(true);
+                if (getter != null && !getter.IsAbstract && getter.ReturnType == typeof(bool))
+                    yield return getter;
             }
         }
     }
@@ -83,21 +110,28 @@ namespace DeltaV
     public static class Patch_BuildingTurretGun_SpaceWeaponAlignment
     {
         public static IEnumerable<MethodBase> TargetMethods() =>
-            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods("BeginBurst");
+            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods("BeginBurst", typeof(void));
 
-        public static bool Prefix(Building_TurretGun __instance)
+        public static bool Prefix(Building_Turret __instance)
         {
             if (AutoSpaceWeaponTurretBridge.IsAdapted(__instance))
             {
                 if (!AutoSpaceWeaponTurretBridge.SpaceMode(__instance)) return true;
                 SpaceProjectileService projectiles = Current.Game?.GetComponent<UniverseManager>()?.Projectiles;
                 CompSpaceWeaponTraverse adaptedTraverse = __instance.TryGetComp<CompSpaceWeaponTraverse>();
-                return adaptedTraverse != null
-                    && projectiles?.RefreshNativeFireDirection(__instance.AttackVerb,
-                        adaptedTraverse.CurrentAngle) == true;
+                if (projectiles == null || adaptedTraverse == null) return true;
+                // 授权判据统一在来源 Verb 的发射门执行：这里只顺带续期方向，放行 BeginBurst，
+                // 过期授权由发射门现场重建或拦截；先拦 BeginBurst 会挡住非 TurretGun 来源
+                // 到达发射门的路径，重现授权死锁。
+                if (projectiles.NativeCastAuthorized(__instance.AttackVerb))
+                    projectiles.RefreshNativeFireDirection(__instance.AttackVerb,
+                        adaptedTraverse.CurrentAngle);
+                return true;
             }
             CompSpaceWeaponTraverse traverse = __instance.TryGetComp<CompSpaceWeaponTraverse>();
             if (traverse == null || !__instance.CurrentTarget.IsValid) return true;
+            Verb verb = __instance.AttackVerb;
+            if (verb == null) return true;
             float angle = CompSpaceWeaponTraverse.MapAngleTo(__instance.CurrentTarget, __instance);
             traverse.AimAtVanilla(angle);
             CompSpaceWeapon weapon = __instance.TryGetComp<CompSpaceWeapon>();
@@ -110,12 +144,12 @@ namespace DeltaV
     public static class Patch_BuildingTurretGun_AutoSpaceTick
     {
         public static IEnumerable<MethodBase> TargetMethods() =>
-            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods("Tick");
+            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods("Tick", typeof(void));
 
-        public static void Prefix(Building_TurretGun __instance) =>
+        public static void Prefix(Building_Turret __instance) =>
             AutoSpaceWeaponTurretBridge.PrepareAuthorizedTick(__instance);
 
-        public static void Postfix(Building_TurretGun __instance) =>
+        public static void Postfix(Building_Turret __instance) =>
             AutoSpaceWeaponTurretBridge.RestoreAuthorizedTraverse(__instance);
     }
 
@@ -124,13 +158,13 @@ namespace DeltaV
     {
         public static IEnumerable<MethodBase> TargetMethods() =>
             AutoSpaceWeaponTurretPatchTargets.DeclaredMethods(
-                nameof(Building_TurretGun.DrawExtraSelectionOverlays));
+                nameof(Building_TurretGun.DrawExtraSelectionOverlays), typeof(void));
 
-        public static void Prefix(Building_TurretGun __instance,
+        public static void Prefix(Building_Turret __instance,
             out AutoSpaceWeaponTurretBridge.SelectionOverlayState __state) =>
             __state = AutoSpaceWeaponTurretBridge.HideProtocolTargetForSelectionOverlay(__instance);
 
-        public static Exception Finalizer(Building_TurretGun __instance,
+        public static Exception Finalizer(Building_Turret __instance,
             AutoSpaceWeaponTurretBridge.SelectionOverlayState __state, Exception __exception)
         {
             AutoSpaceWeaponTurretBridge.RestoreProtocolTargetAfterSelectionOverlay(
@@ -143,9 +177,10 @@ namespace DeltaV
     public static class Patch_BuildingTurretGun_AutoSpaceTargetSearch
     {
         public static IEnumerable<MethodBase> TargetMethods() =>
-            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods(nameof(Building_TurretGun.TryFindNewTarget));
+            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods(nameof(Building_TurretGun.TryFindNewTarget),
+                typeof(LocalTargetInfo));
 
-        public static bool Prefix(Building_TurretGun __instance, ref LocalTargetInfo __result)
+        public static bool Prefix(Building_Turret __instance, ref LocalTargetInfo __result)
         {
             if (!AutoSpaceWeaponTurretBridge.SpaceMode(__instance)) return true;
             __result = LocalTargetInfo.Invalid;
@@ -157,9 +192,10 @@ namespace DeltaV
     public static class Patch_BuildingTurretGun_AutoSpaceForcedTarget
     {
         public static IEnumerable<MethodBase> TargetMethods() =>
-            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods(nameof(Building_TurretGun.OrderAttack));
+            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods(nameof(Building_TurretGun.OrderAttack),
+                typeof(void), typeof(LocalTargetInfo));
 
-        public static bool Prefix(Building_TurretGun __instance, LocalTargetInfo targ) =>
+        public static bool Prefix(Building_Turret __instance, LocalTargetInfo targ) =>
             !AutoSpaceWeaponTurretBridge.SpaceMode(__instance) || !targ.IsValid
             || Current.Game?.GetComponent<UniverseManager>()?.Projectiles
                 .NativeCastAuthorized(__instance.AttackVerb) == true;
@@ -171,7 +207,7 @@ namespace DeltaV
         public static IEnumerable<MethodBase> TargetMethods() =>
             AutoSpaceWeaponTurretPatchTargets.DeclaredGetters("CanSetForcedTarget");
 
-        public static void Postfix(Building_TurretGun __instance, ref bool __result)
+        public static void Postfix(Building_Turret __instance, ref bool __result)
         {
             if (!AutoSpaceWeaponTurretBridge.SpaceMode(__instance)) return;
             __result = Current.Game?.GetComponent<UniverseManager>()?.Projectiles
@@ -185,7 +221,7 @@ namespace DeltaV
         public static IEnumerable<MethodBase> TargetMethods() =>
             AutoSpaceWeaponTurretPatchTargets.DeclaredGetters("HideForceTargetGizmo");
 
-        public static void Postfix(Building_TurretGun __instance, ref bool __result)
+        public static void Postfix(Building_Turret __instance, ref bool __result)
         {
             if (AutoSpaceWeaponTurretBridge.SpaceMode(__instance)) __result = true;
         }
@@ -195,9 +231,10 @@ namespace DeltaV
     public static class Patch_BuildingTurretGun_AutoSpaceGizmos
     {
         public static IEnumerable<MethodBase> TargetMethods() =>
-            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods(nameof(Building_TurretGun.GetGizmos));
+            AutoSpaceWeaponTurretPatchTargets.DeclaredMethods(nameof(Building_TurretGun.GetGizmos),
+                typeof(IEnumerable<Gizmo>));
 
-        public static void Postfix(Building_TurretGun __instance, ref IEnumerable<Gizmo> __result)
+        public static void Postfix(Building_Turret __instance, ref IEnumerable<Gizmo> __result)
         {
             if (AutoSpaceWeaponTurretBridge.SpaceMode(__instance))
                 __result = WithoutVanillaHoldFire(__result);

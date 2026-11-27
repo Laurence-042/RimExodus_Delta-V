@@ -20,9 +20,22 @@ namespace DeltaV
         ISpaceWeaponFireGate, ISpaceWeaponLaunch, ISpaceWeaponOwnsCommit
     {
         private Building_Turret Turret => parent as Building_Turret;
+        private CompSpaceWeapon weaponComp;
         public Material ShellTopMaterial => Turret?.TurretTopMaterial;
-        public float ShellTopAngle => Turret?.CurrentEffectiveVerb?.AimAngleOverride
-            ?? (Turret as Building_TurretGun)?.Top?.CurRotation ?? parent.Rotation.AsAngle;
+
+        public float ShellTopAngle
+        {
+            get
+            {
+                // In space a map-local AimAngleOverride describes the protocol cell or another
+                // local artifact, never the universe ray; only the Traverse angle is the aim truth.
+                weaponComp ??= parent.TryGetComp<CompSpaceWeapon>();
+                float? localOverride = weaponComp?.SpaceModeEnabled == true
+                    ? (float?)null : Turret?.CurrentEffectiveVerb?.AimAngleOverride;
+                return localOverride ?? (Turret as Building_TurretGun)?.Top?.CurRotation
+                    ?? parent.Rotation.AsAngle;
+            }
+        }
 
         public bool CanFire(SpaceWeaponShot shot)
         {
@@ -128,7 +141,7 @@ namespace DeltaV
                 return false;
 
             Vector2 direction = SpaceTransform.Rotate(Vector2.right, shot.launchMapAngle);
-            if (!TryProtocolCell(turret, verb, out IntVec3 target))
+            if (!TryProtocolCell(turret, verb, shot.launchMapAngle, out IntVec3 target))
             {
                 universe.Projectiles.CancelNativeFire(verb, weapon);
                 return false;
@@ -169,50 +182,95 @@ namespace DeltaV
             return started;
         }
 
-        private static bool TryProtocolCell(Building_Turret turret, Verb verb, out IntVec3 target)
+        /// <summary>
+        /// Rebuilds a fire authorization from the turret's live state when a source Verb
+        /// reaches its cast gate after the original grant expired during a long third-party
+        /// warmup or head sweep. Space-mode current targets only ever come from fire control,
+        /// so this can never conjure a shot the universe did not intend.
+        /// </summary>
+        internal static bool ReauthorizeNativeCast(Building_Turret turret, Verb verb)
+        {
+            CompSpaceWeapon weapon = turret?.TryGetComp<CompSpaceWeapon>();
+            CompSpaceWeaponTraverse traverse = turret?.TryGetComp<CompSpaceWeaponTraverse>();
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (weapon?.parent != turret || traverse == null || universe == null || turret.Map == null
+                || verb == null || verb.state == VerbState.Bursting || weapon.nativeLaunchUnsupported
+                || !turret.CurrentTarget.IsValid) return false;
+            Vector3 placeholder = turret.CurrentTarget.Cell.ToVector3Shifted();
+            int warmup = Mathf.CeilToInt(Mathf.Max(0f,
+                turret.def.building?.turretBurstWarmupTime.Average ?? 0f) * 60f);
+            int duration = Mathf.Max(120, warmup + verb.verbProps.burstShotCount
+                * Mathf.Max(1, verb.verbProps.ticksBetweenBurstShots) + 60);
+            universe.Projectiles.AuthorizeNativeFire(verb, weapon, turret.Map,
+                SpaceTransform.Rotate(Vector2.right, traverse.CurrentAngle),
+                Mathf.Max(weapon.EffectiveRange, verb.EffectiveRange),
+                new Vector2(placeholder.x, placeholder.z), verb.EffectiveRange, duration);
+            if (turret is Building_TurretGun gun)
+                universe.Projectiles.SetNativeWarmupDeadline(verb, BurstWarmup(gun));
+            return true;
+        }
+
+        private static bool TryProtocolCell(Building_Turret turret, Verb verb,
+            float launchMapAngle, out IntVec3 target)
         {
             Map map = turret.Map;
-            target = turret.Position;
+            target = IntVec3.Invalid;
+            if (map == null) return false;
             int limit = Mathf.Min(Mathf.CeilToInt(Mathf.Max(1f, verb.EffectiveRange)),
                 Mathf.CeilToInt(Mathf.Sqrt(map.Size.x * map.Size.x + map.Size.z * map.Size.z)) + 1);
             Vector2 origin = new Vector2(turret.Position.x + .5f, turret.Position.z + .5f);
-            // This cell only satisfies the source OrderAttack/Verb contract. It deliberately
-            // does not encode the universe aim ray; Traverse is the sole orientation source.
-            for (int distance = limit; distance >= 1; distance--)
+            IntVec3 fallback = IntVec3.Invalid;
+            // The cell is a bearing proxy for the universe aim ray so self-aiming turret heads
+            // turn toward the real target. Distance only ranks candidates: source range bands
+            // come first, but map edges or a long source minimum range never refuse the shot.
+            for (int spoke = 0; spoke <= 16; spoke++)
             {
-                for (int spoke = 0; spoke < 16; spoke++)
+                float spread = spoke * (Mathf.PI / 8f);
+                for (int side = 0; side < (spoke == 0 ? 1 : 2); side++)
                 {
-                    Vector2 ray = SpaceTransform.Rotate(Vector2.right, spoke * Mathf.PI / 8f);
-                    Vector2 point = origin + ray * distance;
-                    IntVec3 cell = new IntVec3(Mathf.FloorToInt(point.x), 0, Mathf.FloorToInt(point.y));
-                    if (!cell.InBounds(map) || cell == turret.Position) continue;
-                    float cellDistance = (cell - turret.Position).LengthHorizontal;
-                    var localTarget = new LocalTargetInfo(cell);
-                    if (cellDistance < verb.verbProps.EffectiveMinRange(localTarget, turret)
-                        || cellDistance > verb.EffectiveRange) continue;
-                    target = cell;
-                    return true;
+                    Vector2 ray = SpaceTransform.Rotate(Vector2.right,
+                        launchMapAngle + (side == 0 ? spread : -spread));
+                    for (int distance = limit; distance >= 1; distance--)
+                    {
+                        Vector2 point = origin + ray * distance;
+                        IntVec3 cell = new IntVec3(Mathf.FloorToInt(point.x), 0,
+                            Mathf.FloorToInt(point.y));
+                        if (!cell.InBounds(map) || cell == turret.Position) continue;
+                        float cellDistance = (cell - turret.Position).LengthHorizontal;
+                        var localTarget = new LocalTargetInfo(cell);
+                        if (cellDistance >= verb.verbProps.EffectiveMinRange(localTarget, turret)
+                            && cellDistance <= verb.EffectiveRange)
+                        {
+                            target = cell;
+                            return true;
+                        }
+                        if (!fallback.IsValid) fallback = cell;
+                    }
                 }
             }
-            return false;
+            if (!fallback.IsValid) return false;
+            target = fallback;
+            return true;
         }
 
-        internal static void PrepareAuthorizedTick(Building_TurretGun turret)
+        internal static void PrepareAuthorizedTick(Building_Turret turret)
         {
-            if (!SpaceMode(turret)) return;
+            // Only Building_TurretGun exposes the warmup field Delta-V drives back; other
+            // source implementations keep their own warmup state untouched.
+            if (turret is not Building_TurretGun gun || !SpaceMode(gun)) return;
             SpaceProjectileService projectiles = Current.Game?.GetComponent<UniverseManager>()?.Projectiles;
             if (projectiles == null || !projectiles.TryGetNativeWarmupRemaining(
-                turret.AttackVerb, out int remaining)) return;
-            if (remaining >= 0 && turret.AttackVerb.state != VerbState.Bursting
-                && turret.CurrentTarget.IsValid)
-                BurstWarmup(turret) = Mathf.Max(1, remaining);
+                gun.AttackVerb, out int remaining)) return;
+            if (remaining >= 0 && gun.AttackVerb.state != VerbState.Bursting
+                && gun.CurrentTarget.IsValid)
+                BurstWarmup(gun) = Mathf.Max(1, remaining);
         }
 
-        internal static void RestoreAuthorizedTraverse(Building_TurretGun turret)
+        internal static void RestoreAuthorizedTraverse(Building_Turret turret)
         {
-            if (!SpaceMode(turret)
-                || turret.TryGetComp<CompSpaceWeaponTraverse>() is not { } traverse) return;
-            turret.Top.CurRotation = 90f - traverse.CurrentAngle * Mathf.Rad2Deg;
+            if (turret is not Building_TurretGun gun || !SpaceMode(gun)
+                || gun.TryGetComp<CompSpaceWeaponTraverse>() is not { } traverse) return;
+            gun.Top.CurRotation = 90f - traverse.CurrentAngle * Mathf.Rad2Deg;
         }
 
         internal readonly struct SelectionOverlayState
@@ -233,26 +291,29 @@ namespace DeltaV
         }
 
         internal static SelectionOverlayState HideProtocolTargetForSelectionOverlay(
-            Building_TurretGun turret)
+            Building_Turret turret)
         {
-            if (!SpaceMode(turret)) return default;
-            var state = new SelectionOverlayState(ForcedTarget(turret), CurrentTarget(turret),
-                BurstWarmup(turret));
+            // The vanilla field swap only exists for Building_TurretGun. Other source
+            // implementations keep their native overlays; with bearing-aligned protocol
+            // cells those visuals point at the real target instead of misleading.
+            if (turret is not Building_TurretGun gun || !SpaceMode(gun)) return default;
+            var state = new SelectionOverlayState(ForcedTarget(gun), CurrentTarget(gun),
+                BurstWarmup(gun));
             // Protocol cells exist only to drive the source firing transaction. Selection
             // overlays must not expose their arbitrary local position as an aim direction.
-            ForcedTarget(turret) = LocalTargetInfo.Invalid;
-            CurrentTarget(turret) = LocalTargetInfo.Invalid;
-            BurstWarmup(turret) = 0;
+            ForcedTarget(gun) = LocalTargetInfo.Invalid;
+            CurrentTarget(gun) = LocalTargetInfo.Invalid;
+            BurstWarmup(gun) = 0;
             return state;
         }
 
-        internal static void RestoreProtocolTargetAfterSelectionOverlay(Building_TurretGun turret,
+        internal static void RestoreProtocolTargetAfterSelectionOverlay(Building_Turret turret,
             SelectionOverlayState state)
         {
-            if (!state.hidden) return;
-            ForcedTarget(turret) = state.forcedTarget;
-            CurrentTarget(turret) = state.currentTarget;
-            BurstWarmup(turret) = state.warmupTicks;
+            if (!state.hidden || turret is not Building_TurretGun gun) return;
+            ForcedTarget(gun) = state.forcedTarget;
+            CurrentTarget(gun) = state.currentTarget;
+            BurstWarmup(gun) = state.warmupTicks;
         }
 
         internal static void DrawNativeWarmupIndicator(Building_TurretGun turret)

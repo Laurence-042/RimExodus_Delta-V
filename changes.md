@@ -6,16 +6,10 @@ This file records player-visible changes in released versions and the near-term 
 ## 下一版本计划 / Next version plan
 
 
-@jeff_steveng之前报告的归档空间站无法还原的问题已在未发布版本修复。但还有个遗留计划：空间站自维持尚未实现，在那之前玩家离开后 NPC 船员仍可能饿死。
 
 - 为跳帮艇被击毁时的乘员死亡补充明确通知？单纯爆开把乘员无伤扔出来？
 
 ## 基于收集的用户反馈的正在排期的需求（排名不分先后）
-
-@C鼬柠檬茶（bilibili）：空间站仓库里的东西免费拿真的没问题吗，我前期就靠这个苟着
-- 当前空间站仓库里的物品可以直接拿。考虑给非封存态的货仓也加基于派系的去用判断，应该不需要影响其他储物设备，否则一些mod给玩家的“来自盟友的战前补给”就会很黑色幽默
-
-@C鼬柠檬茶（bilibili）：当前空间站的地板和地基没有拆除鉴权
 
 @某光头的神棍先知（bilibili）：希望能兼容VGE，我要造10000格以上的超级大飞船去肘击敌人，最好把VGEC2的敌方飞船和战斗空间站也做成可以这样战斗[doge][doge][doge]
 - 考虑禁用VGEC2的飞船战斗机制，但是适配其武器，将其事件触发转接到DeltaV的类似袭击事件生成上——需要明确VGE的飞船推进器可能不足以承担DeltaV的战斗要求，可能会在转向能力限制下做出愚蠢的行为
@@ -26,6 +20,21 @@ This file records player-visible changes in released versions and the near-term 
 
 @Alexquiet：could you please increase the quantity of goods available at stations?
 - 这个功能现在其实有点占位的感觉……目前其核心机制其实是直接调用原版商人库存生成器，所以原版商人卖多少它就在补货时使用多少货物替换供货的锁定货柜的内容（会强制预留1/3的空间用来放玩家卖出的货物，所以总是不会满）。实际数量我还没有做好平衡。贸易系统仍是一个占位符，仅在此处用于演示。除了这个空间站，其他所有贸易站都有自动生成的布局和货柜接线，不保证能正常工作。我们还计划在“空间站自给自足”开发目标完成后，对贸易系统进行大幅重构，替换掉目前这种实际上只是原版商人的机制
+
+@瓦斯气体（bilibili）：问下左边的操作菜单能不能移动，会跟角色日志和装备按钮形成干涉 
+- 暂时不行，可以在0.1.4加
+
+@不看路的路人（bilibili）：子弹打护盾的声音有些太刺耳了。考虑到模组中似乎也在真空中做了声音适配，把子弹打到护盾上的声音改成固体传导或稀薄空气下传导的沉闷声音会不会更有代入感。[鼓掌]
+- 啊，确实，做舱壁受击声音后处理的时候忘记一起做护盾受击和护盾失效了，如果没有意外我应该能在0.1.4把它整好
+
+@jeff_steveng之前报告的归档空间站无法还原的问题已在未发布版本修复。但还有个遗留计划：空间站自维持尚未实现，在那之前玩家离开后 NPC 船员仍可能饿死。
+
+@C鼬柠檬茶（bilibili）：空间站仓库里的东西免费拿真的没问题吗，我前期就靠这个苟着
+- 当前空间站仓库里的物品可以直接拿。考虑给非封存态的货仓也加基于派系的去用判断，应该不需要影响其他储物设备，否则一些mod给玩家的“来自盟友的战前补给”就会很黑色幽默
+- 最好把空间站自维持搞定后再做
+
+@C鼬柠檬茶（bilibili）：当前空间站的地板和地基没有拆除鉴权
+- 最好把空间站自维持搞定后再做
 
 ## 一些俺寻思
 
@@ -40,6 +49,9 @@ This file records player-visible changes in released versions and the near-term 
 ### 未发布 / Unreleased
 
 #### 修复 / Fixes
+
+- 修复 Milira 一类自建炮塔逻辑的 Mod 炮塔在太空模式既不跟随瞄准也无法开火，以及 Dead man switch 类武器开火瞬间炮口甩向无关方向的问题。自动适配的接管面从原版 `Building_TurretGun` 子类扩大到全部 `Building_Turret` 实现：开火授权改在来源武器发射门现场续期与重建，第三方炮塔的慢速摆头和长预热不再令授权过期死锁；本地协议格改为发射方位的代理，来源对它做的本地射程／视线判定由火控替答，炮塔贴边或最小射程过大不再直接拒射；太空模式下不再采信来源武器的本地瞄准角覆盖绘制炮身。非原版结构的炮塔保留其原生预热与选中指示（方向已对齐真实目标）。
+  Fixed mod turrets that rebuild turret logic on the abstract base (e.g. Milira) neither tracking nor firing in space mode, and Dead-man-switch-style weapons snapping their muzzle elsewhere the moment they fire. Adaptation now spans every `Building_Turret` implementation instead of only `Building_TurretGun` subclasses: the cast gate renews or rebuilds the fire authorization on site so slow third-party head sweeps and long warmups no longer deadlock; the local protocol cell is now a bearing proxy whose local range and sight checks are answered by fire control, so map edges or a long minimum range never refuse the shot; and in space mode a source verb's local aim-angle override is no longer trusted when drawing the turret head. Non-vanilla turrets keep their native warmup and selection visuals, now pointing at the real target.
 
 - 修复 EVA 登舰时在所选格附近来回移动、无法进入：人员与 EVA 的登舰完成不再要求钩索曾经挂上目标，钩索只作为可选加速；EVA 未启用武装或钩索不可用时仅用推进器进场。
   Fixed EVA boarding oscillating around the selected cell without entering. Personnel and EVA boarding no longer requires the tether to have hooked the target: the tether is an optional accelerator, and an EVA without an armed or usable tether approaches on thrusters alone.

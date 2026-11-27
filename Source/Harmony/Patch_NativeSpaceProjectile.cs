@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
+using RimWorld;
 using Verse;
 
 namespace DeltaV
@@ -22,6 +23,12 @@ namespace DeltaV
             typeof(bool), typeof(bool)
         };
 
+        private static readonly Type[] ShootLineSignature =
+        {
+            typeof(IntVec3), typeof(LocalTargetInfo), typeof(ShootLine).MakeByRefType(),
+            typeof(bool)
+        };
+
         internal static IEnumerable<MethodBase> ProjectileMethods(string name, Type[] signature)
             => DeclaredVirtualMethods(typeof(Verse.Projectile), name, signature);
 
@@ -30,6 +37,9 @@ namespace DeltaV
 
         internal static IEnumerable<MethodBase> VerbShotMethods()
             => DeclaredVirtualMethods(typeof(Verb), "TryCastShot", Type.EmptyTypes);
+
+        internal static IEnumerable<MethodBase> VerbShootLineMethods()
+            => DeclaredVirtualMethods(typeof(Verb), "TryFindShootLineFromTo", ShootLineSignature);
 
         private static IEnumerable<MethodBase> DeclaredVirtualMethods(Type root, string name,
             Type[] signature)
@@ -99,7 +109,12 @@ namespace DeltaV
         }
     }
 
-    /// <summary>Space-mode adapted turrets may start their real Verb only through Delta-V fire control.</summary>
+    /// <summary>
+    /// Space-mode adapted turrets may start their real Verb only through Delta-V fire control.
+    /// The gate is also the authorization point: it renews the granted ray to the live muzzle
+    /// and can rebuild an expired grant, so source implementations whose warmup or head sweep
+    /// outlives the original grant window still fire instead of deadlocking here.
+    /// </summary>
     [HarmonyPatch]
     internal static class Patch_NativeSpaceWeapon_TryStartCastOn
     {
@@ -113,8 +128,47 @@ namespace DeltaV
             if (weapon?.SpaceModeEnabled != true
                 || !AutoSpaceWeaponTurretBridge.IsNativeAdapted(caster.def)) return true;
             UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
-            if (universe?.Projectiles.NativeCastAuthorized(__instance) == true) return true;
+            SpaceProjectileService projectiles = universe?.Projectiles;
+            if (projectiles == null) return true;
+            if (projectiles.NativeCastAuthorized(__instance))
+            {
+                if (caster is Building_Turret turret
+                    && turret.TryGetComp<CompSpaceWeaponTraverse>() is { } traverse)
+                {
+                    projectiles.RefreshNativeFireDirection(__instance, traverse.CurrentAngle);
+                    projectiles.ExtendNativeAuthorization(__instance);
+                }
+                return true;
+            }
+            if (caster is Building_Turret rebuild
+                && AutoSpaceWeaponTurretBridge.ReauthorizeNativeCast(rebuild, __instance))
+                return true;
             __result = false;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 太空模式下协议格只是发射方位的本地代理，来源 Verb 对它做的本地射程／视线判定由火控替答；
+    /// 地面模式与未登记的本地目标保持原版判定。
+    /// </summary>
+    [HarmonyPatch]
+    internal static class Patch_Verb_ProtocolCellExemption
+    {
+        private static IEnumerable<MethodBase> TargetMethods() =>
+            NativeSpaceProjectilePatchTargets.VerbShootLineMethods();
+
+        private static bool Prefix(Verb __instance, IntVec3 root, LocalTargetInfo targ,
+            ref ShootLine resultingLine, ref bool __result)
+        {
+            if (__instance?.Caster is not Building_Turret turret
+                || !AutoSpaceWeaponTurretBridge.SpaceMode(turret)
+                || !AutoSpaceWeaponTurretBridge.IsNativeAdapted(turret.def)) return true;
+            UniverseManager universe = Current.Game?.GetComponent<UniverseManager>();
+            if (universe?.Projectiles.TryGetNativeProtocolCell(__instance, out IntVec3 cell) != true
+                || targ.Cell != cell) return true;
+            resultingLine = new ShootLine(root, cell);
+            __result = true;
             return false;
         }
     }
